@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mintzy Plugin — Connection Error</title>
+  <link rel="stylesheet" href="../login/login.css">
+  <style>
+    .icon { font-size: 40px; text-align: center; margin-bottom: 16px; color: #f85149; }
+    .detail { font-size: 14px; color: #8b949e; text-align: center; margin-bottom: 24px; line-height: 1.6; }
+    .action-area { text-align: center; }
+    .action-area .hint { font-size: 12px; color: #484f58; margin-top: 12px; }
+    #retry-btn { width: 100%; padding: 12px; background: #21262d; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    #retry-btn:hover { background: #30363d; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="logo">
+        <h1>Mintzy</h1>
+        <span class="subtitle">Plugin Terminal</span>
+      </div>
+      <div class="icon" aria-hidden="true">!</div>
+      <p id="error-detail" class="detail">Unable to connect to the Plugin terminal. Please check your connection and try again.</p>
+      <div class="action-area">
+        <button id="retry-btn">Retry</button>
+        <p class="hint">Still having trouble? Visit <a href="#" id="support-link">support.mintzy.com</a></p>
+      </div>
+    </div>
+  </div>
+  <script src="error.js"></script>
+</body>
+</html>
