@@ -1,5 +1,5 @@
 const {
-  app, BrowserWindow, ipcMain, powerMonitor, nativeImage, Menu
+  app, BrowserWindow, ipcMain, powerMonitor
 } = require('electron');
 const path = require('path');
 const { initWindowState, saveWindowState } = require('./window-state');
@@ -10,7 +10,6 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 const PLUGIN_URL = 'https://plugin.mintzy.com';
 
 let mainWindow = null;
-let tray = null;
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -146,6 +145,4 @@ app.on('before-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-  }
 });
