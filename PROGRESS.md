@@ -19,17 +19,17 @@
 | Create PLAN.md | ✅ Done | |
 | Create PROGRESS.md | ✅ Done | |
 | Create HANDOFF.md | ✅ Done | |
-| Install Electron + build deps | ❌ Pending | |
-| electron-builder.yml config | ❌ Pending | |
-| Hardened BrowserWindow (main.js) | ❌ Pending | |
-| Minimal preload.js with contextBridge | ❌ Pending | |
-| Window state persistence service | ❌ Pending | |
-| Auth service (mocked) | ❌ Pending | |
-| Storage service (safeStorage) | ❌ Pending | |
-| Login screen HTML/CSS/JS | ❌ Pending | |
-| IPC wiring (login flow) | ❌ Pending | |
-| Plugin terminal loading spike | ❌ Pending | |
-| Error/offline screen | ❌ Pending | |
+| Install Electron + build deps | ✅ Done | Electron v43.1.1, electron-builder v26.15.3 |
+| electron-builder.yml config | ✅ Done | NSIS per-user, Win x64, unsigned |
+| Hardened BrowserWindow (main.js) | ✅ Done | contextIsolation, sandbox, no nodeIntegration |
+| Minimal preload.js with contextBridge | ✅ Done | Auth, navigation, window, system channels |
+| Window state persistence service | ✅ Done | JSON file in userData, default 1440x900 |
+| Auth service (mocked) | ✅ Done | 3 error modes: invalid/expired/broker-expired |
+| Storage service (safeStorage) | ✅ Done | DPAPI encryption, base64 fallback |
+| Login screen HTML/CSS/JS | ✅ Done | Dark Mintzy theme, API key input, error display |
+| IPC wiring (login flow) | ✅ Done | Login form → main process → auth result |
+| Plugin terminal loading spike | ⏳ Day 2 | Mechanism depends on mintzy-frontend-repo inspection |
+| Error/offline screen | ✅ Done | Distinct messages for network vs broker expiry |
 
 ### Backend Coordination
 | Item | Status | Notes |
