@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mintzy Plugin — Login</title>
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="logo">
+        <h1>Mintzy</h1>
+        <span class="subtitle">Plugin Terminal</span>
+      </div>
+      <p class="description">
+        Enter your API key to connect. Generate one from your
+        <a href="#" id="settings-link">Mintzy account settings</a>.
+      </p>
+      <form id="login-form">
+        <div class="input-group">
+          <input
+            type="password"
+            id="api-key"
+            placeholder="Paste your API key"
+            autofocus
+            spellcheck="false"
+            autocomplete="off"
+          >
+        </div>
+        <div id="error-message" class="error-message hidden" role="alert"></div>
+        <button type="submit" id="submit-btn">Connect</button>
+      </form>
+      <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <span>Connecting...</span>
+      </div>
+    </div>
+  </div>
+  <script src="login.js"></script>
+</body>
+</html>

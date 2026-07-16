@@ -4,11 +4,52 @@
   "description": "Native Windows desktop wrapper for the Mintzy Plugin terminal",
   "main": "src/main/main.js",
   "scripts": {
-    "dev": "electron .",
-    "build": "electron-builder",
-    "start": "electron ."
+    "dev": "NODE_ENV=development electron .",
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "build:dir": "electron-builder --win --x64 --dir",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.mintzy.plugin-desktop",
+    "productName": "Mintzy Plugin",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mintzy Plugin",
+      "artifactName": "${productName} Setup ${version}.${ext}"
+    }
   },
   "author": "Mintzy V1",
   "license": "UNLICENSED",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-store": "^11.0.2"
+  }
 }

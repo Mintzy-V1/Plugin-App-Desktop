@@ -1,0 +1,29 @@
+appId: com.mintzy.plugin-desktop
+productName: Mintzy Plugin
+copyright: Copyright (c) 2026 Mintzy V1
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - src/**/*
+  - package.json
+  - assets/**/*
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: assets/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Mintzy Plugin
+  artifactName: "${productName} Setup ${version}.${ext}"
