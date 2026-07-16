@@ -63,14 +63,62 @@ Need to confirm from `mintzy-frontend-repo` exactly how the website passes sessi
 ## Questions Raised (Not Guessed — Flagged for Team)
 
 1. What is the exact API-key login endpoint signature? (backend team)
-2. What field/format carries broker type in the auth response? (backend team)
-3. How does the website pass session + broker context into the terminal? (frontend repo inspection)
-4. Does a verify/me endpoint exist for silent relaunch validation? (backend team)
-5. What error codes exist for: invalid key vs expired key vs broker session expired? (backend team)
-6. Does a websocket/event channel exist for trade/hedge notifications? (backend team)
-7. Is "Generate API Key" being built on the website? (founder/website team)
-8. Where should the final .exe be hosted? GitHub Releases vs S3/CDN? (founder/backend team)
-9. Exact Mintzy logo/branding assets — who provides them? (founder/design)
+2. What field/format carries broker type in the auth response? (backend team) — Note: API keys in `tradingApiKey` model don't store broker type. Is this being added?
+3. Does a verify/me endpoint exist for silent relaunch validation? (backend team)
+4. What error codes exist for: invalid key vs expired key vs broker session expired? (backend team)
+5. Does a websocket/event channel exist for trade/hedge notifications? (backend team)
+6. Is "Generate API Key" being built on the website? (founder/website team)
+7. Where should the final .exe be hosted? GitHub Releases vs S3/CDN? (founder/backend team)
+8. Exact Mintzy logo/branding assets — who provides them? (founder/design)
+
+## Findings from Repo Inspection — Resolved Questions
+
+### Plugin URL (Confirmed)
+- **Page**: `https://www.mintzy.in/plugin/sessions`
+- Next.js client component using `useAuth()` from AuthContext
+- No iframes — it's a direct page load
+
+### Session Injection Mechanism (Confirmed)
+- Token stored in **`localStorage` key `mintzy_token`** (JWT from Google OAuth)
+- AuthContext reads it on mount, calls `GET /api/auth/me` to validate
+- API requests use `Authorization: Bearer <token>` header (via axios interceptor)
+- Desktop app will: load URL → `executeJavaScript` to set `localStorage.mintzy_token` → reload page
+
+### API Key System (Confirmed — Already Exists)
+- Endpoints at `/api/plugin-keys/generate`, `/api/plugin-keys/list`, `/api/plugin-keys/revoke/:keyId`
+- Keys are `sk_trade_` + 64 hex chars, stored **SHA-256 hashed**
+- `pluginAuthMiddleware` accepts both JWT and `sk_trade_*` keys as Bearer tokens
+- Controller: `tradingApiKeyController.js`
+
+### Backend Auth Middleware (Confirmed)
+- `authMiddleware`: JWT only (from `Authorization: Bearer`)
+- `pluginAuthMiddleware`: JWT OR API key (`sk_trade_*` in `Authorization: Bearer`)
+- Both attach `req.user = { userId }` to request
+
+### Error Response Format (Confirmed)
+```json
+{
+  "status": "fail"|"error",
+  "message": "<message>"
+}
+```
+Or for auth middleware errors:
+```json
+{
+  "success": false,
+  "message": "Access token required" | "User not found or inactive" | "Invalid token" | "Token expired"
+}
+```
+
+### Missing: API Key → JWT Exchange Endpoint
+The missing piece is an endpoint that:
+1. Takes `sk_trade_*` API key (via body or header)
+2. Validates against `tradingApiKey` model (hash + lookup)
+3. Finds the user
+4. Returns a JWT (same format as Google OAuth token) + broker type
+5. This JWT is what we inject into `localStorage.mintzy_token`
+
+This endpoint does not exist yet — being built by backend team.
 
 ---
 

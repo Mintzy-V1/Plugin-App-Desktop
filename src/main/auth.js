@@ -1,9 +1,9 @@
 const storage = require('./storage');
 
 const MOCK = {
-  valid: 'mz-mock-key-valid',
-  expired: 'mz-mock-key-expired',
-  brokerExpired: 'mz-mock-broker-expired',
+  valid: 'sk_trade_mock_valid_key_12345',
+  expired: 'sk_trade_mock_expired_key_67890',
+  brokerExpired: 'sk_trade_mock_broker_expired_99999',
 };
 
 function delay(ms) {
@@ -37,14 +37,11 @@ function login(apiKey) {
     };
   }
 
-  const result = {
-    success: true,
-    token: 'mock-session-' + Date.now(),
-    brokerType: 'demo',
-  };
+  const token = 'mz_session_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  const brokerType = 'demo';
 
-  storage.saveCredentials({ apiKey: trimmed, token: result.token, brokerType: result.brokerType });
-  return result;
+  storage.saveCredentials({ apiKey: trimmed, token, brokerType });
+  return { success: true, token, brokerType };
 }
 
 async function handleAuthLogin(apiKey) {

@@ -7,9 +7,10 @@ const { handleAuthLogin, handleAuthLogout, handleAuthCheck } = require('./auth')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
-const PLUGIN_URL = 'https://plugin.mintzy.com';
+const PLUGIN_URL = 'https://www.mintzy.in/plugin/sessions';
 
 let mainWindow = null;
+let sessionInjected = false;
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -67,20 +68,41 @@ function createMainWindow() {
   }
 }
 
+function injectSessionToken(token) {
+  if (!mainWindow || !token || sessionInjected) return;
+  sessionInjected = true;
+
+  const escaped = token.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+  mainWindow.webContents.executeJavaScript(`
+    localStorage.setItem('mintzy_token', '${escaped}');
+    window.location.reload();
+  `);
+}
+
 function loadLogin() {
   if (mainWindow) {
+    sessionInjected = false;
     mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'login', 'login.html'));
   }
 }
 
 function loadTerminal(sessionContext) {
-  if (mainWindow) {
-    mainWindow.loadURL(PLUGIN_URL);
+  if (!mainWindow) return;
+  sessionInjected = false;
+
+  mainWindow.loadURL(PLUGIN_URL);
+
+  if (sessionContext && sessionContext.token) {
+    mainWindow.webContents.once('did-stop-loading', () => {
+      injectSessionToken(sessionContext.token);
+    });
   }
 }
 
 function loadError(errorType) {
   if (mainWindow) {
+    sessionInjected = false;
     mainWindow.loadFile(
       path.join(__dirname, '..', 'renderer', 'error', 'error.html'),
       { query: { type: errorType } }
