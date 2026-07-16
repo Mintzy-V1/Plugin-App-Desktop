@@ -11,14 +11,14 @@
 
 ### Day 1 — July 16
 
+#### Completed
 | Item | Status | Notes |
 |------|--------|-------|
 | Create `main` branch with scaffold | ✅ Done | README, .gitignore, base package.json |
 | Create `dev-anubhav` branch | ✅ Done | All work on this branch, PRs to `main` |
 | Push both branches to origin | ✅ Done | |
-| Create PLAN.md | ✅ Done | |
-| Create PROGRESS.md | ✅ Done | |
-| Create HANDOFF.md | ✅ Done | |
+| Create PLAN.md, PROGRESS.md, HANDOFF.md | ✅ Done | |
+| Create `MINTZY_DESKTOP_APP_PLAN.pdf` | ✅ Done | Complete plan doc with diagrams, API contracts, timeline |
 | Install Electron + build deps | ✅ Done | Electron v43.1.1, electron-builder v26.15.3 |
 | electron-builder.yml config | ✅ Done | NSIS per-user, Win x64, unsigned |
 | Hardened BrowserWindow (main.js) | ✅ Done | contextIsolation, sandbox, no nodeIntegration |
@@ -28,21 +28,18 @@
 | Storage service (safeStorage) | ✅ Done | DPAPI encryption, base64 fallback |
 | Login screen HTML/CSS/JS | ✅ Done | Dark Mintzy theme, API key input, error display |
 | IPC wiring (login flow) | ✅ Done | Login form → main process → auth result |
-| Plugin terminal loading spike | ⏳ Day 2 | Mechanism depends on mintzy-frontend-repo inspection |
 | Error/offline screen | ✅ Done | Distinct messages for network vs broker expiry |
+| Token injection mechanism | ✅ Done | localStorage via executeJavaScript + page reload |
+| Plugin URL configured | ✅ Done | `https://www.mintzy.in/plugin/sessions` |
+| Repo inspection (frontend) | ✅ Done | Understood auth flow, localStorage, ConnectBrokerForm |
+| Repo inspection (backend) | ✅ Done | Understood API key model, middleware, error patterns |
 
-### Backend Coordination
+#### To Do (Phase 1.3)
 | Item | Status | Notes |
 |------|--------|-------|
-| Request read access to `mintzy-backend-new` | ❌ Not started | Needed to understand API contracts |
-| Request read access to `mintzy-frontend-repo` | ❌ Not started | Needed to see how website passes session into terminal |
-| Confirm auth endpoint schema with backend | ❌ Not started | Critical — even if endpoint isn't live yet |
-| Confirm broker type field/format | ❌ Not started | |
-| Confirm session injection mechanism | ❌ Not started | |
-| Confirm verify/me endpoint exists | ❌ Not started | |
-| Confirm distinct error codes | ❌ Not started | |
-| Confirm websocket/event channel | ❌ Not started | For notifications feature |
-| Confirm "Generate API Key" feature on website | ❌ Not started | App needs this to exist |
+| Append `?broker=` query param | ⏳ Pending | Small change in main.js |
+| Set refresh cookie via Electron API | ⏳ Pending | `session.cookies.set()` for httpOnly refresh token |
+| Real-world test with Plugin URL | ⏳ Blocked | Needs backend exchange endpoint |
 
 ---
 
@@ -50,10 +47,9 @@
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Silent revalidation on relaunch | ❌ Pending | |
-| Two distinct error paths | ❌ Pending | |
-| Window state persistence | ❌ Pending | |
-| Offline/error retry screen | ❌ Pending | |
+| Silent revalidation on relaunch | ❌ Pending | Exchange stored API key for fresh tokens |
+| Handle token refresh failures | ❌ Pending | API key revoked → login screen |
+| Session persistence | ❌ Pending | Already partially handled via storage |
 
 ---
 
@@ -65,7 +61,7 @@
 | Tray menu (Open/Logout/Quit) | ❌ Pending | |
 | Auto-launch toggle | ❌ Pending | |
 | Sleep/resume reconnect | ❌ Pending | |
-| Notifications hookup | ❌ Pending | |
+| Notifications hookup | ❌ Pending | Depends on backend websocket |
 | Uninstall/reinstall clean-state test | ❌ Pending | |
 
 ---
@@ -74,11 +70,29 @@
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Swap mocked auth for real endpoint | ❌ Pending | Blocked on backend endpoint |
-| Full integration test | ❌ Pending | |
+| Swap mocked auth for real endpoint | ❌ Pending | Blocked on backend exchange endpoint |
+| Full integration test | ❌ Pending | Needs frontend changes too |
 | electron-builder installer build | ❌ Pending | |
 | Apply Mintzy branding/icons | ❌ Pending | |
 | Buffer / fix breakage | ❌ Pending | |
+
+---
+
+## External Dependencies
+
+### Backend (`mintzy-backend-new`)
+| Item | Status | Notes |
+|------|--------|-------|
+| `POST /api/auth/exchange-api-key` endpoint | ❌ Not started | Takes API key → returns JWT + broker type |
+| `brokerType` field on `tradingApiKey` model | ❌ Not started | Store broker type during key generation |
+| Update key generation to accept `brokerType` | ❌ Not started | |
+
+### Frontend (`mintzy-frontend-repo`)
+| Item | Status | Notes |
+|------|--------|-------|
+| API key management UI (Account Settings) | ❌ Not started | Generate key with broker type selector |
+| `ConnectBrokerForm` — accept `initialBrokerType` prop | ❌ Not started | Hide dropdown when set |
+| `plugin/sessions/page.tsx` — read `?broker=` param | ❌ Not started | Pass to ConnectBrokerForm |
 
 ---
 
