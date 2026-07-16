@@ -1,0 +1,14 @@
+{
+  "name": "mintzy-plugin-desktop",
+  "version": "1.0.0",
+  "description": "Native Windows desktop wrapper for the Mintzy Plugin terminal",
+  "main": "src/main/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder",
+    "start": "electron ."
+  },
+  "author": "Mintzy V1",
+  "license": "UNLICENSED",
+  "private": true
+}
