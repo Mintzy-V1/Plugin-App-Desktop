@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('mintzy', {
     saveState: (bounds) => ipcRenderer.send('window:save-state', bounds),
   },
   system: {
+    getAutoLaunch: () => ipcRenderer.invoke('system:get-auto-launch'),
+    setAutoLaunch: (enable) => ipcRenderer.invoke('system:set-auto-launch', enable),
+    showNotification: (title, body) => ipcRenderer.send('system:show-notification', { title, body }),
     onResume: (callback) => {
       ipcRenderer.on('system:resume', () => callback());
     },

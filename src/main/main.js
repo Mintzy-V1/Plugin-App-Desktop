@@ -1,9 +1,10 @@
 const {
-  app, BrowserWindow, ipcMain, powerMonitor, session
+  app, BrowserWindow, ipcMain, powerMonitor, session, Notification
 } = require('electron');
 const path = require('path');
 const { initWindowState, saveWindowState } = require('./window-state');
 const { handleAuthLogin, handleAuthRevalidate, handleAuthLogout, handleAuthCheck } = require('./auth');
+const { createTray, destroyTray } = require('./tray');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -153,6 +154,12 @@ async function revalidateSession() {
 
 app.whenReady().then(async () => {
   createMainWindow();
+  createTray(mainWindow, {
+    onLogout: () => {
+      handleAuthLogout();
+      loadLogin();
+    },
+  });
 
   ipcMain.handle('auth:login', async (_event, apiKey) => {
     return handleAuthLogin(apiKey);
@@ -187,6 +194,28 @@ app.whenReady().then(async () => {
 
   ipcMain.on('window:save-state', (_event, bounds) => {
     saveWindowState(bounds);
+  });
+
+  ipcMain.handle('system:get-auto-launch', async () => {
+    return app.getLoginItemSettings().openAtLogin;
+  });
+
+  ipcMain.handle('system:set-auto-launch', async (_event, enable) => {
+    app.setLoginItemSettings({ openAtLogin: enable });
+    return { success: true };
+  });
+
+  ipcMain.on('system:show-notification', (_event, { title, body }) => {
+    if (Notification.isSupported()) {
+      const notif = new Notification({ title, body });
+      notif.on('click', () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      });
+      notif.show();
+    }
   });
 
   await revalidateSession();
