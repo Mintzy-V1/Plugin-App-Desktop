@@ -34,22 +34,22 @@
 | Repo inspection (frontend) | ✅ Done | Understood auth flow, localStorage, ConnectBrokerForm |
 | Repo inspection (backend) | ✅ Done | Understood API key model, middleware, error patterns |
 
-#### To Do (Phase 1.3)
+#### Done (Phase 1.3)
 | Item | Status | Notes |
 |------|--------|-------|
-| Append `?broker=` query param | ⏳ Pending | Small change in main.js |
-| Set refresh cookie via Electron API | ⏳ Pending | `session.cookies.set()` for httpOnly refresh token |
+| Append `?broker=` query param | ✅ Done | URL now includes `?broker=` from auth response |
+| Set refresh cookie via Electron API | ✅ Done | `session.cookies.set()` for httpOnly refresh token on `.mintzy.in` |
 | Real-world test with Plugin URL | ⏳ Blocked | Needs backend exchange endpoint |
 
 ---
 
-## Phase 2 — Core Wrapper & Session Handling (Days 4–7)
+## Phase 2 — Core Wrapper & Session Handling (Days 4–7) — ✅ Complete
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Silent revalidation on relaunch | ❌ Pending | Exchange stored API key for fresh tokens |
-| Handle token refresh failures | ❌ Pending | API key revoked → login screen |
-| Session persistence | ❌ Pending | Already partially handled via storage |
+| Silent revalidation on relaunch | ✅ Done | `handleAuthRevalidate()` reads stored API key, exchanges for fresh tokens |
+| Handle token refresh failures | ✅ Done | Broker expired → error screen; invalid/revoked → login with message |
+| Session persistence | ✅ Done | Stored credentials revalidated on app start via `revalidateSession()` |
 
 ---
 
