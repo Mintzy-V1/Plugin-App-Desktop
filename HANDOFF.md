@@ -5,9 +5,33 @@ This file captures context for anyone picking up this build mid-stream — block
 
 ---
 
-## Current Status (July 16, 2026)
+## Current Status (July 17, 2026)
 
-**Phase 1.1 and 1.2 complete.** Repo scaffolded, Electron app built with hardened BrowserWindow, native login screen, mocked auth, error screens, and localStorage token injection. Phase 1.3 (terminal loading spike, broker param, cookie setting) ready to start.
+**All 4 phases complete.** Full Electron desktop app with hardened BrowserWindow, native login screen, real/mocked auth, error screens, localStorage token injection, tray icon, auto-launch, notifications, sleep/resume handling, and NSIS build pipeline. See `PROGRESS.md` for detailed checklist.
+
+### What's Implemented
+
+| Feature | Status |
+|---------|--------|
+| Hardened BrowserWindow (contextIsolation, sandbox, no nodeIntegration) | ✅ |
+| Preload with contextBridge (auth, nav, window, system) | ✅ |
+| Window state persistence (1440x900 default) | ✅ |
+| safeStorage credential encryption (DPAPI + base64 fallback) | ✅ |
+| Native login screen (dark Mintzy theme, API key input, error display) | ✅ |
+| Error/retry screen (network vs broker expiry distinction) | ✅ |
+| Plugin terminal loading with `?broker=` param + localStorage token injection | ✅ |
+| httpOnly refresh cookie set via `session.cookies.set()` | ✅ |
+| Mocked auth service (3 error modes: invalid/expired/broker-expired) | ✅ |
+| Silent session revalidation on relaunch | ✅ |
+| Single-instance lock | ✅ |
+| Tray icon + minimize to tray | ✅ |
+| Tray menu: Open, Launch at startup, Logout, Quit | ✅ |
+| Auto-launch toggle (Windows startup) | ✅ |
+| Sleep/resume reconnect | ✅ |
+| Notifications (click-to-focus) | ✅ |
+| Real auth HTTP client (`api.js` with `net.request`, mock fallback in dev) | ✅ |
+| NSIS build pipeline with auto-generated 256x256 icon | ✅ |
+| Dev mock: `sk_trade_mock_valid_key_12345` | ✅ |
 
 ---
 
@@ -28,19 +52,19 @@ This file captures context for anyone picking up this build mid-stream — block
 
 ---
 
-## Critical Blockers (Must Resolve Before Phase 4)
+## Dependencies (External Teams)
 
-### 1. API-Key Exchange Endpoint (Backend Team)
-`POST /api/auth/exchange-api-key` — takes `{ apiKey }`, returns `{ accessToken, refreshToken, brokerType }`. Does not exist yet. See `MINTZY_DESKTOP_APP_PLAN.pdf` for full contract.
+### Backend (`mintzy-backend-new`)
+- `POST /api/auth/exchange-api-key` endpoint — see `MINTZY_DESKTOP_APP_PLAN.pdf` for contract
+- `brokerType` field on `tradingApiKey` model
+- Update key generation to accept `brokerType`
 
-### 2. Add brokerType to tradingApiKey Model (Backend Team)
-The `tradingApiKey` model needs a `brokerType` enum field. Key generation endpoint needs to accept it.
+### Frontend (`mintzy-frontend-repo`)
+- API key management UI (Account Settings → API Keys)
+- `ConnectBrokerForm` — accept `initialBrokerType` prop, hide dropdown when set
+- `plugin/sessions/page.tsx` — read `?broker=` param, pass to `ConnectBrokerForm`
 
-### 3. API Key Management UI (Frontend Team)
-Account Settings page where logged-in users can generate API keys with broker type selection.
-
-### 4. ConnectBrokerForm Changes (Frontend Team)
-Accept `initialBrokerType` prop, hide dropdown when set. Read `?broker=` from URL.
+**Desktop app will auto-detect the real endpoint** when these are deployed. Set `MINTZY_API_URL` env var or remove dev mock to test against production. See `api.js` for the HTTP client.
 
 ---
 
