@@ -6,6 +6,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadingEl = document.getElementById('loading');
   const settingsLink = document.getElementById('settings-link');
 
+  const params = new URLSearchParams(window.location.search);
+  const prefillError = params.get('error');
+  if (prefillError) {
+    showError(decodeURIComponent(prefillError));
+  }
+
   settingsLink.addEventListener('click', (e) => {
     e.preventDefault();
   });

@@ -10,7 +10,7 @@ function delay(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
-function login(apiKey) {
+function exchangeApiKey(apiKey) {
   const trimmed = (apiKey || '').trim();
 
   if (trimmed === MOCK.expired) {
@@ -37,16 +37,36 @@ function login(apiKey) {
     };
   }
 
-  const token = 'mz_session_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  const accessToken = 'mz_access_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  const refreshToken = 'mz_refresh_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   const brokerType = 'demo';
 
-  storage.saveCredentials({ apiKey: trimmed, token, brokerType });
-  return { success: true, token, brokerType };
+  storage.saveCredentials({ apiKey: trimmed, token: accessToken, refreshToken, brokerType });
+  return { success: true, accessToken, refreshToken, brokerType };
 }
 
 async function handleAuthLogin(apiKey) {
   await delay(600);
-  return login(apiKey);
+  return exchangeApiKey(apiKey);
+}
+
+async function handleAuthRevalidate() {
+  const creds = storage.getCredentials();
+  if (!creds || !creds.apiKey) {
+    return { authenticated: false };
+  }
+  await delay(300);
+  const result = exchangeApiKey(creds.apiKey);
+  if (!result.success) {
+    storage.clearCredentials();
+    return { authenticated: false, error: result.error, message: result.message };
+  }
+  return {
+    authenticated: true,
+    token: result.accessToken,
+    refreshToken: result.refreshToken,
+    brokerType: result.brokerType,
+  };
 }
 
 function handleAuthLogout() {
@@ -57,7 +77,7 @@ function handleAuthLogout() {
 function handleAuthCheck() {
   const creds = storage.getCredentials();
   if (!creds) return { authenticated: false };
-  return { authenticated: true, token: creds.token, brokerType: creds.brokerType };
+  return { authenticated: true, token: creds.token, brokerType: creds.brokerType, refreshToken: creds.refreshToken || null };
 }
 
-module.exports = { handleAuthLogin, handleAuthLogout, handleAuthCheck };
+module.exports = { handleAuthLogin, handleAuthRevalidate, handleAuthLogout, handleAuthCheck };
