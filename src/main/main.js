@@ -1,13 +1,15 @@
 const {
-  app, BrowserWindow, ipcMain, powerMonitor
+  app, BrowserWindow, ipcMain, powerMonitor, session, Notification
 } = require('electron');
 const path = require('path');
 const { initWindowState, saveWindowState } = require('./window-state');
-const { handleAuthLogin, handleAuthLogout, handleAuthCheck } = require('./auth');
+const { handleAuthLogin, handleAuthRevalidate, handleAuthLogout, handleAuthCheck } = require('./auth');
+const { createTray, destroyTray } = require('./tray');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 const PLUGIN_URL = 'https://www.mintzy.in/plugin/sessions';
+const COOKIE_DOMAIN = 'www.mintzy.in';
 
 let mainWindow = null;
 let sessionInjected = false;
@@ -80,10 +82,28 @@ function injectSessionToken(token) {
   `);
 }
 
-function loadLogin() {
+async function setRefreshCookie(refreshToken) {
+  try {
+    await mainWindow.webContents.session.cookies.set({
+      url: PLUGIN_URL,
+      name: 'refreshToken',
+      value: refreshToken,
+      domain: COOKIE_DOMAIN,
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'lax',
+    });
+  } catch (e) {
+    if (isDev) console.error('Failed to set refresh cookie:', e);
+  }
+}
+
+function loadLogin(errorMsg) {
   if (mainWindow) {
     sessionInjected = false;
-    mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'login', 'login.html'));
+    const query = errorMsg ? { query: { error: encodeURIComponent(errorMsg) } } : undefined;
+    mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'login', 'login.html'), query);
   }
 }
 
@@ -91,12 +111,21 @@ function loadTerminal(sessionContext) {
   if (!mainWindow) return;
   sessionInjected = false;
 
-  mainWindow.loadURL(PLUGIN_URL);
+  let url = PLUGIN_URL;
+  if (sessionContext && sessionContext.brokerType) {
+    url += '?broker=' + encodeURIComponent(sessionContext.brokerType);
+  }
+
+  mainWindow.loadURL(url);
 
   if (sessionContext && sessionContext.token) {
     mainWindow.webContents.once('did-stop-loading', () => {
       injectSessionToken(sessionContext.token);
     });
+  }
+
+  if (sessionContext && sessionContext.refreshToken) {
+    setRefreshCookie(sessionContext.refreshToken);
   }
 }
 
@@ -110,8 +139,27 @@ function loadError(errorType) {
   }
 }
 
+async function revalidateSession() {
+  const result = await handleAuthRevalidate();
+  if (result.authenticated) {
+    loadTerminal(result);
+  } else if (result.error === 'broker_expired') {
+    loadError('broker_expired');
+  } else if (result.message) {
+    loadLogin(result.message);
+  } else {
+    loadLogin();
+  }
+}
+
 app.whenReady().then(async () => {
   createMainWindow();
+  createTray(mainWindow, {
+    onLogout: () => {
+      handleAuthLogout();
+      loadLogin();
+    },
+  });
 
   ipcMain.handle('auth:login', async (_event, apiKey) => {
     return handleAuthLogin(apiKey);
@@ -148,17 +196,35 @@ app.whenReady().then(async () => {
     saveWindowState(bounds);
   });
 
-  const authCheck = handleAuthCheck();
-  if (authCheck.authenticated) {
-    loadTerminal(authCheck);
-  } else {
-    loadLogin();
-  }
+  ipcMain.handle('system:get-auto-launch', async () => {
+    return app.getLoginItemSettings().openAtLogin;
+  });
+
+  ipcMain.handle('system:set-auto-launch', async (_event, enable) => {
+    app.setLoginItemSettings({ openAtLogin: enable });
+    return { success: true };
+  });
+
+  ipcMain.on('system:show-notification', (_event, { title, body }) => {
+    if (Notification.isSupported()) {
+      const notif = new Notification({ title, body });
+      notif.on('click', () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      });
+      notif.show();
+    }
+  });
+
+  await revalidateSession();
 });
 
 powerMonitor.on('resume', () => {
   if (mainWindow && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
     mainWindow.webContents.send('system:resume');
+    revalidateSession();
   }
 });
 
@@ -168,3 +234,5 @@ app.on('before-quit', () => {
 
 app.on('window-all-closed', () => {
 });
+
+module.exports = { loadTerminal, loadLogin, loadError };

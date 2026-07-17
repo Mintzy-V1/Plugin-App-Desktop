@@ -13,8 +13,8 @@ function getFallbackPath() {
   return getPath() + FALLBACK_SUFFIX;
 }
 
-function saveCredentials({ apiKey, token, brokerType }) {
-  const payload = JSON.stringify({ apiKey, token, brokerType });
+function saveCredentials({ apiKey, token, refreshToken, brokerType }) {
+  const payload = JSON.stringify({ apiKey, token, refreshToken, brokerType });
   if (safeStorage.isEncryptionAvailable()) {
     fs.writeFileSync(getPath(), safeStorage.encryptString(payload));
   } else {

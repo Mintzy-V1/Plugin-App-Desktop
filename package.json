@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "NODE_ENV=development electron .",
     "start": "electron .",
-    "build": "electron-builder --win --x64",
-    "build:dir": "electron-builder --win --x64 --dir",
+    "generate-icon": "node scripts/generate-icon.js",
+    "build": "npm run generate-icon && electron-builder --win --x64",
+    "build:dir": "npm run generate-icon && electron-builder --win --x64 --dir",
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {

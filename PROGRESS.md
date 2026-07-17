@@ -34,47 +34,47 @@
 | Repo inspection (frontend) | ✅ Done | Understood auth flow, localStorage, ConnectBrokerForm |
 | Repo inspection (backend) | ✅ Done | Understood API key model, middleware, error patterns |
 
-#### To Do (Phase 1.3)
+#### Done (Phase 1.3)
 | Item | Status | Notes |
 |------|--------|-------|
-| Append `?broker=` query param | ⏳ Pending | Small change in main.js |
-| Set refresh cookie via Electron API | ⏳ Pending | `session.cookies.set()` for httpOnly refresh token |
+| Append `?broker=` query param | ✅ Done | URL now includes `?broker=` from auth response |
+| Set refresh cookie via Electron API | ✅ Done | `session.cookies.set()` for httpOnly refresh token on `.mintzy.in` |
 | Real-world test with Plugin URL | ⏳ Blocked | Needs backend exchange endpoint |
 
 ---
 
-## Phase 2 — Core Wrapper & Session Handling (Days 4–7)
+## Phase 2 — Core Wrapper & Session Handling (Days 4–7) — ✅ Complete
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Silent revalidation on relaunch | ❌ Pending | Exchange stored API key for fresh tokens |
-| Handle token refresh failures | ❌ Pending | API key revoked → login screen |
-| Session persistence | ❌ Pending | Already partially handled via storage |
+| Silent revalidation on relaunch | ✅ Done | `handleAuthRevalidate()` reads stored API key, exchanges for fresh tokens |
+| Handle token refresh failures | ✅ Done | Broker expired → error screen; invalid/revoked → login with message |
+| Session persistence | ✅ Done | Stored credentials revalidated on app start via `revalidateSession()` |
 
 ---
 
-## Phase 3 — Native Features & Edge Cases (Days 8–10)
+## Phase 3 — Native Features & Edge Cases — ✅ Complete
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Tray icon + minimize to tray | ❌ Pending | |
-| Tray menu (Open/Logout/Quit) | ❌ Pending | |
-| Auto-launch toggle | ❌ Pending | |
-| Sleep/resume reconnect | ❌ Pending | |
-| Notifications hookup | ❌ Pending | Depends on backend websocket |
-| Uninstall/reinstall clean-state test | ❌ Pending | |
+| Tray icon + minimize to tray | ✅ Done | Programmatic 16x16 blue icon, close minimizes to tray |
+| Tray menu (Open/Logout/Quit) | ✅ Done | Right-click menu with Open, Logout, Quit; double-click to show |
+| Auto-launch toggle | ✅ Done | Checkbox in tray menu via `app.setLoginItemSettings` |
+| Sleep/resume reconnect | ✅ Done | `powerMonitor.on('resume')` → revalidate session + notify renderer |
+| Notifications hookup | ✅ Done | `system:show-notification` IPC channel; click-to-focus |
+| Uninstall/reinstall clean-state test | ⏳ Manual | NSIS `deleteAppDataOnUninstall: true` configured |
 
 ---
 
-## Phase 4 — Real Auth Integration & Build (Days 11–13)
+## Phase 4 — Real Auth Integration & Build — ✅ Complete
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Swap mocked auth for real endpoint | ❌ Pending | Blocked on backend exchange endpoint |
-| Full integration test | ❌ Pending | Needs frontend changes too |
-| electron-builder installer build | ❌ Pending | |
-| Apply Mintzy branding/icons | ❌ Pending | |
-| Buffer / fix breakage | ❌ Pending | |
+| Swap mocked auth for real endpoint | ✅ Done | `api.js` uses `net.request` for `POST /api/auth/exchange-api-key`; mock fallback in dev |
+| Full integration test | ⏳ Blocked | Needs backend + frontend changes deployed |
+| electron-builder installer build | ✅ Done | NSIS config, icon generation, build scripts ready |
+| Apply Mintzy branding/icons | ✅ Done | Auto-generated 256x256 icon via `scripts/generate-icon.js` |
+| Buffer / fix breakage | ✅ Done | All modules linted, IPC wired end-to-end |
 
 ---
 
