@@ -4,11 +4,13 @@
   "description": "Native Windows desktop wrapper for the Mintzy Plugin terminal",
   "main": "src/main/main.js",
   "scripts": {
+    "dev:renderer": "vite",
     "dev": "NODE_ENV=development electron .",
     "start": "electron .",
     "generate-icon": "node scripts/generate-icon.js",
-    "build": "npm run generate-icon && electron-builder --win --x64",
-    "build:dir": "npm run generate-icon && electron-builder --win --x64 --dir",
+    "build:renderer": "vite build",
+    "build": "npm run build:renderer && npm run generate-icon && electron-builder --win --x64",
+    "build:dir": "npm run build:renderer && npm run generate-icon && electron-builder --win --x64 --dir",
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
