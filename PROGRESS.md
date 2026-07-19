@@ -2,114 +2,78 @@
 
 ## Tracking
 - **Build start**: July 16, 2026
-- **Target**: 2.5 weeks (12–13 working days)
-- **Phase scope**: MVP — Plugin product only, Windows 64-bit, unsigned NSIS installer
+- **Architecture v2 start**: July 19, 2026
+- **Phase scope**: Standalone Electron + React app talking to `mintzy-api-gateway`
 
 ---
 
-## Phase 1 — Setup, Repo, Auth Foundation (Days 1–3)
+## Phase 1 — Build Foundation (In Progress)
 
-### Day 1 — July 16
-
-#### Completed
 | Item | Status | Notes |
 |------|--------|-------|
-| Create `main` branch with scaffold | ✅ Done | README, .gitignore, base package.json |
-| Create `dev-anubhav` branch | ✅ Done | All work on this branch, PRs to `main` |
-| Push both branches to origin | ✅ Done | |
-| Create PLAN.md, PROGRESS.md, HANDOFF.md | ✅ Done | |
-| Create `MINTZY_DESKTOP_APP_PLAN.pdf` | ✅ Done | Complete plan doc with diagrams, API contracts, timeline |
-| Install Electron + build deps | ✅ Done | Electron v43.1.1, electron-builder v26.15.3 |
-| electron-builder.yml config | ✅ Done | NSIS per-user, Win x64, unsigned |
-| Hardened BrowserWindow (main.js) | ✅ Done | contextIsolation, sandbox, no nodeIntegration |
-| Minimal preload.js with contextBridge | ✅ Done | Auth, navigation, window, system channels |
-| Window state persistence service | ✅ Done | JSON file in userData, default 1440x900 |
-| Auth service (mocked) | ✅ Done | 3 error modes: invalid/expired/broker-expired |
-| Storage service (safeStorage) | ✅ Done | DPAPI encryption, base64 fallback |
-| Login screen HTML/CSS/JS | ✅ Done | Dark Mintzy theme, API key input, error display |
-| IPC wiring (login flow) | ✅ Done | Login form → main process → auth result |
-| Error/offline screen | ✅ Done | Distinct messages for network vs broker expiry |
-| Token injection mechanism | ✅ Done | localStorage via executeJavaScript + page reload |
-| Plugin URL configured | ✅ Done | `https://www.mintzy.in/plugin/sessions` |
-| Repo inspection (frontend) | ✅ Done | Understood auth flow, localStorage, ConnectBrokerForm |
-| Repo inspection (backend) | ✅ Done | Understood API key model, middleware, error patterns |
-
-#### Done (Phase 1.3)
-| Item | Status | Notes |
-|------|--------|-------|
-| Append `?broker=` query param | ✅ Done | URL now includes `?broker=` from auth response |
-| Set refresh cookie via Electron API | ✅ Done | `session.cookies.set()` for httpOnly refresh token on `.mintzy.in` |
-| Real-world test with Plugin URL | ⏳ Blocked | Needs backend exchange endpoint |
+| PLAN.md updated with v2 architecture | ✅ Done | Switched from website wrapper to standalone React SPA |
+| PROGRESS.md updated | ✅ Done | Tracking the new phased plan |
+| Vite + React + TypeScript + deps installed | ✅ Done | react, react-dom, axios, lucide-react, recharts, framer-motion |
+| Vite config + tsconfig + index.html | 🔜 Next | |
+| React entry + App shell with views | 🔜 Next | |
+| API service layer (axios → gateway) | 🔜 Next | |
+| Auth context + login page | 🔜 Next | |
+| Update main process to serve Vite renderer | 🔜 Next | |
 
 ---
 
-## Phase 2 — Core Wrapper & Session Handling (Days 4–7) — ✅ Complete
+## Phase 2 — Plugin Terminal (Not Started)
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Silent revalidation on relaunch | ✅ Done | `handleAuthRevalidate()` reads stored API key, exchanges for fresh tokens |
-| Handle token refresh failures | ✅ Done | Broker expired → error screen; invalid/revoked → login with message |
-| Session persistence | ✅ Done | Stored credentials revalidated on app start via `revalidateSession()` |
+| ConnectBroker form | ❌ Not started | Broker select, API key, client code, password |
+| TwoFactorAuth (TOTP) | ❌ Not started | 6-digit TOTP input |
+| SessionConfigForm + fields | ❌ Not started | Trading config, ticker selector |
+| LiveSessionDashboard + PnL | ❌ Not started | Realtime dashboard with charts |
+| PluginSidebar | ❌ Not started | Session list, saved strategies |
+| Session state machine | ❌ Not started | empty → broker → 2fa → config → dashboard |
 
 ---
 
-## Phase 3 — Native Features & Edge Cases — ✅ Complete
+## Phase 3 — User Dashboard (Not Started)
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Tray icon + minimize to tray | ✅ Done | Programmatic 16x16 blue icon, close minimizes to tray |
-| Tray menu (Open/Logout/Quit) | ✅ Done | Right-click menu with Open, Logout, Quit; double-click to show |
-| Auto-launch toggle | ✅ Done | Checkbox in tray menu via `app.setLoginItemSettings` |
-| Sleep/resume reconnect | ✅ Done | `powerMonitor.on('resume')` → revalidate session + notify renderer |
-| Notifications hookup | ✅ Done | `system:show-notification` IPC channel; click-to-focus |
-| Uninstall/reinstall clean-state test | ⏳ Manual | NSIS `deleteAppDataOnUninstall: true` configured |
+| DashboardShell + sidebar | ❌ Not started | Profile, Plugin, Settings tabs |
+| ProfileTab | ❌ Not started | User info display |
+| PluginTab | ❌ Not started | PnL summary, sessions, tradebook |
+| SettingsTab | ❌ Not started | Auto-launch, logout, about |
 
 ---
 
-## Phase 4 — Real Auth Integration & Build — ✅ Complete
+## Phase 4 — Polish & Integration (Not Started)
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Swap mocked auth for real endpoint | ✅ Done | `api.js` uses `net.request` for `POST /api/auth/exchange-api-key`; mock fallback in dev |
-| Full integration test | ⏳ Blocked | Needs backend + frontend changes deployed |
-| electron-builder installer build | ✅ Done | NSIS config, icon generation, build scripts ready |
-| Apply Mintzy branding/icons | ✅ Done | Auto-generated 256x256 icon via `scripts/generate-icon.js` |
-| Buffer / fix breakage | ✅ Done | All modules linted, IPC wired end-to-end |
+| safeStorage IPC wiring | ❌ Not started | Main process encrypts API key |
+| Tray + minimize integration | ❌ Not started | System tray, close to tray |
+| Silent revalidation | ❌ Not started | Auto-login on relaunch |
+| Error boundaries | ❌ Not started | Offline, error states |
+| NSIS build config | ❌ Not started | electron-builder setup |
 
 ---
 
-## External Dependencies
+## Completed (Legacy - v1 Architecture)
 
-### Backend (`mintzy-backend-new`)
-| Item | Status | Notes |
-|------|--------|-------|
-| `POST /api/auth/exchange-api-key` endpoint | ❌ Not started | Takes API key → returns JWT + broker type |
-| `brokerType` field on `tradingApiKey` model | ❌ Not started | Store broker type during key generation |
-| Update key generation to accept `brokerType` | ❌ Not started | |
+The following were built under the original website-wrapper architecture and will be replaced/refactored in v2:
 
-### Frontend (`mintzy-frontend-repo`)
-| Item | Status | Notes |
-|------|--------|-------|
-| API key management UI (Account Settings) | ❌ Not started | Generate key with broker type selector |
-| `ConnectBrokerForm` — accept `initialBrokerType` prop | ❌ Not started | Hide dropdown when set |
-| `plugin/sessions/page.tsx` — read `?broker=` param | ❌ Not started | Pass to ConnectBrokerForm |
-
----
-
-## Testing Checklist (1.5 weeks post-Phase 4)
-
-- [ ] Fresh install on clean Windows 10 and Windows 11 machines
-- [ ] Real API key login → correct broker type auto-applied, no broker picker
-- [ ] Invalid/expired API key → clear error, no crash
-- [ ] Relaunch after successful login → skips login screen, loads terminal directly
-- [ ] Broker-side session expiry mid-use → clear distinct message
-- [ ] Close button → tray, not full quit; Quit from tray → fully exits
-- [ ] Double-launch attempt → focuses existing window
-- [ ] Auto-launch toggle survives Windows restart
-- [ ] Laptop sleep/resume mid-session → reconnects cleanly
-- [ ] Network drop while terminal open → no crash, retry screen works
-- [ ] Window size/position remembered across restarts
-- [ ] Uninstall → clean removal; reinstall → fresh login prompt
-- [ ] Test with real consumer AV → check for false-positive quarantine
-- [ ] Confirm no backend/website repo was modified (read-only respected)
-- [ ] Confirm app only exposes Plugin product
+| Item | v2 Disposition |
+|------|---------------|
+| Native login HTML/CSS/JS | 🔄 Replace with React login |
+| api.js (net.request) | 🔄 Replace with axios |
+| auth.js mock | 🔄 Replace with React auth context |
+| main.js plugin URL loading | 🔄 Replace with React routing |
+| Error screen HTML | 🔄 Replace with React error boundaries |
+| Preload IPC channels | ♻️ Keep & refactor |
+| Window state persistence | ♻️ Keep |
+| safeStorage (storage.js) | ♻️ Keep |
+| Tray + auto-launch | ♻️ Keep |
+| electron-builder.yml | ♻️ Keep |
+| Single-instance lock | ♻️ Keep |
+| Sleep/resume handling | ♻️ Keep |
+| Notifications | ♻️ Keep |

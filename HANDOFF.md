@@ -1,120 +1,89 @@
-# Mintzy Plugin Desktop App — Handoff Notes
+# Mintzy Plugin Desktop App — Handoff Notes (v2)
 
 ## Purpose
-This file captures context for anyone picking up this build mid-stream — blockers, decisions, pending coordination items, and architectural rationale.
+This file captures context for anyone picking up this build mid-stream — architecture, decisions, phased plan, and pending work.
 
 ---
 
-## Current Status (July 17, 2026)
+## Architecture v2 (Standalone Electron + React SPA)
 
-**All 4 phases complete.** Full Electron desktop app with hardened BrowserWindow, native login screen, real/mocked auth, error screens, localStorage token injection, tray icon, auto-launch, notifications, sleep/resume handling, and NSIS build pipeline. See `PROGRESS.md` for detailed checklist.
+The app was **restarted** on July 19, 2026 to switch from a website-wrapper model (loading `mintzy.in` in a BrowserWindow) to a **standalone Electron app with its own React UI**. It talks exclusively to `mintzy-api-gateway`.
 
-### What's Implemented
+### Why the Change
+- Separate backend (`mintzy-api-gateway`) uses its own JWT secret — incompatible with the website's auth
+- Website backend going down would crash the desktop app
+- Need full control over the UI (plugin terminal, dashboard, profile)
+- No dependency on website frontend deployment pipeline
 
-| Feature | Status |
-|---------|--------|
-| Hardened BrowserWindow (contextIsolation, sandbox, no nodeIntegration) | ✅ |
-| Preload with contextBridge (auth, nav, window, system) | ✅ |
-| Window state persistence (1440x900 default) | ✅ |
-| safeStorage credential encryption (DPAPI + base64 fallback) | ✅ |
-| Native login screen (dark Mintzy theme, API key input, error display) | ✅ |
-| Error/retry screen (network vs broker expiry distinction) | ✅ |
-| Plugin terminal loading with `?broker=` param + localStorage token injection | ✅ |
-| httpOnly refresh cookie set via `session.cookies.set()` | ✅ |
-| Mocked auth service (3 error modes: invalid/expired/broker-expired) | ✅ |
-| Silent session revalidation on relaunch | ✅ |
-| Single-instance lock | ✅ |
-| Tray icon + minimize to tray | ✅ |
-| Tray menu: Open, Launch at startup, Logout, Quit | ✅ |
-| Auto-launch toggle (Windows startup) | ✅ |
-| Sleep/resume reconnect | ✅ |
-| Notifications (click-to-focus) | ✅ |
-| Real auth HTTP client (`api.js` with `net.request`, mock fallback in dev) | ✅ |
-| NSIS build pipeline with auto-generated 256x256 icon | ✅ |
-| Dev mock: `sk_trade_mock_valid_key_12345` | ✅ |
+### Architecture
 
----
+```
+┌─────────────────────────────────────────────────┐
+│                  Electron App                    │
+│  ┌───────────────────────────────────────────┐  │
+│  │         Main Process (Node.js)            │  │
+│  │  Auth, Storage, Tray, IPC, Window State   │  │
+│  └──────────────────┬────────────────────────┘  │
+│                     │ IPC                        │
+│  ┌──────────────────▼────────────────────────┐  │
+│  │         Renderer (React SPA via Vite)      │  │
+│  │  Login | Plugin Terminal | Profile/Dash   │  │
+│  └────────────────────────────────────────────┘  │
+│                                                  │
+│         All API calls → mintzy-api-gateway        │
+└──────────────────────────────────────────────────┘
+```
 
-## Resolved Questions (from Repo Inspection)
+### Tech Stack
+- **Desktop shell**: Electron 43
+- **Renderer**: React 19 + TypeScript + Vite
+- **Styling**: Tailwind CSS v4
+- **Charts**: Recharts (PnL)
+- **API**: Axios → mintzy-api-gateway
+- **Icons**: Lucide React
+- **Build**: electron-builder (NSIS, Windows x64)
 
-| Question | Answer |
-|----------|--------|
-| Plugin URL | `https://www.mintzy.in/plugin/sessions` |
-| Auth token storage | `localStorage` key `mintzy_token` (JWT) |
-| Auth mechanism | `AuthContext` reads token → `GET /api/auth/me` |
-| Token refresh | 401 → `POST /api/auth/refresh` → httpOnly `refreshToken` cookie |
-| Access token expiry | 7 minutes |
-| Refresh token expiry | 7 days |
-| Broker context | User selects in `ConnectBrokerForm` dropdown (angel/tradex) |
-| API key system | Exists at `/api/plugin-keys/generate` → `sk_trade_*` keys, stored hashed |
-| Plugin terminal | Direct Next.js page (not iframe), `"use client"` component |
-| Auth middleware | `authMiddleware` (JWT only), `pluginAuthMiddleware` (JWT + API key) |
-
----
-
-## Dependencies (External Teams)
-
-### Backend (`mintzy-backend-new`)
-- `POST /api/auth/exchange-api-key` endpoint — see `MINTZY_DESKTOP_APP_PLAN.pdf` for contract
-- `brokerType` field on `tradingApiKey` model
-- Update key generation to accept `brokerType`
-
-### Frontend (`mintzy-frontend-repo`)
-- API key management UI (Account Settings → API Keys)
-- `ConnectBrokerForm` — accept `initialBrokerType` prop, hide dropdown when set
-- `plugin/sessions/page.tsx` — read `?broker=` param, pass to `ConnectBrokerForm`
-
-**Desktop app will auto-detect the real endpoint** when these are deployed. Set `MINTZY_API_URL` env var or remove dev mock to test against production. See `api.js` for the HTTP client.
+### Key Endpoints (mintzy-api-gateway)
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/v1/broker/onboard` | Exchange API key for JWT |
+| `POST /api/v1/users/refresh` | Refresh JWT |
+| `GET /api/v1/users/detail` | Get user info |
+| `POST /api/v1/users/plan` | Get user plan/credits |
+| `POST /api/v1/angle_one/credentials` | Submit Angle One creds |
+| `POST /api/v1/angle_one/totp` | Submit Angle One TOTP |
+| `POST /api/v1/angle_one/start` | Start Angle One trading |
+| `POST /api/v1/tradex/credentials` | Submit TradeX creds |
+| *(more)* | All plugin CRUD, dashboard, PnL endpoints |
 
 ---
 
-## Architectural Decisions
+## Phased Build Plan
 
-### Why safeStorage over alternatives
-OS-level encryption (DPAPI on Windows), no master password needed.
-
-### Why localStorage injection for auth
-The website's AuthContext reads the token from `localStorage`. Setting it via `executeJavaScript` matches the existing mechanism exactly — no new auth flow invented.
-
-### Why `?broker=` URL param for broker type
-Simplest way to pass broker context to the web page. No localStorage coordination, no new APIs. The frontend reads it from `window.location.search` once on mount.
-
-### Why httpOnly cookie for refresh token
-The website's axios interceptor handles 401s via `POST /api/auth/refresh` which sends the httpOnly cookie automatically. Setting this cookie via Electron's `session.cookies.set()` allows the built-in refresh mechanism to work without any desktop app code.
-
-### Why single-instance lock
-A live trading session should never have two instances against the same account.
-
-### Why unsigned installer for v1
-Code-signing cert takes time. MVP ships unsigned with documented SmartScreen warning.
+See `PLAN.md` for full details. TL;DR:
+1. **Phase 1** — Build foundation (Vite + React setup, app shell, auth, API layer)
+2. **Phase 2** — Plugin terminal (broker connect, 2FA, config, live dashboard)
+3. **Phase 3** — User dashboard (profile, plugin summary, settings)
+4. **Phase 4** — Polish (safeStorage, tray, errors, build config)
 
 ---
 
-## Complete Data Flow
-
-See `MINTZY_DESKTOP_APP_PLAN.pdf` for:
-- Full auth flow diagrams (generation → login → token refresh)
-- API contracts for the exchange endpoint
-- Desktop app architecture diagram
-- Timeline
+## Commit Strategy
+- Keep commits small (100–150 lines of code)
+- Each commit is one logical step from the phased plan
+- Branch: `dev-anubhav` → PRs to `main`
 
 ---
 
-## Open Items for Team Discussion
-
-1. Exchange endpoint URL — `POST /api/auth/exchange-api-key` or different path?
-2. Broker type values — only `angel` and `tradex`, or more planned?
-3. Should API keys be generatable for multiple brokers per user?
-4. WebSocket/event channel for trade notifications — exists or planned?
-5. Hosting for final .exe — GitHub Releases or S3/CDN?
-6. Exact Mintzy logo/branding assets — who provides them?
+## External Dependencies
+- **mintzy-api-gateway** — backend all desktop API calls go to
+- **mintzy-frontend-repo** — source of truth for React components (we port selectively)
 
 ---
 
-## Security Notes
-
-- API key never appears in logs or console output
-- All credential storage uses safeStorage encryption — never plaintext
-- Preload script is minimal — only exposes what login/error screens need
-- contextIsolation, nodeIntegration: false, sandbox: true are non-negotiable
-- DevTools disabled in production builds
+## State Machine (Plugin Terminal)
+```
+empty → broker → 2fa → config → dashboard
+  ↑        ↓        ↓                   
+  └────────┴────────┴───────────────────┘
+```

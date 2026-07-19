@@ -4,11 +4,13 @@
   "description": "Native Windows desktop wrapper for the Mintzy Plugin terminal",
   "main": "src/main/main.js",
   "scripts": {
+    "dev:renderer": "vite",
     "dev": "NODE_ENV=development electron .",
     "start": "electron .",
     "generate-icon": "node scripts/generate-icon.js",
-    "build": "npm run generate-icon && electron-builder --win --x64",
-    "build:dir": "npm run generate-icon && electron-builder --win --x64 --dir",
+    "build:renderer": "vite build",
+    "build": "npm run build:renderer && npm run generate-icon && electron-builder --win --x64",
+    "build:dir": "npm run build:renderer && npm run generate-icon && electron-builder --win --x64 --dir",
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
@@ -27,7 +29,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.png"
@@ -47,10 +51,21 @@
   "license": "UNLICENSED",
   "private": true,
   "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
     "electron": "^43.1.1",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5"
   },
   "dependencies": {
-    "electron-store": "^11.0.2"
+    "axios": "^1.18.1",
+    "electron-store": "^11.0.2",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.25.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "recharts": "^3.9.2"
   }
 }
