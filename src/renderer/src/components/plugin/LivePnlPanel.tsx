@@ -21,7 +21,10 @@ export default function LivePnlPanel({ sessionId }: Props) {
   const [symbols, setSymbols] = useState<Record<string, { unrealized_pnl: number; realized_pnl: number }>>({});
   const [history, setHistory] = useState<PnlPoint[]>([]);
   const [stopped, setStopped] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const [ready, setReady] = useState(false);
+  const [connected, setConnected] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   useEffect(() => {
     pluginApi.getLivePnlHistory(sessionId).then(res => {
@@ -38,7 +41,10 @@ export default function LivePnlPanel({ sessionId }: Props) {
     intervalRef.current = setInterval(async () => {
       try {
         const res = await pluginApi.getLivePnl(sessionId);
+        setConnected(true);
         if (res.data.ready && res.data.data) {
+          setReady(true);
+          setLastUpdated(new Date());
           setTotalPnl(res.data.data.total_pnl);
           setRealizedPnl(res.data.data.realized_pnl);
           setUnrealizedPnl(res.data.data.live_unrealized_pnl);
@@ -50,7 +56,9 @@ export default function LivePnlPanel({ sessionId }: Props) {
           });
         }
         if (res.data.stopped) setStopped(true);
-      } catch {}
+      } catch {
+        setConnected(false);
+      }
     }, 1000);
 
     return () => clearInterval(intervalRef.current);
@@ -60,35 +68,47 @@ export default function LivePnlPanel({ sessionId }: Props) {
   const TrendIcon = isPositive ? TrendingUp : TrendingDown;
   const trendColor = isPositive ? 'text-emerald-600' : 'text-red-600';
   const bgColor = isPositive ? 'bg-emerald-50' : 'bg-red-50';
+  const placeholder = !ready;
 
   return (
     <div className="space-y-4">
       {stopped && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700">Session stopped</div>
       )}
+      {!stopped && !connected && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700">
+          Connection lost — retrying… {lastUpdated && `Last update ${lastUpdated.toLocaleTimeString('en-IN')}`}
+        </div>
+      )}
+      {!stopped && connected && placeholder && (
+        <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
+          <Activity className="h-4 w-4 animate-pulse" aria-hidden="true" />
+          Waiting for the first P&L update from the engine…
+        </div>
+      )}
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className={`rounded-xl border p-4 ${bgColor}`}>
+      <div className="grid grid-cols-3 gap-3" aria-live="off">
+        <div className={`rounded-xl border p-4 ${placeholder ? 'border-slate-200 bg-white' : bgColor}`}>
           <div className="flex items-center gap-2">
-            <DollarSign className={`h-4 w-4 ${trendColor}`} />
+            <DollarSign className={`h-4 w-4 ${placeholder ? 'text-slate-400' : trendColor}`} aria-hidden="true" />
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total P&L</span>
           </div>
-          <p className={`mt-1 text-lg font-bold ${trendColor}`}>₹{totalPnl.toFixed(2)}</p>
-          <TrendIcon className={`mt-0.5 h-4 w-4 ${trendColor}`} />
+          <p className={`mt-1 text-lg font-bold ${placeholder ? 'text-slate-300' : trendColor}`}>{placeholder ? '—' : `₹${totalPnl.toFixed(2)}`}</p>
+          {!placeholder && <TrendIcon className={`mt-0.5 h-4 w-4 ${trendColor}`} aria-hidden="true" />}
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center gap-2">
-            <Wallet className="h-4 w-4 text-blue-500" />
+            <Wallet className="h-4 w-4 text-blue-500" aria-hidden="true" />
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Realized</span>
           </div>
-          <p className="mt-1 text-lg font-bold text-slate-900">₹{realizedPnl.toFixed(2)}</p>
+          <p className={`mt-1 text-lg font-bold ${placeholder ? 'text-slate-300' : 'text-slate-900'}`}>{placeholder ? '—' : `₹${realizedPnl.toFixed(2)}`}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-violet-500" />
+            <Activity className="h-4 w-4 text-violet-500" aria-hidden="true" />
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Unrealized</span>
           </div>
-          <p className="mt-1 text-lg font-bold text-slate-900">₹{unrealizedPnl.toFixed(2)}</p>
+          <p className={`mt-1 text-lg font-bold ${placeholder ? 'text-slate-300' : 'text-slate-900'}`}>{placeholder ? '—' : `₹${unrealizedPnl.toFixed(2)}`}</p>
         </div>
       </div>
 
@@ -106,7 +126,8 @@ export default function LivePnlPanel({ sessionId }: Props) {
               <XAxis dataKey="ts" hide />
               <YAxis hide domain={['dataMin', 'dataMax']} />
               <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
-                labelFormatter={() => ''} formatter={(v: number) => [`₹${v.toFixed(2)}`, 'P&L']} />
+                labelFormatter={(ts) => typeof ts === 'number' ? new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+                formatter={(v) => [`₹${Number(v ?? 0).toFixed(2)}`, 'P&L']} />
               <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} fill="url(#pnlGrad)" />
             </AreaChart>
           </ResponsiveContainer>
