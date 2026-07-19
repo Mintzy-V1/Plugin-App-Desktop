@@ -40,6 +40,8 @@ export const validateConfig = (draft: TradingConfigurationDraft): string | null 
   if (draft.stocks.some(s => !s.symbol || !s.capital)) return 'Fill all symbol and capital fields';
   if (draft.stocks.some(s => Number.isNaN(Number(s.capital)) || Number(s.capital) <= 0)) return 'Capital must be > 0';
   if (draft.stocks.some(s => Number.isNaN(s.stop_loss) || s.stop_loss <= 0)) return 'Stop loss must be > 0';
+  const symbols = draft.stocks.map(s => s.symbol);
+  if (new Set(symbols).size !== symbols.length) return 'Each stock can only be added once';
   return null;
 };
 

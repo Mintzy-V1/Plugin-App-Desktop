@@ -32,10 +32,14 @@ export default function SessionConfigForm({ sessionId, onSuccess, onBack }: Prop
     }
   };
 
+  const validStocks = config.stocks.filter(s => s.symbol && Number(s.capital) > 0);
+  const totalCapital = validStocks.reduce((sum, s) => sum + Number(s.capital), 0);
+
   return (
     <div className="mx-auto w-full max-w-lg px-4">
-      <button onClick={onBack} className="mb-4 flex items-center text-sm text-slate-400 transition-colors hover:text-slate-600">
-        <ArrowLeft className="mr-1 h-4 w-4" /> Back
+      <button onClick={onBack}
+        className="mb-4 flex items-center rounded-lg text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+        <ArrowLeft className="mr-1 h-4 w-4" aria-hidden="true" /> Back
       </button>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8">
@@ -51,12 +55,21 @@ export default function SessionConfigForm({ sessionId, onSuccess, onBack }: Prop
           <TradingConfigurationFields config={config} onChange={setConfig} />
 
           {error && (
-            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">{error}</div>
+            <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">{error}</div>
+          )}
+
+          {validStocks.length > 0 && (
+            <div className="rounded-xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
+              Starting <span className="font-semibold text-slate-700">{validStocks.length} symbol{validStocks.length > 1 ? 's' : ''}</span> with a total allocation of{' '}
+              <span className="font-semibold text-slate-700">
+                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalCapital)}
+              </span>{' '}on the {config.candle} candle
+            </div>
           )}
 
           <button type="submit" disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Start Trading <ArrowRight className="h-5 w-5" /></>}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50">
+            {loading ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Starting…</> : <>Start Trading <ArrowRight className="h-5 w-5" aria-hidden="true" /></>}
           </button>
         </form>
       </div>

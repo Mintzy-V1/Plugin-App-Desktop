@@ -2,20 +2,23 @@ import { IconMenu2 } from '@tabler/icons-react';
 
 interface Props {
   onToggleSidebar?: () => void;
+  sidebarCollapsed?: boolean;
+  title?: string;
 }
 
-export default function Navbar({ onToggleSidebar }: Props) {
+export default function Navbar({ onToggleSidebar, sidebarCollapsed, title }: Props) {
   return (
-    <nav className="w-full bg-white/90 sticky top-0 z-50 border-b border-gray-100/50 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        {onToggleSidebar && (
-          <button onClick={onToggleSidebar}
-            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700">
-            <IconMenu2 className="h-5 w-5" stroke={1.75} />
-          </button>
-        )}
-        <img src="./Mintzy%20Bars%20Full%20Lockup%20Green.png" alt="Mintzy" className="h-8 w-auto object-contain" />
-      </div>
-    </nav>
+    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-sm sm:px-6">
+      {onToggleSidebar && (
+        <button onClick={onToggleSidebar}
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!sidebarCollapsed}
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+          <IconMenu2 className="h-5 w-5" stroke={1.75} aria-hidden="true" />
+        </button>
+      )}
+      {title && <h1 className="text-sm font-semibold text-slate-900">{title}</h1>}
+    </header>
   );
 }
