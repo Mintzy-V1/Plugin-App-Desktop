@@ -1,8 +1,9 @@
 const {
-  app, BrowserWindow, ipcMain, powerMonitor, Notification
+  app, BrowserWindow, ipcMain, powerMonitor, Notification, shell
 } = require('electron');
 const path = require('path');
 const { initWindowState, saveWindowState } = require('./window-state');
+const { getSettings, setSetting } = require('./settings');
 const { createTray } = require('./tray');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -33,7 +34,8 @@ function createMainWindow() {
     minHeight: 600,
     show: false,
     title: 'Mintzy Plugin',
-    backgroundColor: '#0d1117',
+    // Match the renderer's light slate background so there is no dark flash on launch.
+    backgroundColor: '#f8fafc',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -53,8 +55,14 @@ function createMainWindow() {
     mainWindow.show();
   });
 
+  // Open external links in the default browser instead of a new Electron window.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
   mainWindow.on('close', (e) => {
-    if (!app.isQuitting) {
+    if (!app.isQuitting && getSettings().minimizeToTray) {
       e.preventDefault();
       mainWindow.hide();
     }
@@ -65,10 +73,12 @@ function createMainWindow() {
   }
 }
 
+// Vite outputs to <project root>/dist/renderer; __dirname is <project root>/src/main.
+const RENDERER_INDEX = path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html');
+
 function loadApp() {
   if (!mainWindow) return;
-  const rendererPath = path.join(__dirname, '..', 'dist', 'renderer', 'index.html');
-  mainWindow.loadFile(rendererPath);
+  mainWindow.loadFile(RENDERER_INDEX);
 }
 
 async function revalidateSession() {
@@ -79,7 +89,7 @@ app.whenReady().then(async () => {
   createMainWindow();
   createTray(mainWindow, {
     onLogout: () => {
-      mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'renderer', 'index.html'));
+      mainWindow.loadFile(RENDERER_INDEX);
     },
   });
 
@@ -98,6 +108,19 @@ app.whenReady().then(async () => {
   ipcMain.handle('system:set-auto-launch', async (_event, enable) => {
     app.setLoginItemSettings({ openAtLogin: enable });
     return { success: true };
+  });
+
+  ipcMain.handle('system:get-minimize-to-tray', async () => {
+    return getSettings().minimizeToTray;
+  });
+
+  ipcMain.handle('system:set-minimize-to-tray', async (_event, enable) => {
+    setSetting('minimizeToTray', Boolean(enable));
+    return { success: true };
+  });
+
+  ipcMain.handle('app:get-version', async () => {
+    return app.getVersion();
   });
 
   ipcMain.on('system:show-notification', (_event, { title, body }) => {
