@@ -119,6 +119,14 @@ export const pluginApi = {
     return api.delete(`${BASE}/tradingsession/${id}`);
   },
 
+  getPnlAggregate(year?: number, month?: number) {
+    return api.get<Record<string, unknown>>(`${BASE}/dashboard/pnl/aggregate`, { params: { year, month } });
+  },
+
+  getPnlSummary(sessionId: string, year?: number, month?: number) {
+    return api.get(`${BASE}/dashboard/pnl`, { params: { session_id: sessionId, year, month } });
+  },
+
   getDashboard(sessionId?: string) {
     return api.get<DashboardData>(`${BASE}/dashboard`, { params: { session_id: sessionId } });
   },
