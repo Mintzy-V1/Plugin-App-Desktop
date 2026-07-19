@@ -30,8 +30,9 @@ export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
 
   return (
     <div className="mx-auto w-full max-w-md px-4">
-      <button onClick={onBack} className="mb-4 flex items-center text-sm text-slate-400 transition-colors hover:text-slate-600">
-        <ArrowLeft className="mr-1 h-4 w-4" /> Back
+      <button onClick={onBack}
+        className="mb-4 flex items-center rounded-lg text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+        <ArrowLeft className="mr-1 h-4 w-4" aria-hidden="true" /> Back
       </button>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8">
@@ -44,17 +45,21 @@ export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="text" inputMode="numeric" maxLength={6} placeholder="000000" value={totp}
-            onChange={e => setTotp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-2xl font-bold tracking-[0.3em] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+          <div>
+            <label htmlFor="totp-code" className="sr-only">6-digit authentication code</label>
+            <input id="totp-code" type="text" inputMode="numeric" maxLength={6} placeholder="000000" value={totp}
+              autoComplete="one-time-code" autoFocus disabled={loading}
+              onChange={e => { setTotp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError(null); }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-2xl font-bold tracking-[0.3em] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+          </div>
 
           {error && (
-            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">{error}</div>
+            <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">{error}</div>
           )}
 
           <button type="submit" disabled={loading || totp.length !== 6}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Verify <ArrowRight className="h-5 w-5" /></>}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50">
+            {loading ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Verifying…</> : <>Verify <ArrowRight className="h-5 w-5" aria-hidden="true" /></>}
           </button>
         </form>
       </div>

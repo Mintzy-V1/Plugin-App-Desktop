@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -36,13 +38,20 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="apiKey" className="block text-sm font-medium text-slate-700">API Key</label>
-              <input id="apiKey" type="password" placeholder="Paste your API key" value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)} disabled={loading} autoFocus
-                className="mt-1.5 block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60" />
+              <div className="relative mt-1.5">
+                <input id="apiKey" type={showKey ? 'text' : 'password'} placeholder="Paste your API key" value={apiKey}
+                  onChange={(e) => { setApiKey(e.target.value); setError(''); }} disabled={loading} autoFocus autoComplete="off"
+                  className="block w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-4 pr-11 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60" />
+                <button type="button" onClick={() => setShowKey(s => !s)}
+                  aria-label={showKey ? 'Hide API key' : 'Show API key'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+                  {showKey ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                </button>
+              </div>
             </div>
 
             {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+              <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
             )}
 
             <button type="submit" disabled={loading}
@@ -58,6 +67,14 @@ export default function LoginPage() {
               ) : 'Continue'}
             </button>
           </form>
+
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Don't have an API key?{' '}
+            <a href="https://mintzy.in" target="_blank" rel="noreferrer"
+              className="font-medium text-blue-600 underline underline-offset-2 transition-colors hover:text-blue-700">
+              Get one from your Mintzy account
+            </a>
+          </p>
         </div>
       </div>
     </div>

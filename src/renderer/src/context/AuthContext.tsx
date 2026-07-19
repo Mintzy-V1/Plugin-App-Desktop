@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { onboard, getUserDetail } from '../lib/gateway';
+import { onboard } from '../lib/gateway';
 
 interface User {
   id: string;
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!token || token === 'dev_token') return;
+    if (!token || token === 'dev_token' || user) return;
     const parts = token.split('.');
     if (parts.length === 3) {
       try {
@@ -48,7 +48,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {}
     }
-  }, [token]);
+    // Token can't be hydrated into a user; clear it so we don't get stuck
+    // showing the login page with a stale token in storage.
+    localStorage.removeItem('mintzy_token');
+    setToken(null);
+  }, [token, user]);
 
   const login = useCallback(async (apiKey: string) => {
     try {
@@ -73,6 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
   }, []);
+
+  useEffect(() => {
+    const onExpired = () => logout();
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
+  }, [logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, logout }}>
