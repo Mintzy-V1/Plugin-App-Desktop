@@ -3,6 +3,7 @@ import { Code2, Plus } from 'lucide-react';
 import ConnectBrokerForm, { type BrokerType } from '../components/plugin/ConnectBrokerForm';
 import TwoFactorAuth from '../components/plugin/TwoFactorAuth';
 import SessionConfigForm from '../components/plugin/SessionConfigForm';
+import LiveSessionDashboard from '../components/plugin/LiveSessionDashboard';
 
 type PluginView = 'empty' | 'broker' | '2fa' | 'config' | 'dashboard';
 
@@ -39,6 +40,14 @@ export default function PluginPage() {
       <div className="flex min-h-[600px] items-center justify-center">
         <SessionConfigForm sessionId={sessionId} onSuccess={handleConfigSuccess} onBack={() => setView('2fa')} />
       </div>
+    );
+  }
+
+  if (view === 'dashboard' && sessionId) {
+    return (
+      <LiveSessionDashboard sessionId={sessionId}
+        onStop={() => setView('empty')}
+        onConfigure={() => setView('config')} />
     );
   }
 
