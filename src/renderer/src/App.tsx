@@ -1,32 +1,42 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import LoginPage from './pages/LoginPage';
 
-type View = 'login' | 'plugin' | 'dashboard' | 'settings';
+function AppContent() {
+  const { user, loading } = useAuth();
 
-export default function App() {
-  const [view, setView] = useState<View>('login');
+  if (loading) {
+    return <div style={{ background: '#0d1117', minHeight: '100vh' }} />;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', padding: 40, color: '#0f172a' }}>
-      <h1>Mintzy Plugin</h1>
-      <p style={{ color: '#64748b' }}>App shell — Phase 1.3</p>
-      <nav style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-        {(['login', 'plugin', 'dashboard', 'settings'] as View[]).map(v => (
-          <button key={v} onClick={() => setView(v)}
-            style={{
-              padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0',
-              background: view === v ? '#2563eb' : '#fff',
-              color: view === v ? '#fff' : '#0f172a', cursor: 'pointer'
-            }}>
-            {v}
-          </button>
-        ))}
+    <div style={{
+      display: 'flex', minHeight: '100vh', fontFamily: 'system-ui, sans-serif',
+      background: '#f8fafc', color: '#0f172a',
+    }}>
+      <nav style={{
+        width: 220, background: '#fff', borderRight: '1px solid #e2e8f0',
+        padding: 24, display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px' }}>Mintzy</h2>
+        <p style={{ fontSize: 13, color: '#64748b' }}>Welcome, {user.name}</p>
       </nav>
-      <div style={{ marginTop: 24, padding: 24, border: '1px solid #e2e8f0', borderRadius: 12 }}>
-        {view === 'login' && <p>Login view (API key → gateway onboard)</p>}
-        {view === 'plugin' && <p>Plugin terminal (broker → 2FA → config → dashboard)</p>}
-        {view === 'dashboard' && <p>User dashboard (profile + plugin summary)</p>}
-        {view === 'settings' && <p>Settings (auto-launch, logout, about)</p>}
-      </div>
+      <main style={{ flex: 1, padding: 32 }}>
+        <h1>Plugin Terminal</h1>
+        <p style={{ color: '#64748b' }}>Coming in Phase 2</p>
+      </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
