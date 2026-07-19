@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
+import Sidebar, { type NavItem } from './components/ui/Sidebar';
+import PluginPage from './pages/PluginPage';
+import DashboardPage from './pages/DashboardPage';
+import SettingsPage from './pages/SettingsPage';
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const [activeView, setActiveView] = useState<NavItem>('plugin');
 
   if (loading) {
     return <div style={{ background: '#0d1117', minHeight: '100vh' }} />;
@@ -14,20 +19,12 @@ function AppContent() {
   }
 
   return (
-    <div style={{
-      display: 'flex', minHeight: '100vh', fontFamily: 'system-ui, sans-serif',
-      background: '#f8fafc', color: '#0f172a',
-    }}>
-      <nav style={{
-        width: 220, background: '#fff', borderRight: '1px solid #e2e8f0',
-        padding: 24, display: 'flex', flexDirection: 'column', gap: 8,
-      }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px' }}>Mintzy</h2>
-        <p style={{ fontSize: 13, color: '#64748b' }}>Welcome, {user.name}</p>
-      </nav>
-      <main style={{ flex: 1, padding: 32 }}>
-        <h1>Plugin Terminal</h1>
-        <p style={{ color: '#64748b' }}>Coming in Phase 2</p>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
+      <Sidebar active={activeView} onNavigate={setActiveView} />
+      <main style={{ flex: 1, padding: 32, overflowY: 'auto' }}>
+        {activeView === 'plugin' && <PluginPage />}
+        {activeView === 'dashboard' && <DashboardPage />}
+        {activeView === 'settings' && <SettingsPage />}
       </main>
     </div>
   );
