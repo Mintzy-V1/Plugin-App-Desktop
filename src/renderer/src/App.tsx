@@ -18,12 +18,12 @@ function AppContent() {
     <div className="min-h-screen overflow-x-hidden bg-slate-50">
       <Navbar />
       <div className="mx-auto flex w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:gap-8 lg:px-8 lg:py-8">
-        <div className="hidden w-64 shrink-0 md:block">
+        <div className="w-64 shrink-0">
           <div className="sticky top-24">
             <Sidebar active={activeView} onNavigate={setActiveView} />
           </div>
         </div>
-        <main className="min-w-0 flex-1 pb-24 md:pb-8">
+        <main className="min-w-0 flex-1 pb-8">
           {activeView === 'plugin' ? (
             <PluginPage />
           ) : (
