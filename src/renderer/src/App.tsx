@@ -24,11 +24,14 @@ function AppContent() {
           </div>
         </div>
         <main className="min-w-0 flex-1 pb-24 md:pb-8">
-          <div className="mx-auto w-full max-w-[900px]">
-            {activeView === 'plugin' && <PluginPage />}
-            {activeView === 'dashboard' && <DashboardPage />}
-            {activeView === 'settings' && <SettingsPage />}
-          </div>
+          {activeView === 'plugin' ? (
+            <PluginPage />
+          ) : (
+            <div className="mx-auto w-full max-w-[900px]">
+              {activeView === 'dashboard' && <DashboardPage />}
+              {activeView === 'settings' && <SettingsPage />}
+            </div>
+          )}
         </main>
       </div>
     </div>
