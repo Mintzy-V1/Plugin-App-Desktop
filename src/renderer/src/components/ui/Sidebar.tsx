@@ -7,6 +7,7 @@ export type NavItem = 'plugin' | 'dashboard' | 'settings';
 interface SidebarProps {
   active: NavItem;
   onNavigate: (item: NavItem) => void;
+  collapsed?: boolean;
 }
 
 const NAV_ITEMS: { id: NavItem; label: string; icon: typeof IconCpu; badge?: string }[] = [
@@ -21,8 +22,29 @@ const EXTRA_ITEMS: { label: string; icon: typeof IconCode }[] = [
   { label: 'Recent Payments', icon: IconReceipt },
 ];
 
-export default function Sidebar({ active, onNavigate }: SidebarProps) {
+export default function Sidebar({ active, onNavigate, collapsed }: SidebarProps) {
   const { user, logout } = useAuth();
+
+  if (collapsed) {
+    return (
+      <aside className="flex flex-col items-center rounded-2xl border border-slate-200/80 bg-white shadow-sm py-3 w-16">
+        {NAV_ITEMS.map(({ id, icon: Icon, badge }) => (
+          <button key={id} type="button" onClick={() => onNavigate(id)}
+            className={`relative flex items-center justify-center rounded-xl p-2.5 transition-colors ${
+              active === id ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+            }`} title={NAV_ITEMS.find(n => n.id === id)?.label}>
+            <Icon className="h-5 w-5" stroke={1.75} />
+            {badge === 'LIVE' && <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />}
+          </button>
+        ))}
+        <div className="mt-auto pt-3 border-t border-slate-100 w-full flex justify-center">
+          <button onClick={logout} className="rounded-xl p-2.5 text-slate-400 hover:bg-red-50 hover:text-red-500" title="Log out">
+            <IconLogout className="h-5 w-5" stroke={1.75} />
+          </button>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className="flex h-full w-full flex-col rounded-2xl border border-slate-200/80 bg-white shadow-sm">
