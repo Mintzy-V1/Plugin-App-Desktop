@@ -1,4 +1,5 @@
-import { IconCode, IconCpu, IconSettings, IconUser, IconKey, IconReceipt, IconLogout } from '@tabler/icons-react';
+import { useState } from 'react';
+import { IconCode, IconCpu, IconSettings, IconUser, IconKey, IconReceipt, IconLogout, IconMenu2 } from '@tabler/icons-react';
 import { useAuth } from '../../context/AuthContext';
 import UserAvatar from './UserAvatar';
 
@@ -23,17 +24,47 @@ const EXTRA_ITEMS: { label: string; icon: typeof IconCode }[] = [
 
 export default function Sidebar({ active, onNavigate }: SidebarProps) {
   const { user, logout } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
+
+  if (collapsed) {
+    return (
+      <aside className="flex flex-col items-center rounded-2xl border border-slate-200/80 bg-white shadow-sm py-3 w-16">
+        <button onClick={() => setCollapsed(false)}
+          className="mb-2 rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700">
+          <IconMenu2 className="h-5 w-5" stroke={1.75} />
+        </button>
+        {NAV_ITEMS.map(({ id, icon: Icon, badge }) => (
+          <button key={id} type="button" onClick={() => onNavigate(id)}
+            className={`relative flex items-center justify-center rounded-xl p-2.5 transition-colors ${
+              active === id ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+            }`} title={NAV_ITEMS.find(n => n.id === id)?.label}>
+            <Icon className="h-5 w-5" stroke={1.75} />
+            {badge === 'LIVE' && <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />}
+          </button>
+        ))}
+        <div className="mt-auto pt-3 border-t border-slate-100 w-full flex justify-center">
+          <button onClick={logout} className="rounded-xl p-2.5 text-slate-400 hover:bg-red-50 hover:text-red-500" title="Log out">
+            <IconLogout className="h-5 w-5" stroke={1.75} />
+          </button>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className="flex h-full w-full flex-col rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-      <div className="border-b border-slate-100 px-4 py-5">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="flex items-center gap-3 min-w-0">
           <UserAvatar name={user?.name || 'U'} size="md" />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900">{user?.name}</p>
             <p className="truncate text-xs text-slate-500">{user?.email}</p>
           </div>
         </div>
+        <button onClick={() => setCollapsed(true)}
+          className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700">
+          <IconMenu2 className="h-4 w-4" stroke={1.75} />
+        </button>
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
