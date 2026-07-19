@@ -25,14 +25,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem('mintzy_token');
-    if (saved) {
+    const devBypass = localStorage.getItem('dev_bypass');
+
+    if (devBypass === 'true') {
+      setUser({ id: 'dev_id', name: 'Dev User', email: 'dev@mintzy.in', broker: 'angle one' });
+      setToken('dev_token');
+    } else if (saved) {
       setToken(saved);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || token === 'dev_token') return;
     const parts = token.split('.');
     if (parts.length === 3) {
       try {
@@ -64,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem('mintzy_token');
+    localStorage.removeItem('dev_bypass');
     setToken(null);
     setUser(null);
   }, []);

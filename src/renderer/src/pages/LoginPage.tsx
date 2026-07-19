@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
@@ -15,61 +15,51 @@ export default function LoginPage() {
     setError('');
     const result = await login(key);
     setLoading(false);
-    if (!result.success) {
-      setError(result.error || 'Authentication failed');
-    }
+    if (!result.success) setError(result.error || 'Authentication failed');
   };
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      minHeight: '100vh', background: '#0d1117', color: '#e6edf3',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    }}>
-      <form onSubmit={handleSubmit} style={{
-        background: '#161b22', borderRadius: 12, padding: 40, width: 400,
-        border: '1px solid #30363d',
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Mintzy</h1>
-          <p style={{ color: '#8b949e', marginTop: 8, fontSize: 14 }}>
-            Enter your API key to continue
-          </p>
+    <div className="flex min-h-screen flex-col bg-white">
+      <nav className="w-full border-b border-gray-100/50 bg-white/90 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-7xl items-center px-4 py-4 sm:px-6 lg:px-8">
+          <img src="./Mintzy%20Bars%20Full%20Lockup%20Green.png" alt="Mintzy" className="h-8 w-auto object-contain" />
         </div>
+      </nav>
 
-        <input
-          type="password"
-          placeholder="Paste your API key"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          disabled={loading}
-          style={{
-            width: '100%', padding: '12px 16px', borderRadius: 8,
-            border: '1px solid #30363d', background: '#0d1117',
-            color: '#e6edf3', fontSize: 14, outline: 'none',
-            boxSizing: 'border-box',
-          }}
-          autoFocus
-        />
-
-        {error && (
-          <div style={{
-            marginTop: 16, padding: '10px 14px', borderRadius: 8,
-            background: '#3d1114', border: '1px solid #da3633',
-            color: '#ff7b72', fontSize: 13,
-          }}>
-            {error}
+      <div className="flex flex-1 items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
+            <p className="mt-2 text-sm text-slate-500">Enter your API key to continue</p>
           </div>
-        )}
 
-        <button type="submit" disabled={loading} style={{
-          width: '100%', marginTop: 20, padding: '12px', borderRadius: 8,
-          border: 'none', background: loading ? '#1f6feb66' : '#1f6feb',
-          color: '#fff', fontSize: 15, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
-        }}>
-          {loading ? 'Verifying...' : 'Continue'}
-        </button>
-      </form>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="apiKey" className="block text-sm font-medium text-slate-700">API Key</label>
+              <input id="apiKey" type="password" placeholder="Paste your API key" value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)} disabled={loading} autoFocus
+                className="mt-1.5 block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60" />
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+            )}
+
+            <button type="submit" disabled={loading}
+              className="flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/20 disabled:opacity-60">
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Verifying...
+                </span>
+              ) : 'Continue'}
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

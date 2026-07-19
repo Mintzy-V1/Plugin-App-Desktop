@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
+import Navbar from './components/ui/Navbar';
 import Sidebar, { type NavItem } from './components/ui/Sidebar';
 import PluginPage from './pages/PluginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -8,24 +9,28 @@ import SettingsPage from './pages/SettingsPage';
 
 function AppContent() {
   const { user, loading } = useAuth();
-  const [activeView, setActiveView] = useState<NavItem>('plugin');
+  const [activeView, setActiveView] = useState<NavItem>('dashboard');
 
-  if (loading) {
-    return <div style={{ background: '#0d1117', minHeight: '100vh' }} />;
-  }
-
-  if (!user) {
-    return <LoginPage />;
-  }
+  if (loading) return <div className="min-h-screen bg-slate-50" />;
+  if (!user) return <LoginPage />;
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
-      <Sidebar active={activeView} onNavigate={setActiveView} />
-      <main style={{ flex: 1, padding: 32, overflowY: 'auto' }}>
-        {activeView === 'plugin' && <PluginPage />}
-        {activeView === 'dashboard' && <DashboardPage />}
-        {activeView === 'settings' && <SettingsPage />}
-      </main>
+    <div className="min-h-screen overflow-x-hidden bg-slate-50">
+      <Navbar />
+      <div className="mx-auto flex w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:gap-8 lg:px-8 lg:py-8">
+        <div className="hidden w-64 shrink-0 md:block">
+          <div className="sticky top-24">
+            <Sidebar active={activeView} onNavigate={setActiveView} />
+          </div>
+        </div>
+        <main className="min-w-0 flex-1 pb-24 md:pb-8">
+          <div className="mx-auto w-full max-w-[900px]">
+            {activeView === 'plugin' && <PluginPage />}
+            {activeView === 'dashboard' && <DashboardPage />}
+            {activeView === 'settings' && <SettingsPage />}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
