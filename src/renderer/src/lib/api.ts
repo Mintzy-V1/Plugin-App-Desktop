@@ -17,7 +17,13 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    const refreshedToken = res.headers['x-refreshed-jwt'];
+    if (refreshedToken) {
+      localStorage.setItem('mintzy_token', refreshedToken);
+    }
+    return res;
+  },
   async (error) => {
     const req = error.config;
     if (error.response?.status !== 401 || req._retry) return Promise.reject(error);

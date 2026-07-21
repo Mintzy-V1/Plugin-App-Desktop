@@ -18,11 +18,7 @@ const NAV_ITEMS: { id: NavItem; label: string; icon: typeof IconCpu }[] = [
   { id: 'settings',  label: 'System Settings',  icon: IconSettings },
 ];
 
-const EXTRA_ITEMS: { label: string; icon: typeof IconCode }[] = [
-  { label: 'Plugin Keys',     icon: IconKey },
-  { label: 'API Access',      icon: IconCode },
-  { label: 'Recent Payments', icon: IconReceipt },
-];
+
 
 /** Show the LIVE badge only when a trading session is actually active. */
 function useHasLiveSession() {
@@ -53,9 +49,7 @@ export default function Sidebar({ active, onNavigate, collapsed }: SidebarProps)
     <aside className={`flex h-full shrink-0 flex-col border-r border-slate-200/80 bg-white transition-[width] duration-200 ease-out ${collapsed ? 'w-16' : 'w-64'}`}>
       <div className={`flex h-16 shrink-0 items-center border-b border-slate-100 ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
         {collapsed ? (
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#0B4195] to-[#126DFB] text-sm font-bold text-white" aria-hidden="true">
-            M
-          </div>
+          <img src="./Mintzy%20Bars%20Iconic%20Mark%20Green.jpg" alt="Mintzy" className="h-9 w-9 rounded-xl object-contain" />
         ) : (
           <img src="./Mintzy%20Bars%20Full%20Lockup%20Green.png" alt="Mintzy" className="h-7 w-auto object-contain" />
         )}
@@ -84,8 +78,8 @@ export default function Sidebar({ active, onNavigate, collapsed }: SidebarProps)
               aria-current={isActive ? 'page' : undefined}
               className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
                 isActive
-                  ? 'border-l-[3px] border-blue-600 bg-blue-50 pl-[9px] font-semibold text-blue-700'
-                  : 'border-l-[3px] border-transparent font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'bg-blue-50 font-semibold text-blue-700'
+                  : 'font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
               <span className="flex items-center gap-3">
@@ -99,23 +93,7 @@ export default function Sidebar({ active, onNavigate, collapsed }: SidebarProps)
           );
         })}
 
-        {!collapsed && (
-          <>
-            <div className="my-2 border-t border-slate-100" role="separator" />
-            {EXTRA_ITEMS.map(({ label, icon: Icon }) => (
-              <div key={label}
-                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-400 cursor-not-allowed opacity-70"
-                title="Coming soon"
-              >
-                <span className="flex items-center gap-3">
-                  <Icon className="h-4 w-4 shrink-0" stroke={1.75} aria-hidden="true" />
-                  {label}
-                </span>
-                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400">Soon</span>
-              </div>
-            ))}
-          </>
-        )}
+
       </nav>
 
       <div className={`shrink-0 border-t border-slate-100 ${collapsed ? 'flex flex-col items-center gap-1 px-2 py-3' : 'p-3'}`}>

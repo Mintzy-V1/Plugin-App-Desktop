@@ -19,7 +19,7 @@ export interface UserDetail {
 }
 
 export async function onboard(apiKey: string): Promise<OnboardResponse> {
-  const res = await api.post('/api/v1/broker/onboard', { apiKey });
+  const res = await api.post('/api/v1/users/onboard', { apiKey });
   return res.data;
 }
 
