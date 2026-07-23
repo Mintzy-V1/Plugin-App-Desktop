@@ -70,13 +70,13 @@ export default function TradingConfigurationFields({ config, onChange }: Props) 
               <div className="grid grid-cols-2 gap-2">
                 <div className="relative">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400" aria-hidden="true">₹</span>
-                  <input type="number" placeholder="Capital" value={stock.capital} min={1} step={100}
+                  <input type="number" placeholder="Capital" value={stock.capital} min={1} step="any"
                     aria-label={`Capital for ${stock.symbol || `stock ${i + 1}`} in rupees`}
                     onChange={e => updateStock(i, { capital: e.target.value })}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-7 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
                 </div>
                 <div className="relative">
-                  <input type="number" placeholder="Stop loss" value={stock.stop_loss} min={0.1} max={100} step={0.5}
+                  <input type="number" placeholder="Stop loss" value={stock.stop_loss} min={0.1} max={100} step="any"
                     aria-label={`Stop loss percentage for ${stock.symbol || `stock ${i + 1}`}`}
                     onChange={e => updateStock(i, { stop_loss: Number(e.target.value) })}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-3 pr-8 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />

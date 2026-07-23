@@ -1,6 +1,7 @@
 const {
-  app, BrowserWindow, ipcMain, powerMonitor, Notification, shell
+  app, BrowserWindow, ipcMain, powerMonitor, Notification, shell, dialog
 } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const { initWindowState, saveWindowState } = require('./window-state');
 const { getSettings, setSetting } = require('./settings');
@@ -137,6 +138,39 @@ app.whenReady().then(async () => {
   });
 
   await revalidateSession();
+
+  // --- Auto-Update Logic ---
+  // We only check for updates in production builds
+  if (!isDev) {
+    
+    // 1. Configure the updater to download silently, but NOT automatically install on quit without asking
+    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.autoDownload = true;
+
+    // 2. Start checking for updates
+    autoUpdater.checkForUpdates().catch(err => {
+      console.error("Error checking for updates:", err);
+    });
+
+    // 3. When an update is fully downloaded, prompt the user
+    autoUpdater.on('update-downloaded', (info) => {
+      const dialogOpts = {
+        type: 'info',
+        buttons: ['Restart and Install Now', 'Later'],
+        title: 'Application Update',
+        message: `Version ${info.version} is available.`,
+        detail: 'A new version has been downloaded. Restart the application to apply the updates.'
+      };
+
+      dialog.showMessageBox(dialogOpts).then((returnValue) => {
+        if (returnValue.response === 0) {
+          // If the user clicked the first button ("Restart and Install Now")
+          autoUpdater.quitAndInstall();
+        }
+      });
+    });
+  }
+  // -------------------------
 });
 
 powerMonitor.on('resume', () => {

@@ -1,6 +1,15 @@
 import api from './api';
 
-const BASE = '/api/v1/angle_one';
+const getBase = () => {
+  try {
+    const token = localStorage.getItem('mintzy_token');
+    if (token) {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.broker === 'tradex') return '/api/v1/tradex';
+    }
+  } catch {}
+  return '/api/v1/angle_one';
+};
 
 export interface CredentialsPayload {
   api_key: string;
@@ -76,89 +85,89 @@ export interface TradingSession {
 
 export const pluginApi = {
   submitCredentials(payload: CredentialsPayload) {
-    return api.post<CredentialsResponse>(`${BASE}/credentials`, payload);
+    return api.post<CredentialsResponse>(`${getBase()}/credentials`, payload);
   },
 
   submitTotp(session_id: string, totp: string) {
-    return api.post(`${BASE}/totp`, { session_id, totp });
+    return api.post(`${getBase()}/totp`, { session_id, totp });
   },
 
   startTrading(payload: StartPayload) {
-    return api.post(`${BASE}/start`, payload);
+    return api.post(`${getBase()}/start`, payload);
   },
 
   stopTrading(sessionId: string) {
-    return api.post(`${BASE}/stop/${sessionId}`);
+    return api.post(`${getBase()}/stop/${sessionId}`);
   },
 
   stopSession(sessionId: string) {
-    return api.post(`${BASE}/sessions/${sessionId}/stop`);
+    return api.post(`${getBase()}/sessions/${sessionId}/stop`);
   },
 
   adminStopSession(sessionId: string) {
-    return api.post(`${BASE}/admin/sessions/${sessionId}/stop`);
+    return api.post(`${getBase()}/admin/sessions/${sessionId}/stop`);
   },
 
   exitSymbol(sessionId: string, symbol: string) {
-    return api.post(`${BASE}/${sessionId}/exit-symbol/${symbol}`);
+    return api.post(`${getBase()}/${sessionId}/exit-symbol/${symbol}`);
   },
 
   getActiveSession() {
-    return api.get<{ success: boolean; session: TradingSession | null }>(`${BASE}/trading/active-session`);
+    return api.get<{ success: boolean; session: TradingSession | null }>(`${getBase()}/trading/active-session`);
   },
 
   getSessions() {
-    return api.get<{ success: boolean; sessions: TradingSession[] }>(`${BASE}/trading/sessions`);
+    return api.get<{ success: boolean; sessions: TradingSession[] }>(`${getBase()}/trading/sessions`);
   },
 
   getSessionById(id: string) {
-    return api.get(`${BASE}/trading/sessions/${id}`);
+    return api.get(`${getBase()}/trading/sessions/${id}`);
   },
 
   deleteSession(id: string) {
-    return api.delete(`${BASE}/tradingsession/${id}`);
+    return api.delete(`${getBase()}/tradingsession/${id}`);
   },
 
   getPnlAggregate(year?: number, month?: number) {
-    return api.get<Record<string, unknown>>(`${BASE}/dashboard/pnl/aggregate`, { params: { year, month } });
+    return api.get<Record<string, unknown>>(`${getBase()}/dashboard/pnl/aggregate`, { params: { year, month } });
   },
 
   getPnlSummary(sessionId: string, year?: number, month?: number) {
-    return api.get(`${BASE}/dashboard/pnl`, { params: { session_id: sessionId, year, month } });
+    return api.get(`${getBase()}/dashboard/pnl`, { params: { session_id: sessionId, year, month } });
   },
 
   getDashboard(sessionId?: string) {
-    return api.get<DashboardData>(`${BASE}/dashboard`, { params: { session_id: sessionId } });
+    return api.get<DashboardData>(`${getBase()}/dashboard`, { params: { session_id: sessionId } });
   },
 
   getLivePnl(sessionId: string) {
-    return api.get<LivePnlResponse>(`${BASE}/trading/live-pnl/${sessionId}`);
+    return api.get<LivePnlResponse>(`${getBase()}/trading/live-pnl/${sessionId}`);
   },
 
   getLivePnlHistory(sessionId: string, date?: string) {
     return api.get<{ success: boolean; snapshots: PnlSnapshot[] }>(
-      `${BASE}/trading/live-pnl/${sessionId}/history`,
+      `${getBase()}/trading/live-pnl/${sessionId}/history`,
       { params: { date } }
     );
   },
 
   downloadTradebook(sessionId: string) {
-    return api.get<Blob>(`${BASE}/trading/${sessionId}/final-tradebook`, { responseType: 'blob' });
+    return api.get<Blob>(`${getBase()}/trading/${sessionId}/final-tradebook`, { responseType: 'blob' });
   },
 
   getSavedConfigs() {
-    return api.get<{ success: boolean; configurations: SavedConfig[] }>(`${BASE}/saved-configurations`);
+    return api.get<{ success: boolean; configurations: SavedConfig[] }>(`${getBase()}/saved-configurations`);
   },
 
   createSavedConfig(name: string, configuration: Record<string, unknown>, description?: string) {
-    return api.post(`${BASE}/saved-configurations`, { name, description, configuration });
+    return api.post(`${getBase()}/saved-configurations`, { name, description, configuration });
   },
 
   updateSavedConfig(id: string, data: Partial<SavedConfig>) {
-    return api.put(`${BASE}/saved-configurations/${id}`, data);
+    return api.put(`${getBase()}/saved-configurations/${id}`, data);
   },
 
   deleteSavedConfig(id: string) {
-    return api.delete(`${BASE}/saved-configurations/${id}`);
+    return api.delete(`${getBase()}/saved-configurations/${id}`);
   },
 };
