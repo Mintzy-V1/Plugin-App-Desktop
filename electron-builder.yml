@@ -2,6 +2,12 @@ appId: com.mintzy.plugin-desktop
 productName: Mintzy Plugin
 copyright: Copyright (c) 2026 Mintzy V1
 
+publish:
+  provider: s3
+  bucket: YOUR_S3_BUCKET_NAME
+  region: YOUR_S3_REGION
+  acl: public-read
+
 directories:
   output: release
   buildResources: build

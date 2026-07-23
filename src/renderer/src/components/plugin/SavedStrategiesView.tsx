@@ -31,7 +31,11 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
     setLoading(true);
     setLoadError(false);
     pluginApi.getSavedConfigs()
-      .then(res => setConfigs(res.data.configurations || []))
+      .then(res => {
+        const d = res.data as any;
+        const list = d.configurations || d.savedConfigurations || d.configs || d.data || (Array.isArray(d) ? d : []);
+        setConfigs(list);
+      })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   };
@@ -50,7 +54,8 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
       setDraft(createDefaultConfig());
       toast.success('Strategy saved');
       const res = await pluginApi.getSavedConfigs();
-      setConfigs(res.data.configurations || []);
+      const d = res.data as any;
+      setConfigs(d.configurations || d.savedConfigurations || d.configs || d.data || (Array.isArray(d) ? d : []));
     } catch {
       toast.error('Could not save the strategy. Please try again.');
     } finally { setSaving(false); }
@@ -101,8 +106,8 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
                 <p className="mt-1 text-xs text-slate-400">Build one on the right to reuse it for future sessions.</p>
               </div>
             ) : (
-              configs.map(c => (
-                <div key={c._id} className="rounded-xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-sm">
+              configs.map((c: any) => (
+                <div key={c._id || c.id} className="rounded-xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-900">{c.name}</p>
@@ -110,7 +115,7 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
                     </div>
                     <div className="flex shrink-0 gap-2">
                       {sessionId && (
-                        <button onClick={() => onUseConfig(c._id, c.configuration as Record<string, unknown>)}
+                        <button onClick={() => onUseConfig(c._id || c.id, c.configuration as Record<string, unknown>)}
                           disabled={quickStarting}
                           className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50">
                           {quickStarting && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, Lock, ArrowLeft, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { pluginApi } from '../../lib/pluginApi';
+import { useAuth } from '../../context/AuthContext';
 
 export type BrokerType = 'angel' | 'tradex';
 
@@ -13,6 +14,10 @@ const inputClass = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 p
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500';
 
 export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
+  const { user } = useAuth();
+  const isTradex = user?.broker === 'tradex';
+  const brokerName = isTradex ? 'TradeX' : 'Angel One';
+
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ api_key: '', client_code: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
@@ -30,7 +35,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
         password: form.password.trim(),
       });
       if (res.data?.success) {
-        onSuccess(res.data.session_id, Boolean(res.data.requires_totp), 'angel');
+        onSuccess(res.data.session_id, Boolean(res.data.requires_totp), isTradex ? 'tradex' : 'angel');
       } else {
         setError('Broker rejected the credentials. Please check them and try again.');
       }
@@ -54,28 +59,28 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
             <Lock className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
           </div>
           <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Connect Broker</h2>
-          <p className="mt-1 text-sm text-slate-500">Enter your Angel One credentials to continue</p>
+          <p className="mt-1 text-sm text-slate-500">Enter your {brokerName} credentials to continue</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="broker-api-key" className={labelClass}>API Key</label>
-            <input id="broker-api-key" type="text" placeholder="Your broker API key" required value={form.api_key}
+            <label htmlFor="broker-api-key" className={labelClass}>{isTradex ? 'App Key / JWT 1' : 'API Key'}</label>
+            <input id="broker-api-key" type="text" placeholder={isTradex ? 'Your App Key or JWT 1' : 'Your broker API key'} required value={form.api_key}
               autoComplete="off" disabled={loading}
               onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))}
               className={inputClass} />
           </div>
           <div>
-            <label htmlFor="broker-client-code" className={labelClass}>Client Code</label>
-            <input id="broker-client-code" type="text" placeholder="e.g. A123456" required value={form.client_code}
+            <label htmlFor="broker-client-code" className={labelClass}>{isTradex ? 'Client ID (e.g. HO9999)' : 'Client Code'}</label>
+            <input id="broker-client-code" type="text" placeholder={isTradex ? 'e.g. HO9999' : 'e.g. A123456'} required value={form.client_code}
               autoComplete="username" disabled={loading}
               onChange={e => setForm(f => ({ ...f, client_code: e.target.value }))}
               className={inputClass} />
           </div>
           <div>
-            <label htmlFor="broker-password" className={labelClass}>Password / PIN</label>
+            <label htmlFor="broker-password" className={labelClass}>{isTradex ? 'Secret Key / JWT 2' : 'Password / PIN'}</label>
             <div className="relative">
-              <input id="broker-password" type={showPassword ? 'text' : 'password'} placeholder="Your trading PIN" required
+              <input id="broker-password" type={showPassword ? 'text' : 'password'} placeholder={isTradex ? 'Your Secret Key or JWT 2' : 'Your trading PIN'} required
                 value={form.password} autoComplete="current-password" disabled={loading}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 className={`${inputClass} pr-11`} />

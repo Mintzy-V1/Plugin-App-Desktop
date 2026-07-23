@@ -40,34 +40,41 @@ function mockExchange(apiKey) {
     };
   }
 
-  const accessToken = 'mz_access_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const refreshToken = 'mz_refresh_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const brokerType = 'demo';
+  const token = 'mz_jwt_mock_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  const brokerType = 'angle one';
 
-  storage.saveCredentials({ apiKey: trimmed, token: accessToken, refreshToken, brokerType });
-  return { success: true, accessToken, refreshToken, brokerType };
+  storage.saveCredentials({ apiKey: trimmed, token, brokerType });
+  return { success: true, token, brokerType };
 }
 
 function delay(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
-async function exchangeApiKey(apiKey) {
+async function handleAuthLogin(apiKey) {
   if (useMock()) {
     await delay(600);
     return mockExchange(apiKey);
   }
   try {
-    const result = await api.exchangeApiKey(apiKey);
+    const result = await api.users.onboard(apiKey);
     if (result.success) {
       storage.saveCredentials({
         apiKey,
-        token: result.accessToken,
-        refreshToken: result.refreshToken,
-        brokerType: result.brokerType,
+        token: result.jwt,
+        brokerType: result.broker || 'angle one',
       });
+      return {
+        success: true,
+        token: result.jwt,
+        brokerType: result.broker || 'angle one'
+      };
     }
-    return result;
+    return {
+      success: false,
+      error: 'invalid_key',
+      message: result.message || 'Authentication failed'
+    };
   } catch (e) {
     return {
       success: false,
@@ -77,26 +84,61 @@ async function exchangeApiKey(apiKey) {
   }
 }
 
-async function handleAuthLogin(apiKey) {
-  return exchangeApiKey(apiKey);
-}
-
 async function handleAuthRevalidate() {
   const creds = storage.getCredentials();
   if (!creds || !creds.apiKey) {
     return { authenticated: false };
   }
-  const result = await exchangeApiKey(creds.apiKey);
-  if (!result.success) {
-    storage.clearCredentials();
-    return { authenticated: false, error: result.error, message: result.message };
+
+  if (useMock()) {
+    await delay(300);
+    const result = mockExchange(creds.apiKey);
+    if (!result.success) {
+      storage.clearCredentials();
+      return { authenticated: false, error: result.error, message: result.message };
+    }
+    return { authenticated: true, token: result.token, brokerType: result.brokerType };
   }
-  return {
-    authenticated: true,
-    token: result.accessToken,
-    refreshToken: result.refreshToken,
-    brokerType: result.brokerType,
-  };
+
+  try {
+    // Try to refresh the JWT first if we have one
+    if (creds.token) {
+      const refreshResult = await api.users.refresh(creds.token);
+      if (refreshResult.success) {
+        storage.saveCredentials({
+          ...creds,
+          token: refreshResult.jwt,
+          brokerType: refreshResult.broker || creds.brokerType,
+        });
+        return {
+          authenticated: true,
+          token: refreshResult.jwt,
+          brokerType: refreshResult.broker || creds.brokerType,
+        };
+      }
+    }
+
+    // Fallback to onboarding with API key if JWT refresh failed or was absent
+    const onboardResult = await api.users.onboard(creds.apiKey);
+    if (onboardResult.success) {
+      storage.saveCredentials({
+        apiKey: creds.apiKey,
+        token: onboardResult.jwt,
+        brokerType: onboardResult.broker || 'angle one',
+      });
+      return {
+        authenticated: true,
+        token: onboardResult.jwt,
+        brokerType: onboardResult.broker || 'angle one',
+      };
+    }
+
+    // Both failed
+    storage.clearCredentials();
+    return { authenticated: false, error: 'invalid_key', message: onboardResult.message || 'Session expired.' };
+  } catch (e) {
+    return { authenticated: false, error: 'network', message: 'Network error during session revalidation.' };
+  }
 }
 
 function handleAuthLogout() {
@@ -107,7 +149,7 @@ function handleAuthLogout() {
 function handleAuthCheck() {
   const creds = storage.getCredentials();
   if (!creds) return { authenticated: false };
-  return { authenticated: true, token: creds.token, brokerType: creds.brokerType, refreshToken: creds.refreshToken || null };
+  return { authenticated: true, token: creds.token, brokerType: creds.brokerType };
 }
 
 module.exports = { handleAuthLogin, handleAuthRevalidate, handleAuthLogout, handleAuthCheck };
