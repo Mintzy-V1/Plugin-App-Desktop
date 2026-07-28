@@ -7,11 +7,12 @@ import TradingConfigurationFields from './TradingConfigurationFields';
 
 interface Props {
   sessionId: string;
+  freeCash?: number | null;
   onSuccess: () => void;
   onBack: () => void;
 }
 
-export default function SessionConfigForm({ sessionId, onSuccess, onBack }: Props) {
+export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onBack }: Props) {
   const [config, setConfig] = useState<TradingConfigurationDraft>(createDefaultConfig());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +50,12 @@ export default function SessionConfigForm({ sessionId, onSuccess, onBack }: Prop
           </div>
           <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Configure Session</h2>
           <p className="mt-1 text-sm text-slate-500">Set your trading parameters</p>
+          {freeCash != null && (
+            <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              Broker free cash:{' '}
+              {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(freeCash)}
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
