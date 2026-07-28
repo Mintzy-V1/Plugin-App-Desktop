@@ -5,17 +5,28 @@ const getBase = () => {
     const token = localStorage.getItem('mintzy_token');
     if (token) {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.broker === 'tradex') return '/api/v1/tradex';
+      const broker = String(payload.broker || '').toLowerCase().replace(/\s+/g, '');
+      if (broker === 'tradex') return '/api/v1/tradex';
     }
   } catch {}
   return '/api/v1/angle_one';
 };
 
-export interface CredentialsPayload {
+export type AngelCredentialsPayload = {
   api_key: string;
   client_code: string;
   password: string;
-}
+};
+
+export type TradeXCredentialsPayload = {
+  userId: string;
+  access_key: string;
+  access_secret: string;
+  base_url?: string;
+  token?: string;
+};
+
+export type CredentialsPayload = AngelCredentialsPayload | TradeXCredentialsPayload;
 
 export interface CredentialsResponse {
   success: boolean;
@@ -89,7 +100,17 @@ export const pluginApi = {
   },
 
   submitTotp(session_id: string, totp: string) {
-    return api.post(`${getBase()}/totp`, { session_id, totp });
+    return api.post<{
+      success: boolean;
+      session_id: string;
+      message?: string;
+      free_cash?: number;
+      account_info?: {
+        user?: string;
+        free_cash?: number;
+        balance_details?: Record<string, unknown>;
+      };
+    }>(`${getBase()}/totp`, { session_id, totp });
   },
 
   startTrading(payload: StartPayload) {
@@ -138,6 +159,32 @@ export const pluginApi = {
 
   getDashboard(sessionId?: string) {
     return api.get<DashboardData>(`${getBase()}/dashboard`, { params: { session_id: sessionId } });
+  },
+
+  /** Plugin DB session status document (object with nested `status`, optional `free_cash`). */
+  getSessionStatus(sessionId: string) {
+    return api.get<Record<string, unknown>>(`${getBase()}/sessions/${sessionId}/status`);
+  },
+
+  /** Live trade rows from the plugin engine (preferred for the Trade Logs tab). */
+  getSessionTrades(sessionId: string) {
+    return api.get<Record<string, unknown>[] | { logs?: Record<string, unknown>[]; rows?: Record<string, unknown>[] }>(
+      `${getBase()}/sessions/${sessionId}/trades`
+    );
+  },
+
+  /**
+   * Full live session state from the plugin VM (status, snapshot, execution trades).
+   * Uses the user's latest session on the gateway — caller should verify python_session_id.
+   */
+  getFullSessionState() {
+    return api.get<{
+      success?: boolean;
+      python_session_id?: string;
+      status?: Record<string, unknown> | null;
+      snapshot?: Record<string, unknown> | null;
+      logs?: Record<string, unknown>[];
+    }>(`${getBase()}/session`);
   },
 
   getLivePnl(sessionId: string) {
