@@ -17,6 +17,8 @@ export default function PluginPage() {
   const toast = useToast();
   const [view, setView] = useState<PluginView>('empty');
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<string | undefined>(undefined);
+  const [freeCash, setFreeCash] = useState<number | null>(null);
   const [sessions, setSessions] = useState<TradingSession[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TradingSession | null>(null);
@@ -31,15 +33,21 @@ export default function PluginPage() {
   useEffect(() => { fetchSessions(); }, []);
 
   const handleBrokerSuccess = (sid: string, reqTotp: boolean, _bt: BrokerType) => {
-    setSessionId(sid); setView(reqTotp ? '2fa' : 'config');
+    setSessionId(sid);
+    setFreeCash(null);
+    setView(reqTotp ? '2fa' : 'config');
   };
 
   const handleSelectSession = (s: TradingSession) => {
     if (s.status === 'trading_active') {
       setSessionId(s.python_session_id);
+      setSessionStatus(s.status);
+      setFreeCash(null); // will refresh from live dashboard sources
       setView('dashboard');
     } else if (s.status === 'authenticated') {
       setSessionId(s.python_session_id);
+      setSessionStatus(s.status);
+      setFreeCash(null);
       setView('config');
     } else {
       toast.info('This session has ended. Download its tradebook from the Dashboard.');
@@ -67,6 +75,7 @@ export default function PluginPage() {
     pluginApi.startTrading({ session_id: sessionId, saved_configuration_id: configId })
       .then(() => {
         toast.success('Trading started from saved strategy');
+        setSessionStatus('trading_active');
         setView('dashboard');
         fetchSessions();
       })
@@ -78,7 +87,7 @@ export default function PluginPage() {
 
   const sidebar = (
     <PluginSidebar sessions={sessions} activeSessionId={sessionId}
-      onNewSession={() => { setSessionId(null); setView('broker'); }}
+      onNewSession={() => { setSessionId(null); setFreeCash(null); setSessionStatus(undefined); setView('broker'); }}
       onSelectSession={handleSelectSession}
       onSavedStrategies={() => setView('saved')}
       onDeleteSession={id => {
@@ -94,8 +103,8 @@ export default function PluginPage() {
       <div className="min-w-0 flex-1">
         <div key={view} className="animate-fade-in">
           {view === 'dashboard' && sessionId && (
-            <LiveSessionDashboard sessionId={sessionId}
-              onStop={() => { setView('empty'); fetchSessions(); }}
+            <LiveSessionDashboard sessionId={sessionId} initialStatus={sessionStatus} initialFreeCash={freeCash}
+              onStop={() => { setView('empty'); setSessionStatus(undefined); setFreeCash(null); fetchSessions(); }}
               onConfigure={() => setView('config')} />
           )}
           {view === 'broker' && (
@@ -105,12 +114,20 @@ export default function PluginPage() {
           )}
           {view === '2fa' && sessionId && (
             <div className="flex min-h-[600px] items-center justify-center">
-              <TwoFactorAuth sessionId={sessionId} onSuccess={() => setView('config')} onBack={() => setView('broker')} />
+              <TwoFactorAuth sessionId={sessionId}
+                onSuccess={(info) => {
+                  if (info?.freeCash != null) setFreeCash(info.freeCash);
+                  setSessionStatus('authenticated');
+                  setView('config');
+                }}
+                onBack={() => setView('broker')} />
             </div>
           )}
           {view === 'config' && sessionId && (
             <div className="flex min-h-[600px] items-center justify-center">
-              <SessionConfigForm sessionId={sessionId} onSuccess={() => { setView('dashboard'); fetchSessions(); }} onBack={() => setView('2fa')} />
+              <SessionConfigForm sessionId={sessionId} freeCash={freeCash}
+                onSuccess={() => { setSessionStatus('trading_active'); setView('dashboard'); fetchSessions(); }}
+                onBack={() => setView('2fa')} />
             </div>
           )}
           {view === 'saved' && (

@@ -4,8 +4,25 @@ import { pluginApi } from '../../lib/pluginApi';
 
 interface Props {
   sessionId: string;
-  onSuccess: () => void;
+  onSuccess: (info?: { freeCash?: number | null }) => void;
   onBack: () => void;
+}
+
+function extractFreeCash(data: Record<string, any> | undefined | null): number | null {
+  if (!data) return null;
+  const candidates = [
+    data.free_cash,
+    data.account_info?.free_cash,
+    data.account_info?.balance_details?.free_cash,
+    data.account_info?.balance_details?.data?.availablecash,
+    data.account_info?.balance_details?.raw?.data?.availablecash,
+  ];
+  for (const c of candidates) {
+    if (c == null || c === '') continue;
+    const n = Number(c);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
 }
 
 export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
@@ -19,8 +36,9 @@ export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
     setLoading(true);
     setError(null);
     try {
-      await pluginApi.submitTotp(sessionId, totp);
-      onSuccess();
+      const res = await pluginApi.submitTotp(sessionId, totp);
+      const freeCash = extractFreeCash(res.data as Record<string, any>);
+      onSuccess({ freeCash });
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Invalid code');
     } finally {
@@ -38,7 +56,7 @@ export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8">
         <div className="mb-6 text-center sm:mb-8">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600 sm:mb-4 sm:h-14 sm:w-14">
-            <Shield className="h-6 w-6 sm:h-7 sm:w-7" />
+            <Shield className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
           </div>
           <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Two-Factor Auth</h2>
           <p className="mt-1 text-sm text-slate-500">Enter the 6-digit TOTP from your authenticator app</p>

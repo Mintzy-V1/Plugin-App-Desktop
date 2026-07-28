@@ -1,37 +1,129 @@
 import { useState, useEffect, useRef } from 'react';
-import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff } from 'lucide-react';
+import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee } from 'lucide-react';
 import { pluginApi } from '../../lib/pluginApi';
 import { useToast } from '../ui/Toast';
 import ConfirmDialog from '../ui/ConfirmDialog';
-import { sessionStatusLabel } from '../../lib/sessionStatus';
+import { sessionStatusLabel, resolveSessionStatus } from '../../lib/sessionStatus';
 import LivePnlPanel from './LivePnlPanel';
 
 interface Props {
   sessionId: string;
+  /** Known status from the sessions list (e.g. trading_active) — used until dashboard hydrates. */
+  initialStatus?: string;
+  /** Free cash captured from the TOTP / broker-connect response. */
+  initialFreeCash?: number | null;
   onStop: () => void;
   onConfigure: () => void;
 }
 
 type Tab = 'logs' | 'pnl';
 
-interface TradeLog {
-  time?: string;
-  symbol?: string;
-  signal?: string;
-  action?: string;
-  status?: string;
-  price?: number;
-  change?: number;
-  pnl?: number;
-  capital?: number;
-  return_pct?: number;
+interface TradeLogRow {
+  time: string;
+  symbol: string;
+  signal: string;
+  action: string;
+  price: string | number;
+  change: string | number;
+  pnl: string | number;
+  capital: string | number;
+  return_pct: string | number;
 }
 
-export default function LiveSessionDashboard({ sessionId, onStop }: Props) {
+function pickStatus(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const nested = obj.status;
+    if (typeof nested === 'string') return nested;
+    if (nested && typeof nested === 'object' && typeof (nested as Record<string, unknown>).status === 'string') {
+      return (nested as Record<string, unknown>).status as string;
+    }
+  }
+  return null;
+}
+
+function pickCash(...sources: unknown[]): number | null {
+  for (const src of sources) {
+    if (src == null) continue;
+    if (typeof src === 'number' && Number.isFinite(src)) return src;
+    if (typeof src === 'object') {
+      const o = src as Record<string, unknown>;
+      const candidates = [o.cash_balance, o.free_cash, o.total_capital, o.available_cash, o.availablecash, o.AvailableCash, o.net];
+      for (const c of candidates) {
+        if (c == null || c === '') continue;
+        const n = Number(c);
+        if (Number.isFinite(n)) return n;
+      }
+      // nested data wrappers
+      if (o.data && typeof o.data === 'object') {
+        const nested = pickCash(o.data);
+        if (nested != null) return nested;
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeLogs(raw: unknown): TradeLogRow[] {
+  let rows: unknown[] = [];
+  if (Array.isArray(raw)) rows = raw;
+  else if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    if (Array.isArray(o.rows)) rows = o.rows;
+    else if (Array.isArray(o.logs)) rows = o.logs;
+    else if (Array.isArray(o.data)) rows = o.data;
+  }
+
+  return rows.map((item) => {
+    const r = (item && typeof item === 'object' ? item : {}) as Record<string, any>;
+    const timeRaw = r.timestamp ?? r.time ?? r.Timestamp ?? r.Time;
+    let time = '-';
+    if (timeRaw != null) {
+      if (typeof timeRaw === 'string' && timeRaw.includes('-') && !Number.isNaN(Date.parse(timeRaw))) {
+        time = new Date(timeRaw).toLocaleString('en-IN');
+      } else if (typeof timeRaw === 'number' || !Number.isNaN(Date.parse(String(timeRaw)))) {
+        time = new Date(timeRaw).toLocaleString('en-IN');
+      } else {
+        time = String(timeRaw);
+      }
+    }
+
+    return {
+      time,
+      symbol: String(r.Symbol ?? r.symbol ?? '-'),
+      signal: String(r.Signal ?? r.signal ?? '-'),
+      action: String(r.Action_Status ?? r.Action ?? r.action ?? r.action_status ?? r.status ?? '-'),
+      price: r.Price ?? r.price ?? r.curr_price ?? '-',
+      change: r['Change(%)'] ?? r.Change ?? r.change ?? r.return_pct ?? '-',
+      pnl: r['P&L'] ?? r.PnL ?? r.pnl ?? r.unrealized_pnl ?? r.realized_pnl ?? '-',
+      capital: r['Total_Capital'] ?? r.TotalCapital ?? r.total_capital ?? r.capital ?? r.cash_balance ?? '-',
+      return_pct: r['Return(%)'] ?? r.Return ?? r.return ?? '-',
+    };
+  });
+}
+
+function formatMoney(n: number) {
+  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatCell(v: string | number, asMoney = false) {
+  if (v === '-' || v == null || v === '') return '-';
+  const n = Number(v);
+  if (asMoney && Number.isFinite(n)) return formatMoney(n);
+  if (Number.isFinite(n) && asMoney === false && typeof v === 'number') return n.toFixed(2);
+  return String(v);
+}
+
+export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, onStop }: Props) {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('pnl');
-  const [logs, setLogs] = useState<TradeLog[]>([]);
-  const [sessionStatus, setSessionStatus] = useState<string>('');
+  const [logs, setLogs] = useState<TradeLogRow[]>([]);
+  const [sessionStatus, setSessionStatus] = useState<string>(initialStatus || '');
+  const [availableCash, setAvailableCash] = useState<number | null>(
+    initialFreeCash != null && Number.isFinite(initialFreeCash) ? initialFreeCash : null
+  );
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -41,24 +133,67 @@ export default function LiveSessionDashboard({ sessionId, onStop }: Props) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   const fetchDashboard = async () => {
-    try {
-      const res = await pluginApi.getDashboard(sessionId);
-      const rawStatus = res.data?.status;
-      if (rawStatus) {
-        setSessionStatus(typeof rawStatus === 'string' ? rawStatus : String((rawStatus as Record<string, unknown>).status ?? ''));
-        setLogs((res.data.logs || []) as TradeLog[]);
-      }
-      setConnected(true);
-      setLastUpdated(new Date());
-    } catch {
-      setConnected(false);
-    } finally {
-      setLoading(false);
-    }
+    // Pull from several endpoints in parallel — same strategy as the web plugin UI.
+    // A failure in one source must not blank out status / cash / logs.
+    const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes] = await Promise.allSettled([
+      pluginApi.getDashboard(sessionId),
+      pluginApi.getSessionStatus(sessionId),
+      pluginApi.getSessionTrades(sessionId),
+      pluginApi.getSessionById(sessionId),
+      pluginApi.getPnlSummary(sessionId),
+      pluginApi.getFullSessionState(),
+    ]);
+
+    const dash = dashRes.status === 'fulfilled' ? dashRes.value.data : null;
+    const pluginStatus = statusRes.status === 'fulfilled' ? statusRes.value.data : null;
+    const tradesRaw = tradesRes.status === 'fulfilled' ? tradesRes.value.data : null;
+    const tradingSession = tsRes.status === 'fulfilled'
+      ? ((tsRes.value.data as any)?.session ?? tsRes.value.data)
+      : null;
+    const pnlSummary = pnlRes.status === 'fulfilled' ? pnlRes.value.data as Record<string, any> : null;
+    const fullState = fullRes.status === 'fulfilled' ? fullRes.value.data : null;
+    // /session always returns the user's latest session — only trust it for this id
+    const fullMatches = fullState?.python_session_id === sessionId ? fullState : null;
+
+    const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes].some(r => r.status === 'fulfilled');
+    setConnected(anyOk);
+
+    const snapshot = (fullMatches?.snapshot as any)?.data
+      || fullMatches?.snapshot
+      || (dash?.snapshot as any)?.data
+      || dash?.snapshot
+      || null;
+
+    const resolved = resolveSessionStatus(
+      pickStatus(pluginStatus),
+      pickStatus(fullMatches?.status),
+      pickStatus(dash?.status),
+      pickStatus(snapshot),
+      pickStatus(tradingSession),
+      initialStatus,
+    );
+    if (resolved) setSessionStatus(resolved);
+
+    const cash = pickCash(snapshot, pluginStatus, fullMatches?.status, dash?.status, tradingSession, pnlSummary?.current);
+    if (cash != null) setAvailableCash(cash);
+
+    // Prefer live plugin execution trades (/session), then Mongo trading_logs.
+    const fromPlugin = normalizeLogs(fullMatches?.logs);
+    const fromTrades = normalizeLogs(tradesRaw);
+    const fromDash = normalizeLogs(dash?.logs);
+    if (fromPlugin.length > 0) setLogs(fromPlugin);
+    else if (fromTrades.length > 0) setLogs(fromTrades);
+    else if (fromDash.length > 0) setLogs(fromDash);
+    // If all empty, keep previous logs so a flaky poll doesn't flash "No trades yet".
+
+    if (anyOk) setLastUpdated(new Date());
+    setLoading(false);
   };
 
   useEffect(() => {
     setLoading(true);
+    if (initialStatus) setSessionStatus(initialStatus);
+    if (initialFreeCash != null && Number.isFinite(initialFreeCash)) setAvailableCash(initialFreeCash);
     fetchDashboard();
     intervalRef.current = setInterval(fetchDashboard, 10000);
     return () => clearInterval(intervalRef.current);
@@ -70,6 +205,7 @@ export default function LiveSessionDashboard({ sessionId, onStop }: Props) {
       if (force) await pluginApi.adminStopSession(sessionId);
       else await pluginApi.stopTrading(sessionId);
       toast.success(force ? 'Session force-stopped' : 'Session stopped');
+      setSessionStatus('stopped');
       setConfirming(null);
       onStop();
     } catch (err: any) {
@@ -89,8 +225,11 @@ export default function LiveSessionDashboard({ sessionId, onStop }: Props) {
       a.href = url; a.download = `tradebook-${sessionId}.csv`; a.click();
       URL.revokeObjectURL(url);
       toast.success('Tradebook CSV downloaded');
-    } catch {
-      toast.error('Could not download the tradebook. Please try again.');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      toast.error(status === 404
+        ? 'Final tradebook is only available after the session ends.'
+        : 'Could not download the tradebook. Please try again.');
     } finally {
       setDownloading(false);
     }
@@ -105,36 +244,66 @@ export default function LiveSessionDashboard({ sessionId, onStop }: Props) {
     );
   }
 
+  const statusColor = (() => {
+    const s = (sessionStatus || '').toLowerCase();
+    if (['trading_active', 'active', 'running', 'started'].includes(s)) return 'text-emerald-600';
+    if (['stopped', 'completed', 'abandoned'].includes(s)) return 'text-slate-500';
+    if (['error', 'failed'].includes(s)) return 'text-red-600';
+    return 'text-slate-900';
+  })();
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Session Status</p>
-            {!connected && (
-              <span className="flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
-                <WifiOff className="h-3 w-3" aria-hidden="true" /> Reconnecting…
-              </span>
-            )}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Broker Free Cash</p>
+              <p className="mt-1 text-xl font-bold text-slate-900">
+                {availableCash != null ? formatMoney(availableCash) : <span className="text-base font-medium text-slate-400">—</span>}
+              </p>
+            </div>
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2.5">
+              <IndianRupee className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+            </div>
           </div>
-          <p className="mt-0.5 text-sm font-semibold text-slate-900">{sessionStatusLabel(sessionStatus) || 'Active'}</p>
-          {lastUpdated && (
-            <p className="mt-0.5 text-[11px] text-slate-400">Updated {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
-          )}
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleDownload} disabled={downloading}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50">
-            {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />} CSV
-          </button>
-          <button onClick={() => setConfirming('stop')}
-            className="flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40">
-            <StopCircle className="h-3.5 w-3.5" aria-hidden="true" /> Stop
-          </button>
-          <button onClick={() => setConfirming('force')}
-            className="flex items-center gap-1.5 rounded-xl bg-red-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40">
-            <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> Force Stop
-          </button>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Session Status</p>
+                {!connected && (
+                  <span className="flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                    <WifiOff className="h-3 w-3" aria-hidden="true" /> Reconnecting…
+                  </span>
+                )}
+              </div>
+              <p className={`mt-1 text-xl font-bold capitalize ${statusColor}`}>
+                {sessionStatusLabel(sessionStatus) || 'Loading…'}
+              </p>
+              {lastUpdated && (
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Updated {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={handleDownload} disabled={downloading}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50">
+                {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />} CSV
+              </button>
+              <button onClick={() => setConfirming('stop')}
+                className="flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40">
+                <StopCircle className="h-3.5 w-3.5" aria-hidden="true" /> Stop
+              </button>
+              <button onClick={() => setConfirming('force')}
+                className="flex items-center gap-1.5 rounded-xl bg-red-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40">
+                <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> Force Stop
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -149,9 +318,12 @@ export default function LiveSessionDashboard({ sessionId, onStop }: Props) {
         ))}
       </div>
 
-      {tab === 'pnl' && <LivePnlPanel sessionId={sessionId} />}
+      {/* Keep both panes mounted so Live P&L history/polling survives tab switches. */}
+      <div hidden={tab !== 'pnl'}>
+        <LivePnlPanel sessionId={sessionId} />
+      </div>
 
-      {tab === 'logs' && (
+      <div hidden={tab !== 'logs'}>
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           {logs.length === 0 ? (
             <div className="p-10 text-center">
@@ -167,7 +339,6 @@ export default function LiveSessionDashboard({ sessionId, onStop }: Props) {
                     <th scope="col" className="px-4 py-3">Symbol</th>
                     <th scope="col" className="px-4 py-3">Signal</th>
                     <th scope="col" className="px-4 py-3">Action</th>
-                    <th scope="col" className="px-4 py-3">Status</th>
                     <th scope="col" className="px-4 py-3 text-right">Price</th>
                     <th scope="col" className="px-4 py-3 text-right">Change</th>
                     <th scope="col" className="px-4 py-3 text-right">P&L</th>
@@ -176,36 +347,41 @@ export default function LiveSessionDashboard({ sessionId, onStop }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.map((log, i) => (
-                    <tr key={i} className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50">
-                      <td className="px-4 py-2.5 text-xs font-mono">{log.time || '-'}</td>
-                      <td className="px-4 py-2.5 font-semibold">{log.symbol || '-'}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-                          log.signal === 'BUY' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-                        }`}>{log.signal || '-'}</span>
-                      </td>
-                      <td className="px-4 py-2.5">{log.action || '-'}</td>
-                      <td className="px-4 py-2.5">{log.status || '-'}</td>
-                      <td className="px-4 py-2.5 text-right font-mono">{log.price?.toFixed(2) || '-'}</td>
-                      <td className={`px-4 py-2.5 text-right font-mono ${(log.change || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {log.change != null ? `${log.change >= 0 ? '+' : ''}${log.change.toFixed(2)}` : '-'}
-                      </td>
-                      <td className={`px-4 py-2.5 text-right font-mono ${(log.pnl || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {log.pnl != null ? `₹${log.pnl.toFixed(2)}` : '-'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono">{log.capital != null ? `₹${log.capital.toFixed(2)}` : '-'}</td>
-                      <td className={`px-4 py-2.5 text-right font-mono ${(log.return_pct || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {log.return_pct != null ? `${log.return_pct >= 0 ? '+' : ''}${log.return_pct.toFixed(2)}%` : '-'}
-                      </td>
-                    </tr>
-                  ))}
+                  {logs.map((log, i) => {
+                    const pnlNum = Number(log.pnl);
+                    const changeNum = Number(log.change);
+                    const pnlColor = Number.isFinite(pnlNum) ? (pnlNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
+                    const changeColor = Number.isFinite(changeNum) ? (changeNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
+                    return (
+                      <tr key={i} className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50">
+                        <td className="px-4 py-2.5 text-xs font-mono">{log.time}</td>
+                        <td className="px-4 py-2.5 font-semibold">{log.symbol}</td>
+                        <td className="px-4 py-2.5">
+                          {log.signal !== '-' ? (
+                            <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                              String(log.signal).toUpperCase() === 'BUY' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                            }`}>{log.signal}</span>
+                          ) : '-'}
+                        </td>
+                        <td className="px-4 py-2.5">{log.action}</td>
+                        <td className="px-4 py-2.5 text-right font-mono">{formatCell(log.price, true)}</td>
+                        <td className={`px-4 py-2.5 text-right font-mono ${changeColor}`}>
+                          {log.change === '-' ? '-' : `${Number.isFinite(changeNum) && changeNum > 0 ? '+' : ''}${formatCell(log.change)}${Number.isFinite(changeNum) ? '%' : ''}`}
+                        </td>
+                        <td className={`px-4 py-2.5 text-right font-mono ${pnlColor}`}>{formatCell(log.pnl, true)}</td>
+                        <td className="px-4 py-2.5 text-right font-mono">{formatCell(log.capital, true)}</td>
+                        <td className={`px-4 py-2.5 text-right font-mono ${changeColor}`}>
+                          {log.return_pct === '-' ? '-' : `${formatCell(log.return_pct)}${Number.isFinite(Number(log.return_pct)) ? '%' : ''}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
-      )}
+      </div>
 
       <ConfirmDialog open={!!confirming}
         title={confirming === 'force' ? 'Force stop session?' : 'Stop session?'}

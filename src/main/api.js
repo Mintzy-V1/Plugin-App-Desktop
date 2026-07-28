@@ -1,7 +1,7 @@
 const { net } = require('electron');
 const storage = require('./storage');
 
-const API_BASE_URL = process.env.MINTZY_API_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.MINTZY_API_URL || 'http://54.198.38.76:3000/api/v1';
 
 // Base Request Function
 function request(endpoint, options = {}) {
@@ -159,7 +159,7 @@ async function exchangeApiKey(apiKey) {
       success: true,
       accessToken: result.jwt,
       refreshToken: result.jwt, // The new system uses a single auto-refreshing JWT
-      brokerType: result.broker || 'angle one',
+      brokerType: result.broker || 'angle_one',
       user: result.user
     };
   }
