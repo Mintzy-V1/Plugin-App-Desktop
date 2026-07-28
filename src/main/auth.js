@@ -41,7 +41,7 @@ function mockExchange(apiKey) {
   }
 
   const token = 'mz_jwt_mock_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const brokerType = 'angle one';
+  const brokerType = 'angle_one';
 
   storage.saveCredentials({ apiKey: trimmed, token, brokerType });
   return { success: true, token, brokerType };
@@ -62,12 +62,12 @@ async function handleAuthLogin(apiKey) {
       storage.saveCredentials({
         apiKey,
         token: result.jwt,
-        brokerType: result.broker || 'angle one',
+        brokerType: result.broker || 'angle_one',
       });
       return {
         success: true,
         token: result.jwt,
-        brokerType: result.broker || 'angle one'
+        brokerType: result.broker || 'angle_one'
       };
     }
     return {
@@ -124,12 +124,12 @@ async function handleAuthRevalidate() {
       storage.saveCredentials({
         apiKey: creds.apiKey,
         token: onboardResult.jwt,
-        brokerType: onboardResult.broker || 'angle one',
+        brokerType: onboardResult.broker || 'angle_one',
       });
       return {
         authenticated: true,
         token: onboardResult.jwt,
-        brokerType: onboardResult.broker || 'angle one',
+        brokerType: onboardResult.broker || 'angle_one',
       };
     }
 

@@ -39,7 +39,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const payload = JSON.parse(atob(parts[1]));
         if (payload.userId && payload.email) {
-          setUser({ id: payload.userId, name: payload.name, email: payload.email, broker: payload.broker });
+          setUser({
+            id: payload.userId,
+            name: payload.name,
+            email: payload.email,
+            broker: payload.broker ? String(payload.broker).toLowerCase() : undefined,
+          });
           return;
         }
       } catch {}
@@ -57,7 +62,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('mintzy_token', res.jwt);
         setToken(res.jwt);
         if (res.user) {
-          setUser({ id: res.user.id, name: res.user.name, email: res.user.email, broker: res.broker });
+          setUser({
+            id: res.user.id,
+            name: res.user.name,
+            email: res.user.email,
+            broker: res.broker ? String(res.broker).toLowerCase() : undefined,
+          });
         }
         return { success: true };
       }
