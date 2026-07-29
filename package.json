@@ -37,6 +37,11 @@
       ],
       "icon": "assets/icon.png"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "Mintzy-V1",
+      "repo": "Plugin-App-Desktop"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
