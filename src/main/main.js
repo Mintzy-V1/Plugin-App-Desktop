@@ -140,34 +140,52 @@ app.whenReady().then(async () => {
   await revalidateSession();
 
   // --- Auto-Update Logic ---
-  // We only check for updates in production builds
   if (!isDev) {
-    
-    // 1. Configure the updater to download silently, but NOT automatically install on quit without asking
     autoUpdater.autoInstallOnAppQuit = false;
     autoUpdater.autoDownload = true;
 
-    // 2. Start checking for updates
     autoUpdater.checkForUpdates().catch(err => {
-      console.error("Error checking for updates:", err);
+      console.error('Error checking for updates:', err);
     });
 
-    // 3. When an update is fully downloaded, prompt the user
-    autoUpdater.on('update-downloaded', (info) => {
-      const dialogOpts = {
-        type: 'info',
-        buttons: ['Restart and Install Now', 'Later'],
-        title: 'Application Update',
-        message: `Version ${info.version} is available.`,
-        detail: 'A new version has been downloaded. Restart the application to apply the updates.'
-      };
+    autoUpdater.on('update-available', (info) => {
+      if (Notification.isSupported()) {
+        new Notification({
+          title: 'Update Available',
+          body: `Mintzy Plugin v${info.version} is being downloaded…`,
+          icon: path.join(__dirname, '..', 'assets', 'icon.png')
+        }).show();
+      }
+    });
 
-      dialog.showMessageBox(dialogOpts).then((returnValue) => {
-        if (returnValue.response === 0) {
-          // If the user clicked the first button ("Restart and Install Now")
+    autoUpdater.on('update-downloaded', (info) => {
+      // Show OS notification (appears even if app is minimized/in tray)
+      if (Notification.isSupported()) {
+        const notification = new Notification({
+          title: 'Update Ready to Install',
+          body: `Mintzy Plugin v${info.version} has been downloaded. Click to install.`,
+          icon: path.join(__dirname, '..', 'assets', 'icon.png')
+        });
+        notification.on('click', () => {
           autoUpdater.quitAndInstall();
-        }
-      });
+        });
+        notification.show();
+      }
+
+      // Also show in-app dialog if the window is visible
+      if (mainWindow && mainWindow.isVisible()) {
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          buttons: ['Restart and Install Now', 'Later'],
+          title: 'Application Update',
+          message: `Version ${info.version} is available.`,
+          detail: 'A new version has been downloaded. Restart the application to apply the updates.'
+        }).then((returnValue) => {
+          if (returnValue.response === 0) {
+            autoUpdater.quitAndInstall();
+          }
+        });
+      }
     });
   }
   // -------------------------
