@@ -1,8 +1,19 @@
 import { useEffect, useState } from 'react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 
+interface UpdateCheckResult {
+  status: 'checking' | 'up-to-date' | 'available' | 'downloaded' | 'error';
+  version?: string;
+  message: string;
+}
+
 interface MintzyBridge {
-  app?: { getVersion: () => Promise<string> };
+  app?: {
+    getVersion: () => Promise<string>;
+    checkForUpdates: () => Promise<UpdateCheckResult>;
+    installUpdate: () => Promise<{ success: boolean; message?: string }>;
+  };
   system?: {
     getAutoLaunch: () => Promise<boolean>;
     setAutoLaunch: (enable: boolean) => Promise<{ success: boolean }>;
@@ -21,6 +32,8 @@ export default function SettingsPage() {
   const [minimizeToTray, setMinimizeToTray] = useState<boolean | null>(null);
   const [notifications, setNotifications] = useState<boolean | null>(null);
   const [version, setVersion] = useState<string>('');
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateNote, setUpdateNote] = useState<string | null>(null);
 
   useEffect(() => {
     bridge?.system?.getAutoLaunch().then(setAutoLaunch).catch(() => setAutoLaunch(false));
@@ -68,6 +81,33 @@ export default function SettingsPage() {
     }
   };
 
+  const checkForUpdates = async () => {
+    if (!bridge?.app?.checkForUpdates || checkingUpdate) return;
+    setCheckingUpdate(true);
+    setUpdateNote(null);
+    try {
+      const result = await bridge.app.checkForUpdates();
+      setUpdateNote(result.message);
+
+      if (result.status === 'up-to-date') toast.success(result.message);
+      else if (
+        result.status === 'available'
+        || result.status === 'downloaded'
+        || result.status === 'checking'
+      ) {
+        toast.info(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch {
+      const msg = 'Could not check for updates. Try again later.';
+      setUpdateNote(msg);
+      toast.error(msg);
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
   const desktopUnavailable = !bridge?.system;
 
   return (
@@ -100,6 +140,31 @@ export default function SettingsPage() {
           disabled={desktopUnavailable}
           onToggle={toggleNotifications}
         />
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white divide-y divide-slate-100">
+        <div className="flex items-center justify-between gap-4 px-4 py-3.5">
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-slate-900">App updates</p>
+            <p className="mt-0.5 text-[12px] text-slate-500">
+              Check for a newer version if you missed a notification
+            </p>
+            {updateNote && (
+              <p className="mt-1.5 text-[12px] text-slate-600">{updateNote}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={checkForUpdates}
+            disabled={!bridge?.app?.checkForUpdates || checkingUpdate}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {checkingUpdate
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
+            {checkingUpdate ? 'Checking…' : 'Check for updates'}
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-200/80 bg-white px-4 py-3.5">

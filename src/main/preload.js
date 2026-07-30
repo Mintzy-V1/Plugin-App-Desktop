@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('mintzy', {
   },
   app: {
     getVersion: () => ipcRenderer.invoke('app:get-version'),
+    checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
+    installUpdate: () => ipcRenderer.invoke('app:install-update'),
   },
   system: {
     getAutoLaunch: () => ipcRenderer.invoke('system:get-auto-launch'),
