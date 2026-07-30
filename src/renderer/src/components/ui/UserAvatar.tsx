@@ -1,15 +1,21 @@
 interface UserAvatarProps {
   name: string;
-  size?: 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
+const SIZE = {
+  sm: { box: 'h-8 w-8', text: 'text-xs' },
+  md: { box: 'h-10 w-10', text: 'text-sm' },
+  lg: { box: 'h-16 w-16', text: 'text-lg' },
+  xl: { box: 'h-24 w-24', text: 'text-2xl' },
+} as const;
+
 export default function UserAvatar({ name, size = 'md' }: UserAvatarProps) {
-  const dimension = size === 'xl' ? 'h-24 w-24' : size === 'lg' ? 'h-16 w-16' : 'h-10 w-10';
-  const textSize = size === 'xl' ? 'text-2xl' : size === 'lg' ? 'text-lg' : 'text-sm';
+  const { box, text } = SIZE[size];
 
   return (
-    <div className={`${dimension} flex items-center justify-center rounded-full bg-gradient-to-br from-[#0B4195] to-[#126DFB] font-bold text-white shrink-0`}>
-      <span className={textSize}>{name?.trim()?.charAt(0)?.toUpperCase() || 'U'}</span>
+    <div className={`${box} flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-700 to-emerald-500 font-bold text-white`}>
+      <span className={text}>{name?.trim()?.charAt(0)?.toUpperCase() || 'U'}</span>
     </div>
   );
 }
