@@ -19,6 +19,15 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const ACTIVE_STATUSES = ['trading_active', 'active', 'running', 'started'];
+const CONFIGURABLE_STATUSES = ['authenticated'];
+
+export function isLiveSessionStatus(status?: string | null): boolean {
+  return ACTIVE_STATUSES.includes((status || '').toLowerCase());
+}
+
+export function isConfigurableSessionStatus(status?: string | null): boolean {
+  return CONFIGURABLE_STATUSES.includes((status || '').toLowerCase());
+}
 
 /** Prefer an active status when multiple sources disagree. */
 export function resolveSessionStatus(...candidates: Array<string | null | undefined>): string | null {
