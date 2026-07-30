@@ -6,6 +6,7 @@ const path = require('path');
 const { initWindowState, saveWindowState } = require('./window-state');
 const { getSettings, setSetting } = require('./settings');
 const { createTray } = require('./tray');
+const { resolveIconPath, loadAppIcon } = require('./icon');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -25,6 +26,7 @@ if (!gotTheLock) {
 
 function createMainWindow() {
   const windowState = initWindowState();
+  const iconPath = resolveIconPath();
 
   mainWindow = new BrowserWindow({
     width: windowState.width || 1440,
@@ -35,6 +37,7 @@ function createMainWindow() {
     minHeight: 600,
     show: false,
     title: 'Mintzy Plugin',
+    icon: iconPath || undefined,
     // Match the renderer's light slate background so there is no dark flash on launch.
     backgroundColor: '#f8fafc',
     webPreferences: {
@@ -44,6 +47,12 @@ function createMainWindow() {
       sandbox: true,
     },
   });
+
+  // Ensure taskbar / dock uses Mintzy mark even if BrowserWindow icon option is ignored.
+  if (process.platform === 'darwin' && app.dock) {
+    const dockIcon = loadAppIcon(128);
+    if (!dockIcon.isEmpty()) app.dock.setIcon(dockIcon);
+  }
 
   mainWindow.on('resize', () => {
     if (mainWindow) saveWindowState(mainWindow.getBounds());
@@ -120,21 +129,35 @@ app.whenReady().then(async () => {
     return { success: true };
   });
 
+  ipcMain.handle('system:get-notifications', async () => {
+    return getSettings().notificationsEnabled !== false;
+  });
+
+  ipcMain.handle('system:set-notifications', async (_event, enable) => {
+    setSetting('notificationsEnabled', Boolean(enable));
+    return { success: true };
+  });
+
   ipcMain.handle('app:get-version', async () => {
     return app.getVersion();
   });
 
+  const canNotify = () => Notification.isSupported() && getSettings().notificationsEnabled !== false;
+
   ipcMain.on('system:show-notification', (_event, { title, body }) => {
-    if (Notification.isSupported()) {
-      const notif = new Notification({ title, body });
-      notif.on('click', () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      });
-      notif.show();
-    }
+    if (!canNotify()) return;
+    const notif = new Notification({
+      title,
+      body,
+      icon: resolveIconPath() || undefined,
+    });
+    notif.on('click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+    notif.show();
   });
 
   await revalidateSession();
@@ -149,22 +172,22 @@ app.whenReady().then(async () => {
     });
 
     autoUpdater.on('update-available', (info) => {
-      if (Notification.isSupported()) {
+      if (canNotify()) {
         new Notification({
           title: 'Update Available',
           body: `Mintzy Plugin v${info.version} is being downloaded…`,
-          icon: path.join(__dirname, '..', 'assets', 'icon.png')
+          icon: resolveIconPath() || undefined,
         }).show();
       }
     });
 
     autoUpdater.on('update-downloaded', (info) => {
       // Show OS notification (appears even if app is minimized/in tray)
-      if (Notification.isSupported()) {
+      if (canNotify()) {
         const notification = new Notification({
           title: 'Update Ready to Install',
           body: `Mintzy Plugin v${info.version} has been downloaded. Click to install.`,
-          icon: path.join(__dirname, '..', 'assets', 'icon.png')
+          icon: resolveIconPath() || undefined,
         });
         notification.on('click', () => {
           autoUpdater.quitAndInstall();

@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('mintzy', {
     setAutoLaunch: (enable) => ipcRenderer.invoke('system:set-auto-launch', enable),
     getMinimizeToTray: () => ipcRenderer.invoke('system:get-minimize-to-tray'),
     setMinimizeToTray: (enable) => ipcRenderer.invoke('system:set-minimize-to-tray', enable),
+    getNotifications: () => ipcRenderer.invoke('system:get-notifications'),
+    setNotifications: (enable) => ipcRenderer.invoke('system:set-notifications', enable),
     showNotification: (title, body) => ipcRenderer.send('system:show-notification', { title, body }),
     onResume: (callback) => {
       ipcRenderer.on('system:resume', () => callback());
