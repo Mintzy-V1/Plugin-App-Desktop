@@ -1,12 +1,12 @@
 const {
-  app, BrowserWindow, ipcMain, powerMonitor, Notification, shell, dialog
+  app, BrowserWindow, ipcMain, powerMonitor, Notification, shell
 } = require('electron');
-const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const { initWindowState, saveWindowState } = require('./window-state');
 const { getSettings, setSetting } = require('./settings');
 const { createTray } = require('./tray');
 const { resolveIconPath, loadAppIcon } = require('./icon');
+const { setupAutoUpdater, checkForUpdatesManual, installDownloadedUpdate } = require('./updater');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -142,6 +142,14 @@ app.whenReady().then(async () => {
     return app.getVersion();
   });
 
+  ipcMain.handle('app:check-for-updates', async () => {
+    return checkForUpdatesManual();
+  });
+
+  ipcMain.handle('app:install-update', async () => {
+    return installDownloadedUpdate();
+  });
+
   const canNotify = () => Notification.isSupported() && getSettings().notificationsEnabled !== false;
 
   ipcMain.on('system:show-notification', (_event, { title, body }) => {
@@ -162,56 +170,7 @@ app.whenReady().then(async () => {
 
   await revalidateSession();
 
-  // --- Auto-Update Logic ---
-  if (!isDev) {
-    autoUpdater.autoInstallOnAppQuit = false;
-    autoUpdater.autoDownload = true;
-
-    autoUpdater.checkForUpdates().catch(err => {
-      console.error('Error checking for updates:', err);
-    });
-
-    autoUpdater.on('update-available', (info) => {
-      if (canNotify()) {
-        new Notification({
-          title: 'Update Available',
-          body: `Mintzy Plugin v${info.version} is being downloaded…`,
-          icon: resolveIconPath() || undefined,
-        }).show();
-      }
-    });
-
-    autoUpdater.on('update-downloaded', (info) => {
-      // Show OS notification (appears even if app is minimized/in tray)
-      if (canNotify()) {
-        const notification = new Notification({
-          title: 'Update Ready to Install',
-          body: `Mintzy Plugin v${info.version} has been downloaded. Click to install.`,
-          icon: resolveIconPath() || undefined,
-        });
-        notification.on('click', () => {
-          autoUpdater.quitAndInstall();
-        });
-        notification.show();
-      }
-
-      // Also show in-app dialog if the window is visible
-      if (mainWindow && mainWindow.isVisible()) {
-        dialog.showMessageBox(mainWindow, {
-          type: 'info',
-          buttons: ['Restart and Install Now', 'Later'],
-          title: 'Application Update',
-          message: `Version ${info.version} is available.`,
-          detail: 'A new version has been downloaded. Restart the application to apply the updates.'
-        }).then((returnValue) => {
-          if (returnValue.response === 0) {
-            autoUpdater.quitAndInstall();
-          }
-        });
-      }
-    });
-  }
-  // -------------------------
+  setupAutoUpdater(mainWindow, { isDev });
 });
 
 powerMonitor.on('resume', () => {
