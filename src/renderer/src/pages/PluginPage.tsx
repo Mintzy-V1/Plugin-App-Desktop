@@ -10,8 +10,11 @@ import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { pluginApi } from '../lib/pluginApi';
 import type { TradingSession } from '../lib/pluginApi';
+import { isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
 
 type PluginView = 'empty' | 'broker' | '2fa' | 'config' | 'dashboard' | 'saved';
+
+const PANEL_KEY = 'mintzy.plugin.sessionsOpen';
 
 export default function PluginPage() {
   const toast = useToast();
@@ -23,6 +26,17 @@ export default function PluginPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TradingSession | null>(null);
   const [quickStarting, setQuickStarting] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(() => {
+    try { return localStorage.getItem(PANEL_KEY) === '1'; } catch { return false; }
+  });
+
+  const toggleSessions = () => {
+    setSessionsOpen(prev => {
+      const next = !prev;
+      try { localStorage.setItem(PANEL_KEY, next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const fetchSessions = () => {
     pluginApi.getSessions().then(res => setSessions(res.data.sessions || [])).catch(() => {
@@ -32,6 +46,11 @@ export default function PluginPage() {
 
   useEffect(() => { fetchSessions(); }, []);
 
+  // Auto-collapse session panel when entering live dashboard to free space for charts
+  useEffect(() => {
+    if (view === 'dashboard') setSessionsOpen(false);
+  }, [view]);
+
   const handleBrokerSuccess = (sid: string, reqTotp: boolean, _bt: BrokerType) => {
     setSessionId(sid);
     setFreeCash(null);
@@ -39,19 +58,23 @@ export default function PluginPage() {
   };
 
   const handleSelectSession = (s: TradingSession) => {
-    if (s.status === 'trading_active') {
-      setSessionId(s.python_session_id);
-      setSessionStatus(s.status);
-      setFreeCash(null); // will refresh from live dashboard sources
-      setView('dashboard');
-    } else if (s.status === 'authenticated') {
-      setSessionId(s.python_session_id);
-      setSessionStatus(s.status);
-      setFreeCash(null);
-      setView('config');
-    } else {
-      toast.info('This session has ended. Download its tradebook from the Dashboard.');
+    if (!s.python_session_id) {
+      toast.error('This session has no ID and cannot be opened.');
+      return;
     }
+
+    setSessionId(s.python_session_id);
+    setSessionStatus(s.status);
+    setFreeCash(null);
+
+    if (isConfigurableSessionStatus(s.status)) {
+      setView('config');
+      return;
+    }
+
+    // Live and past sessions both open the session detail view.
+    // Past sessions render read-only (logs, P&L history, tradebook download).
+    setView('dashboard');
   };
 
   const confirmDeleteSession = async () => {
@@ -85,76 +108,103 @@ export default function PluginPage() {
       .finally(() => setQuickStarting(false));
   };
 
-  const sidebar = (
-    <PluginSidebar sessions={sessions} activeSessionId={sessionId}
-      onNewSession={() => { setSessionId(null); setFreeCash(null); setSessionStatus(undefined); setView('broker'); }}
-      onSelectSession={handleSelectSession}
-      onSavedStrategies={() => setView('saved')}
-      onDeleteSession={id => {
-        const s = sessions.find(x => x._id === id);
-        if (s) setPendingDelete(s);
-      }}
-      deletingId={deletingId} />
-  );
-
   return (
-    <div className="flex gap-6">
-      {sidebar}
-      <div className="min-w-0 flex-1">
-        <div key={view} className="animate-fade-in">
+    <div className="flex h-full min-h-0">
+      <PluginSidebar
+        sessions={sessions}
+        activeSessionId={sessionId}
+        onNewSession={() => { setSessionId(null); setFreeCash(null); setSessionStatus(undefined); setView('broker'); setSessionsOpen(true); }}
+        onSelectSession={handleSelectSession}
+        onSavedStrategies={() => setView('saved')}
+        onDeleteSession={id => {
+          const s = sessions.find(x => x._id === id);
+          if (s) setPendingDelete(s);
+        }}
+        deletingId={deletingId}
+        collapsed={!sessionsOpen}
+        onToggle={toggleSessions}
+      />
+
+      <div className="min-w-0 flex-1 overflow-y-auto">
+        <div key={view} className="page-pad animate-fade-in h-full">
           {view === 'dashboard' && sessionId && (
-            <LiveSessionDashboard sessionId={sessionId} initialStatus={sessionStatus} initialFreeCash={freeCash}
+            <LiveSessionDashboard
+              sessionId={sessionId}
+              initialStatus={sessionStatus}
+              initialFreeCash={freeCash}
+              readOnly={!isLiveSessionStatus(sessionStatus)}
               onStop={() => { setView('empty'); setSessionStatus(undefined); setFreeCash(null); fetchSessions(); }}
-              onConfigure={() => setView('config')} />
+              onConfigure={() => setView('config')}
+            />
           )}
           {view === 'broker' && (
-            <div className="flex min-h-[600px] items-center justify-center">
+            <div className="flex min-h-[480px] items-center justify-center py-2">
               <ConnectBrokerForm onSuccess={handleBrokerSuccess} onBack={() => setView('empty')} />
             </div>
           )}
           {view === '2fa' && sessionId && (
-            <div className="flex min-h-[600px] items-center justify-center">
-              <TwoFactorAuth sessionId={sessionId}
+            <div className="flex min-h-[480px] items-center justify-center py-2">
+              <TwoFactorAuth
+                sessionId={sessionId}
                 onSuccess={(info) => {
                   if (info?.freeCash != null) setFreeCash(info.freeCash);
                   setSessionStatus('authenticated');
                   setView('config');
                 }}
-                onBack={() => setView('broker')} />
+                onBack={() => setView('broker')}
+              />
             </div>
           )}
           {view === 'config' && sessionId && (
-            <div className="flex min-h-[600px] items-center justify-center">
-              <SessionConfigForm sessionId={sessionId} freeCash={freeCash}
+            <div className="flex min-h-[480px] items-center justify-center py-2">
+              <SessionConfigForm
+                sessionId={sessionId}
+                freeCash={freeCash}
                 onSuccess={() => { setSessionStatus('trading_active'); setView('dashboard'); fetchSessions(); }}
-                onBack={() => setView('2fa')} />
+                onBack={() => setView('2fa')}
+              />
             </div>
           )}
           {view === 'saved' && (
-            <SavedStrategiesView sessionId={sessionId} onUseConfig={handleUseSavedConfig}
+            <SavedStrategiesView
+              sessionId={sessionId}
+              onUseConfig={handleUseSavedConfig}
               quickStarting={quickStarting}
-              onBack={() => setView(sessionId ? 'dashboard' : 'empty')} />
+              onBack={() => setView(sessionId ? 'dashboard' : 'empty')}
+            />
           )}
           {view === 'empty' && (
-            <div className="flex min-h-[600px] flex-col items-center justify-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/20">
-                <Code2 className="h-8 w-8 text-white" aria-hidden="true" />
+            <div className="flex min-h-[480px] flex-col items-center justify-center py-8">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 ring-1 ring-emerald-100">
+                <Code2 className="h-6 w-6 text-emerald-700" aria-hidden="true" />
               </div>
-              <h2 className="mt-6 text-xl font-bold text-slate-900">Plugin Terminal</h2>
-              <p className="mt-2 text-sm text-slate-500">Connect broker credentials to start automated trading</p>
-              <button onClick={() => setView('broker')}
-                className="mt-8 flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30">
-                <Plus className="h-4 w-4" aria-hidden="true" /> New Session
+              <h2 className="mt-4 text-lg font-semibold tracking-tight text-slate-900">Ready to trade</h2>
+              <p className="mt-1.5 max-w-sm text-center text-sm leading-relaxed text-slate-500">
+                Connect your broker and start a session. Live charts and trade logs will appear here.
+              </p>
+              <button
+                type="button"
+                onClick={() => setView('broker')}
+                className="mt-6 flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                New session
               </button>
             </div>
           )}
         </div>
       </div>
 
-      <ConfirmDialog open={!!pendingDelete} title="Delete session?"
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete session?"
         description={<>This will permanently remove this session and its history from the list. The tradebook CSV will no longer be downloadable from here.</>}
-        confirmLabel="Delete" tone="danger" busy={!!deletingId}
-        onConfirm={confirmDeleteSession} onCancel={() => { if (!deletingId) setPendingDelete(null); }} />
+        confirmLabel="Delete"
+        tone="danger"
+        busy={!!deletingId}
+        onConfirm={confirmDeleteSession}
+        onCancel={() => { if (!deletingId) setPendingDelete(null); }}
+      />
     </div>
   );
 }

@@ -37,18 +37,18 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onBa
   const totalCapital = validStocks.reduce((sum, s) => sum + Number(s.capital), 0);
 
   return (
-    <div className="mx-auto w-full max-w-lg px-4">
+    <div className="mx-auto w-full max-w-lg">
       <button onClick={onBack}
-        className="mb-4 flex items-center rounded-lg text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+        className="mb-3 flex items-center rounded-lg text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
         <ArrowLeft className="mr-1 h-4 w-4" aria-hidden="true" /> Back
       </button>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8">
-        <div className="mb-6 text-center sm:mb-8">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-50 text-violet-600 sm:mb-4 sm:h-14 sm:w-14">
-            <Settings2 className="h-6 w-6 sm:h-7 sm:w-7" />
+      <div className="form-card">
+        <div className="mb-5 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+            <Settings2 className="h-6 w-6" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Configure Session</h2>
+          <h2 className="text-xl font-bold text-slate-900">Configure Session</h2>
           <p className="mt-1 text-sm text-slate-500">Set your trading parameters</p>
           {freeCash != null && (
             <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">

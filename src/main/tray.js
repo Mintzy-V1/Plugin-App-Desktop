@@ -1,22 +1,12 @@
-const { Tray, Menu, nativeImage, app } = require('electron');
+const { Tray, Menu, app } = require('electron');
+const { loadAppIcon } = require('./icon');
 
 let tray = null;
 
-function createTrayIcon() {
-  const size = 16;
-  const buf = Buffer.alloc(size * size * 4);
-  for (let i = 0; i < size * size; i++) {
-    buf[i * 4] = 88;
-    buf[i * 4 + 1] = 166;
-    buf[i * 4 + 2] = 255;
-    buf[i * 4 + 3] = 255;
-  }
-  return nativeImage.createFromBuffer(buf, { width: size, height: size });
-}
-
 function createTray(mainWindow, callbacks) {
-  const icon = createTrayIcon();
-  tray = new Tray(icon);
+  // Windows taskbar / tray needs a small crisp icon; resize from Mintzy mark.
+  const icon = loadAppIcon(process.platform === 'win32' ? 32 : 16);
+  tray = new Tray(icon.isEmpty() ? loadAppIcon() : icon);
   tray.setToolTip('Mintzy Plugin');
 
   const contextMenu = Menu.buildFromTemplate([

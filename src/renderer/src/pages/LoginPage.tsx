@@ -23,14 +23,14 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <nav className="w-full border-b border-gray-100/50 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center px-6 py-3.5">
           <img src="./Mintzy%20Bars%20Full%20Lockup%20Green.png" alt="Mintzy" className="h-8 w-auto object-contain" />
         </div>
       </nav>
 
-      <div className="flex flex-1 items-center justify-center px-4">
+      <div className="flex flex-1 items-center justify-center px-6 py-8">
         <div className="w-full max-w-sm">
-          <div className="mb-8 text-center">
+          <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
             <p className="mt-2 text-sm text-slate-500">Enter your API key to continue</p>
           </div>
@@ -68,7 +68,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-slate-400">
+          <p className="mt-5 text-center text-xs text-slate-400">
             Don't have an API key?{' '}
             <a href="https://mintzy.in" target="_blank" rel="noreferrer"
               className="font-medium text-blue-600 underline underline-offset-2 transition-colors hover:text-blue-700">

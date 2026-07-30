@@ -202,6 +202,11 @@ export const pluginApi = {
     return api.get<Blob>(`${getBase()}/trading/${sessionId}/final-tradebook`, { responseType: 'blob' });
   },
 
+  /** Stored trading-logs CSV from the plugin DB (works for ended sessions). */
+  downloadSessionLogs(sessionId: string) {
+    return api.get<Blob>(`${getBase()}/sessions/${sessionId}/download`, { responseType: 'blob' });
+  },
+
   getSavedConfigs() {
     return api.get<{ success: boolean; configurations: SavedConfig[] }>(`${getBase()}/saved-configurations`);
   },

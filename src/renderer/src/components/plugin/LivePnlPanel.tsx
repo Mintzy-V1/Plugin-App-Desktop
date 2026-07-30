@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useId, useMemo } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Wallet, Activity, LineChart as LineIcon, BarChart3 } from 'lucide-react';
+import { Activity, LineChart as LineIcon, BarChart3 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid,
@@ -141,7 +141,6 @@ export default function LivePnlPanel({ sessionId }: Props) {
   const barData = useMemo(() => bucketForBars(history, 28), [history]);
 
   const isPositive = totalPnl >= 0;
-  const TrendIcon = isPositive ? TrendingUp : TrendingDown;
   const trendColor = isPositive ? 'text-emerald-600' : 'text-red-600';
   const bgColor = isPositive ? 'bg-emerald-50' : 'bg-red-50';
   const placeholder = !ready;
@@ -159,7 +158,7 @@ export default function LivePnlPanel({ sessionId }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       {stopped && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700">Session stopped</div>
       )}
@@ -175,38 +174,32 @@ export default function LivePnlPanel({ sessionId }: Props) {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-3" aria-live="off">
-        <div className={`rounded-xl border p-4 ${placeholder ? 'border-slate-200 bg-white' : bgColor}`}>
-          <div className="flex items-center gap-2">
-            <DollarSign className={`h-4 w-4 ${placeholder ? 'text-slate-400' : trendColor}`} aria-hidden="true" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total P&L</span>
+      <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white" aria-live="off">
+        <div className="grid grid-cols-3 divide-x divide-slate-100">
+          <div className={`px-4 py-3 ${placeholder ? '' : bgColor}`}>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Total P&L</p>
+            <p className={`mt-1 text-[17px] font-semibold tracking-tight ${placeholder ? 'text-slate-300' : trendColor}`}>
+              {placeholder ? '—' : `₹${totalPnl.toFixed(2)}`}
+            </p>
           </div>
-          <p className={`mt-1 text-lg font-bold ${placeholder ? 'text-slate-300' : trendColor}`}>{placeholder ? '—' : `₹${totalPnl.toFixed(2)}`}</p>
-          {!placeholder && <TrendIcon className={`mt-0.5 h-4 w-4 ${trendColor}`} aria-hidden="true" />}
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center gap-2">
-            <Wallet className={`h-4 w-4 ${realizedPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`} aria-hidden="true" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Realized</span>
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Realized</p>
+            <p className={`mt-1 text-[17px] font-semibold tracking-tight ${placeholder ? 'text-slate-300' : realizedPnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {placeholder ? '—' : `₹${realizedPnl.toFixed(2)}`}
+            </p>
           </div>
-          <p className={`mt-1 text-lg font-bold ${placeholder ? 'text-slate-300' : realizedPnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {placeholder ? '—' : `₹${realizedPnl.toFixed(2)}`}
-          </p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center gap-2">
-            <Activity className={`h-4 w-4 ${unrealizedPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`} aria-hidden="true" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Unrealized</span>
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Unrealized</p>
+            <p className={`mt-1 text-[17px] font-semibold tracking-tight ${placeholder ? 'text-slate-300' : unrealizedPnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {placeholder ? '—' : `₹${unrealizedPnl.toFixed(2)}`}
+            </p>
           </div>
-          <p className={`mt-1 text-lg font-bold ${placeholder ? 'text-slate-300' : unrealizedPnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {placeholder ? '—' : `₹${unrealizedPnl.toFixed(2)}`}
-          </p>
         </div>
       </div>
 
       {history.length > 1 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+          <div className="mb-2.5 flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">P&L Chart</p>
               <p className="mt-0.5 text-[11px] text-slate-400">
@@ -309,7 +302,7 @@ export default function LivePnlPanel({ sessionId }: Props) {
       )}
 
       {Object.keys(symbols).length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Per-Symbol Breakdown</p>
           <div className="space-y-1">
             {Object.entries(symbols).map(([sym, data]) => (
