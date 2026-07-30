@@ -76,23 +76,23 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4">
+    <div className="mx-auto w-full max-w-3xl">
       <button onClick={onBack}
-        className="mb-4 flex items-center rounded-lg text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+        className="mb-3 flex items-center rounded-lg text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
         <ArrowLeft className="mr-1 h-4 w-4" aria-hidden="true" /> Back
       </button>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Saved Strategies</h2>
           <p className="mt-1 text-sm text-slate-500">Quick-start from a saved configuration</p>
-          <div className="mt-4 space-y-2">
+          <div className="mt-3 space-y-2">
             {loading ? (
               <div className="space-y-2" aria-busy="true" aria-label="Loading saved strategies">
                 {[0, 1, 2].map(i => <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-100" />)}
               </div>
             ) : loadError ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center">
                 <p className="text-sm text-slate-500">Couldn't load saved strategies.</p>
                 <button onClick={fetchConfigs}
                   className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30">
@@ -100,14 +100,14 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
                 </button>
               </div>
             ) : configs.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-6 text-center">
                 <Bookmark className="mx-auto h-6 w-6 text-slate-300" aria-hidden="true" />
                 <p className="mt-2 text-sm font-medium text-slate-500">No saved strategies yet</p>
                 <p className="mt-1 text-xs text-slate-400">Build one on the right to reuse it for future sessions.</p>
               </div>
             ) : (
               configs.map((c: any) => (
-                <div key={c._id || c.id} className="rounded-xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-sm">
+                <div key={c._id || c.id} className="rounded-xl border border-slate-200 bg-white p-3.5 transition-shadow hover:shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-900">{c.name}</p>
@@ -137,7 +137,7 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
         <div>
           <h2 className="text-lg font-bold text-slate-900">Save New</h2>
           <p className="mt-1 text-sm text-slate-500">Create a reusable configuration</p>
-          <div className="mt-4 space-y-4">
+          <div className="mt-3 space-y-3">
             <div>
               <label htmlFor="strategy-name" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-400">Strategy name</label>
               <input id="strategy-name" type="text" placeholder="e.g. Morning momentum" value={name} onChange={e => setName(e.target.value)}

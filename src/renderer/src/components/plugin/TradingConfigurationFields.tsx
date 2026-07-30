@@ -27,7 +27,7 @@ export default function TradingConfigurationFields({ config, onChange }: Props) 
   const selectedSymbols = config.stocks.map(s => s.symbol).filter(Boolean);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label htmlFor={`${uid}-candle`} className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Candle Interval</label>

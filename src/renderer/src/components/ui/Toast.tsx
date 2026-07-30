@@ -46,7 +46,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed bottom-5 right-5 z-[100] flex w-full max-w-sm flex-col gap-2">
+      <div aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-2">
         {toasts.map(t => {
           const { icon: Icon, iconClass } = KIND_STYLES[t.kind];
           return (
