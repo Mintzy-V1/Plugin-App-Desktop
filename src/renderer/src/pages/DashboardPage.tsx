@@ -5,6 +5,7 @@ import { useToast } from '../components/ui/Toast';
 import { pluginApi } from '../lib/pluginApi';
 import type { TradingSession } from '../lib/pluginApi';
 import { sessionStatusLabel, sessionStatusBadgeClass } from '../lib/sessionStatus';
+import { downloadSessionCsv } from '../lib/downloadSessionCsv';
 
 type Tab = 'overview' | 'sessions';
 
@@ -59,18 +60,24 @@ export default function DashboardPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleDownload = async (sessionId?: string) => {
+  const handleDownload = async (sessionId?: string, status?: string) => {
     if (!sessionId) return;
     setDownloadingId(sessionId);
     try {
-      const res = await pluginApi.downloadTradebook(sessionId);
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a'); a.href = url; a.download = `tradebook-${sessionId}.csv`; a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Tradebook CSV downloaded');
-    } catch {
-      toast.error('Could not download the tradebook. Please try again.');
-    } finally { setDownloadingId(null); }
+      // Past sessions: Mongo logs CSV. Live: final tradebook first, then logs.
+      const preferLogs = !['trading_active', 'active', 'running', 'started'].includes(
+        String(status || '').toLowerCase()
+      );
+      const kind = await downloadSessionCsv(sessionId, { preferLogs });
+      toast.success(kind === 'logs' ? 'Session logs CSV downloaded' : 'Tradebook CSV downloaded');
+    } catch (err: any) {
+      const statusCode = err?.response?.status;
+      toast.error(statusCode === 404
+        ? 'No tradebook or logs are available for this session yet.'
+        : 'Could not download the CSV. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const TABS: { id: Tab; label: string }[] = [
@@ -160,7 +167,7 @@ export default function DashboardPage() {
                 <h3 className="text-[13px] font-semibold text-slate-900">Recent sessions</h3>
                 <button
                   type="button"
-                  onClick={() => handleDownload(sessions[0]?.python_session_id)}
+                  onClick={() => handleDownload(sessions[0]?.python_session_id, sessions[0]?.status)}
                   disabled={!sessions[0]?.python_session_id || !!downloadingId}
                   className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-50"
                 >
@@ -201,7 +208,7 @@ export default function DashboardPage() {
                           <td className="px-4 py-2.5 text-right">
                             <button
                               type="button"
-                              onClick={() => handleDownload(s.python_session_id)}
+                              onClick={() => handleDownload(s.python_session_id, s.status)}
                               disabled={!s.python_session_id || downloadingId === s.python_session_id}
                               aria-label={`Download tradebook for ${fmtDate(s.created_at)}`}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-40"

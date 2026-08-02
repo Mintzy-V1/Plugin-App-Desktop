@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { onboard } from '../lib/gateway';
+import { pluginErrorMessage } from '../lib/pluginErrors';
 
 interface User {
   id: string;
@@ -71,9 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return { success: true };
       }
-      return { success: false, error: res.message || 'Invalid API key' };
+      return { success: false, error: pluginErrorMessage({ response: { data: { message: res.message } } }, 'Invalid API key. Check your key and try again.') };
     } catch (err: any) {
-      return { success: false, error: err?.response?.data?.message || 'Connection error' };
+      return { success: false, error: pluginErrorMessage(err, 'Could not reach Mintzy. Check your internet connection and try again.') };
     }
   }, []);
 

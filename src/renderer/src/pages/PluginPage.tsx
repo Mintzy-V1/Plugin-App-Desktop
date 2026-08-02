@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Code2, Plus } from 'lucide-react';
-import ConnectBrokerForm, { type BrokerType } from '../components/plugin/ConnectBrokerForm';
+import ConnectBrokerForm from '../components/plugin/ConnectBrokerForm';
 import TwoFactorAuth from '../components/plugin/TwoFactorAuth';
 import SessionConfigForm from '../components/plugin/SessionConfigForm';
 import LiveSessionDashboard from '../components/plugin/LiveSessionDashboard';
@@ -11,6 +11,7 @@ import { useToast } from '../components/ui/Toast';
 import { pluginApi } from '../lib/pluginApi';
 import type { TradingSession } from '../lib/pluginApi';
 import { isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
+import { pluginErrorMessage } from '../lib/pluginErrors';
 
 type PluginView = 'empty' | 'broker' | '2fa' | 'config' | 'dashboard' | 'saved';
 
@@ -51,7 +52,7 @@ export default function PluginPage() {
     if (view === 'dashboard') setSessionsOpen(false);
   }, [view]);
 
-  const handleBrokerSuccess = (sid: string, reqTotp: boolean, _bt: BrokerType) => {
+  const handleBrokerSuccess = (sid: string, reqTotp: boolean) => {
     setSessionId(sid);
     setFreeCash(null);
     setView(reqTotp ? '2fa' : 'config');
@@ -103,7 +104,7 @@ export default function PluginPage() {
         fetchSessions();
       })
       .catch((err: any) => {
-        toast.error(err?.response?.data?.message || 'Could not start trading from this strategy');
+        toast.error(pluginErrorMessage(err, 'Could not start trading from this strategy. Please try again.'));
       })
       .finally(() => setQuickStarting(false));
   };
@@ -161,6 +162,14 @@ export default function PluginPage() {
                 sessionId={sessionId}
                 freeCash={freeCash}
                 onSuccess={() => { setSessionStatus('trading_active'); setView('dashboard'); fetchSessions(); }}
+                onAbandon={() => {
+                  toast.success('Session abandoned');
+                  setSessionId(null);
+                  setSessionStatus(undefined);
+                  setFreeCash(null);
+                  setView('empty');
+                  fetchSessions();
+                }}
                 onBack={() => setView('2fa')}
               />
             </div>

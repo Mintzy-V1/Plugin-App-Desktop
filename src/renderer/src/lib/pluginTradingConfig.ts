@@ -55,3 +55,70 @@ export const buildPayload = (draft: TradingConfigurationDraft) => ({
   candle: draft.candle,
   strategy: draft.strategy,
 });
+
+/** Hydrate the config form from a saved-configuration API payload. */
+export const draftFromConfiguration = (raw: Record<string, unknown> | null | undefined): TradingConfigurationDraft => {
+  const base = createDefaultConfig();
+  if (!raw || typeof raw !== 'object') return base;
+
+  const candle = typeof raw.candle === 'string' && raw.candle ? raw.candle : base.candle;
+  const strategy = typeof raw.strategy === 'string' && raw.strategy ? raw.strategy : base.strategy;
+  const useBrokerCash = typeof raw.use_broker_cash === 'boolean'
+    ? raw.use_broker_cash
+    : typeof raw.useBrokerCash === 'boolean'
+      ? raw.useBrokerCash
+      : base.useBrokerCash;
+
+  const symbolsRaw = Array.isArray(raw.symbols)
+    ? raw.symbols
+    : Array.isArray(raw.stocks)
+      ? raw.stocks
+      : [];
+
+  const stocks: TradingStockDraft[] = symbolsRaw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const s = item as Record<string, unknown>;
+      const symbol = String(s.symbol ?? s.Symbol ?? '').trim();
+      if (!symbol) return null;
+      const capitalVal = s.capital ?? s.Capital ?? '';
+      const slRaw = Number(s.stop_loss ?? s.stopLoss ?? s.Stop_Loss ?? 5);
+      // Stored payloads use a fraction (0.05); form uses percent (5).
+      const stop_loss = Number.isFinite(slRaw)
+        ? (slRaw > 0 && slRaw <= 1 ? slRaw * 100 : slRaw)
+        : 5;
+      return {
+        symbol,
+        capital: capitalVal === '' || capitalVal == null ? '' : String(capitalVal),
+        stop_loss,
+      };
+    })
+    .filter((s): s is TradingStockDraft => s != null);
+
+  return {
+    candle,
+    strategy,
+    useBrokerCash,
+    stocks: stocks.length > 0 ? stocks : base.stocks,
+  };
+};
+
+const STRATEGY_LABELS: Record<string, string> = {
+  A: 'Stoppage Reversal',
+  B: 'Exposure Expansion',
+};
+
+/** Compact summary for list cards / pickers. */
+export const summarizeConfiguration = (raw?: Record<string, unknown> | null) => {
+  const draft = draftFromConfiguration(raw);
+  const symbols = draft.stocks.map(s => s.symbol).filter(Boolean);
+  return {
+    symbolCount: symbols.length,
+    symbols,
+    candle: draft.candle,
+    strategy: draft.strategy,
+    strategyLabel: STRATEGY_LABELS[draft.strategy] || draft.strategy,
+    useBrokerCash: draft.useBrokerCash,
+    totalCapital: draft.stocks.reduce((sum, s) => sum + (Number(s.capital) || 0), 0),
+  };
+};

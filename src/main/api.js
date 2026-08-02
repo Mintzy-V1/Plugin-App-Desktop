@@ -48,33 +48,28 @@ function request(endpoint, options = {}) {
             resolve({
               success: false,
               statusCode: response.statusCode,
-              message: data.message || 'Request failed',
+              message: (typeof data.message === 'string' && data.message.trim() && data.message.length < 180)
+                ? data.message.trim()
+                : 'Something went wrong. Please try again.',
               details: data.details || null
             });
           }
         } catch (e) {
           resolve({
             success: false,
-            message: 'Invalid response from server'
+            message: 'Something went wrong talking to Mintzy. Please try again.',
           });
         }
       });
     });
 
     req.on('error', (err) => {
-      if (err.message && err.message.includes('ERR_CONNECTION_REFUSED')) {
-        resolve({
-          success: false,
-          error: 'network',
-          message: 'Unable to connect to Mintzy servers. Please check your internet connection.',
-        });
-      } else {
-        resolve({
-          success: false,
-          error: 'network',
-          message: err.message || 'Network error. Please check your connection and try again.',
-        });
-      }
+      console.error('API request error:', err);
+      resolve({
+        success: false,
+        error: 'network',
+        message: 'Unable to connect to Mintzy. Please check your internet connection and try again.',
+      });
     });
 
     if (options.body) {

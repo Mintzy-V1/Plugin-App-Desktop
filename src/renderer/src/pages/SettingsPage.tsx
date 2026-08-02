@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, Download } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 
 interface UpdateCheckResult {
@@ -33,7 +33,9 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState<boolean | null>(null);
   const [version, setVersion] = useState<string>('');
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const [updateNote, setUpdateNote] = useState<string | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
 
   useEffect(() => {
     bridge?.system?.getAutoLaunch().then(setAutoLaunch).catch(() => setAutoLaunch(false));
@@ -51,7 +53,7 @@ export default function SettingsPage() {
       toast.success(next ? 'Mintzy will open at startup' : 'Auto-launch disabled');
     } catch {
       setAutoLaunch(!next);
-      toast.error('Could not update the startup setting');
+      toast.error('Could not update the startup setting. Please try again.');
     }
   };
 
@@ -64,7 +66,7 @@ export default function SettingsPage() {
       toast.success(next ? 'Closing will minimize to the tray' : 'Closing will quit the app');
     } catch {
       setMinimizeToTray(!next);
-      toast.error('Could not update the tray setting');
+      toast.error('Could not update the tray setting. Please try again.');
     }
   };
 
@@ -77,7 +79,7 @@ export default function SettingsPage() {
       toast.success(next ? 'Desktop notifications enabled' : 'Desktop notifications disabled');
     } catch {
       setNotifications(!next);
-      toast.error('Could not update the notification setting');
+      toast.error('Could not update the notification setting. Please try again.');
     }
   };
 
@@ -88,6 +90,7 @@ export default function SettingsPage() {
     try {
       const result = await bridge.app.checkForUpdates();
       setUpdateNote(result.message);
+      setUpdateReady(result.status === 'downloaded');
 
       if (result.status === 'up-to-date') toast.success(result.message);
       else if (
@@ -100,11 +103,27 @@ export default function SettingsPage() {
         toast.error(result.message);
       }
     } catch {
-      const msg = 'Could not check for updates. Try again later.';
+      const msg = 'Could not check for updates. Check your connection and try again.';
       setUpdateNote(msg);
+      setUpdateReady(false);
       toast.error(msg);
     } finally {
       setCheckingUpdate(false);
+    }
+  };
+
+  const installUpdate = async () => {
+    if (!bridge?.app?.installUpdate || installing) return;
+    setInstalling(true);
+    try {
+      const result = await bridge.app.installUpdate();
+      if (!result.success) {
+        toast.error(result.message || 'Could not install the update. Please try again.');
+      }
+    } catch {
+      toast.error('Could not install the update. Please restart the app and try again.');
+    } finally {
+      setInstalling(false);
     }
   };
 
@@ -153,17 +172,32 @@ export default function SettingsPage() {
               <p className="mt-1.5 text-[12px] text-slate-600">{updateNote}</p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={checkForUpdates}
-            disabled={!bridge?.app?.checkForUpdates || checkingUpdate}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {checkingUpdate
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-              : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
-            {checkingUpdate ? 'Checking…' : 'Check for updates'}
-          </button>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {updateReady && (
+              <button
+                type="button"
+                onClick={installUpdate}
+                disabled={installing}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {installing
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
+                {installing ? 'Installing…' : 'Install now'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={checkForUpdates}
+              disabled={!bridge?.app?.checkForUpdates || checkingUpdate}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {checkingUpdate
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
+              {checkingUpdate ? 'Checking…' : 'Check for updates'}
+            </button>
+          </div>
         </div>
       </div>
 

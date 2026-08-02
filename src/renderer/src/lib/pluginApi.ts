@@ -5,7 +5,8 @@ const getBase = () => {
     const token = localStorage.getItem('mintzy_token');
     if (token) {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      const broker = String(payload.broker || '').toLowerCase().replace(/\s+/g, '');
+      // Broker comes from Mintzy API-key onboard (JWT claim), e.g. "angle one" | "tradex"
+      const broker = String(payload.broker || '').toLowerCase().replace(/[\s_-]+/g, '');
       if (broker === 'tradex') return '/api/v1/tradex';
     }
   } catch {}
@@ -125,6 +126,11 @@ export const pluginApi = {
     return api.post(`${getBase()}/sessions/${sessionId}/stop`);
   },
 
+  /** Close a session that has not started trading (e.g. from the config form). */
+  abandonSession(sessionId: string) {
+    return api.post(`${getBase()}/trading/${sessionId}/abandon`);
+  },
+
   adminStopSession(sessionId: string) {
     return api.post(`${getBase()}/admin/sessions/${sessionId}/stop`);
   },
@@ -215,7 +221,11 @@ export const pluginApi = {
     return api.post(`${getBase()}/saved-configurations`, { name, description, configuration });
   },
 
-  updateSavedConfig(id: string, data: Partial<SavedConfig>) {
+  updateSavedConfig(id: string, data: {
+    name?: string;
+    description?: string;
+    configuration?: Record<string, unknown>;
+  }) {
     return api.put(`${getBase()}/saved-configurations/${id}`, data);
   },
 
