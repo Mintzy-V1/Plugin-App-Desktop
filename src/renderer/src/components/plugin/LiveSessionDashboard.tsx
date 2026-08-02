@@ -4,7 +4,9 @@ import { pluginApi } from '../../lib/pluginApi';
 import { useToast } from '../ui/Toast';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { sessionStatusLabel, resolveSessionStatus, isLiveSessionStatus } from '../../lib/sessionStatus';
+import { downloadSessionCsv } from '../../lib/downloadSessionCsv';
 import LivePnlPanel from './LivePnlPanel';
+import { pluginErrorMessage } from '../../lib/pluginErrors';
 
 interface Props {
   sessionId: string;
@@ -120,7 +122,7 @@ function formatCell(v: string | number, asMoney = false) {
 
 export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop }: Props) {
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>(readOnly ? 'logs' : 'pnl');
+  const [tab, setTab] = useState<Tab>('logs');
   const [logs, setLogs] = useState<TradeLogRow[]>([]);
   const [sessionStatus, setSessionStatus] = useState<string>(initialStatus || '');
   const [availableCash, setAvailableCash] = useState<number | null>(
@@ -199,7 +201,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     setLogs([]);
     if (initialStatus) setSessionStatus(initialStatus);
     if (initialFreeCash != null && Number.isFinite(initialFreeCash)) setAvailableCash(initialFreeCash);
-    setTab(readOnly ? 'logs' : 'pnl');
+    setTab('logs');
     fetchDashboard();
 
     // Live sessions poll; past sessions only need a one-shot load (plus a slow refresh).
@@ -218,7 +220,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       setConfirming(null);
       onStop();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Could not stop the session. It may still be running.');
+      toast.error(pluginErrorMessage(err, 'Could not stop the session. It may still be running.'));
       setConfirming(null);
     } finally {
       setStopping(false);
@@ -228,27 +230,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      const res = await pluginApi.downloadTradebook(sessionId);
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url; a.download = `tradebook-${sessionId}.csv`; a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Tradebook CSV downloaded');
+      // Past sessions: Mongo logs first (VM final-tradebook is usually gone).
+      const kind = await downloadSessionCsv(sessionId, { preferLogs: readOnly || !isLive });
+      toast.success(kind === 'logs' ? 'Session logs CSV downloaded' : 'Tradebook CSV downloaded');
     } catch (err: any) {
-      // Final tradebook may be gone after the VM stops — fall back to stored trading logs CSV.
-      try {
-        const fallback = await pluginApi.downloadSessionLogs(sessionId);
-        const url = URL.createObjectURL(fallback.data);
-        const a = document.createElement('a');
-        a.href = url; a.download = `session-logs-${sessionId}.csv`; a.click();
-        URL.revokeObjectURL(url);
-        toast.success('Session logs CSV downloaded');
-      } catch {
-        const status = err?.response?.status;
-        toast.error(status === 404
-          ? 'No tradebook or logs are available for this session yet.'
-          : 'Could not download the tradebook. Please try again.');
-      }
+      const status = err?.response?.status;
+      toast.error(status === 404
+        ? 'No tradebook or logs are available for this session yet.'
+        : 'Could not download the tradebook. Please try again.');
     } finally {
       setDownloading(false);
     }
