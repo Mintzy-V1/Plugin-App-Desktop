@@ -73,13 +73,14 @@ async function handleAuthLogin(apiKey) {
     return {
       success: false,
       error: 'invalid_key',
-      message: result.message || 'Authentication failed'
+      message: 'Invalid API key. Check your key and try again.',
     };
   } catch (e) {
+    console.error('Auth login failed:', e);
     return {
       success: false,
       error: 'network',
-      message: 'Unable to connect to authentication server. Please try again.',
+      message: 'Could not reach Mintzy. Check your internet connection and try again.',
     };
   }
 }

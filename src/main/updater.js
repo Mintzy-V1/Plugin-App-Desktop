@@ -1,4 +1,4 @@
-const { Notification, dialog } = require('electron');
+const { Notification, dialog, app } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { getSettings } = require('./settings');
 const { resolveIconPath } = require('./icon');
@@ -6,7 +6,35 @@ const { resolveIconPath } = require('./icon');
 let mainWindowRef = null;
 let listenersReady = false;
 let downloadedInfo = null;
+let downloadInProgress = false;
 let checking = false;
+let isDevMode = false;
+
+/** Map electron-updater / network failures to plain language for end users. */
+function userFacingUpdateError(err) {
+  const raw = String(err?.message || err || '').toLowerCase();
+
+  if (/dev|not.?packaged|app.?is.?not.?packed/i.test(raw)) {
+    return 'Updates are only available in the installed app.';
+  }
+  if (/enoent|latest\.yml|cannot find|404|not found/i.test(raw)) {
+    return 'No update package was found. Please try again later or download the latest installer from Mintzy.';
+  }
+  if (/401|403|unauthorized|forbidden|private/i.test(raw)) {
+    return 'Could not reach the update server. Please try again later.';
+  }
+  if (/timed?\s*out|timeout|etimedout/i.test(raw)) {
+    return 'The update check timed out. Check your connection and try again.';
+  }
+  if (/network|enotfound|econnrefused|econnreset|offline|dns|net::/i.test(raw)) {
+    return 'Could not check for updates. Check your internet connection and try again.';
+  }
+  if (/sha512|checksum|signature|blockmap/i.test(raw)) {
+    return 'The update file could not be verified. Please try again later.';
+  }
+
+  return 'Could not check for updates right now. Please try again later.';
+}
 
 function canNotify() {
   return Notification.isSupported() && getSettings().notificationsEnabled !== false;
@@ -14,58 +42,94 @@ function canNotify() {
 
 function promptInstall(info) {
   const version = info?.version || downloadedInfo?.version || '';
-  if (mainWindowRef && !mainWindowRef.isDestroyed() && mainWindowRef.isVisible()) {
-    dialog.showMessageBox(mainWindowRef, {
-      type: 'info',
-      buttons: ['Restart and Install Now', 'Later'],
-      title: 'Application Update',
-      message: version ? `Version ${version} is available.` : 'An update is ready to install.',
-      detail: 'A new version has been downloaded. Restart the application to apply the updates.',
-    }).then((returnValue) => {
-      if (returnValue.response === 0) autoUpdater.quitAndInstall();
-    });
+  const win = mainWindowRef && !mainWindowRef.isDestroyed() ? mainWindowRef : null;
+
+  // Bring the app forward if it was minimized to tray so the dialog is usable.
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
+    win.focus();
   }
+
+  const opts = {
+    type: 'info',
+    buttons: ['Restart and Install Now', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'Update ready',
+    message: version ? `Mintzy Plugin v${version} is ready to install.` : 'An update is ready to install.',
+    detail: 'Restart the app to finish updating. Your work will be saved when you reopen.',
+  };
+
+  const box = win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts);
+  box.then((returnValue) => {
+    if (returnValue.response === 0) {
+      try {
+        autoUpdater.quitAndInstall(false, true);
+      } catch (err) {
+        console.error('quitAndInstall failed:', err);
+      }
+    }
+  }).catch((err) => {
+    console.error('Update install prompt failed:', err);
+  });
 }
 
 function setupAutoUpdater(mainWindow, { isDev }) {
   mainWindowRef = mainWindow;
+  isDevMode = Boolean(isDev);
+
   if (isDev || listenersReady) return;
 
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.autoDownload = true;
 
   autoUpdater.on('update-available', (info) => {
+    downloadInProgress = true;
     if (canNotify()) {
       new Notification({
-        title: 'Update Available',
-        body: `Mintzy Plugin v${info.version} is being downloaded…`,
+        title: 'Update available',
+        body: `Mintzy Plugin v${info.version} is downloading in the background…`,
         icon: resolveIconPath() || undefined,
       }).show();
     }
   });
 
+  autoUpdater.on('update-not-available', () => {
+    downloadInProgress = false;
+  });
+
   autoUpdater.on('update-downloaded', (info) => {
+    downloadInProgress = false;
     downloadedInfo = info;
     if (canNotify()) {
       const notification = new Notification({
-        title: 'Update Ready to Install',
-        body: `Mintzy Plugin v${info.version} has been downloaded. Click to install.`,
+        title: 'Update ready',
+        body: `Mintzy Plugin v${info.version} is ready. Click to restart and install.`,
         icon: resolveIconPath() || undefined,
       });
-      notification.on('click', () => autoUpdater.quitAndInstall());
+      notification.on('click', () => {
+        try {
+          autoUpdater.quitAndInstall(false, true);
+        } catch (err) {
+          console.error('quitAndInstall from notification failed:', err);
+        }
+      });
       notification.show();
     }
     promptInstall(info);
   });
 
   autoUpdater.on('error', (err) => {
+    downloadInProgress = false;
+    // Log for diagnostics only — never surface raw updater errors to users.
     console.error('Auto-updater error:', err);
   });
 
   listenersReady = true;
 
   autoUpdater.checkForUpdates().catch((err) => {
-    console.error('Error checking for updates:', err);
+    console.error('Background update check failed:', err);
   });
 }
 
@@ -74,12 +138,26 @@ function setupAutoUpdater(mainWindow, { isDev }) {
  * @returns {Promise<{ status: string, version?: string, message: string }>}
  */
 async function checkForUpdatesManual() {
+  if (isDevMode || !app.isPackaged) {
+    return {
+      status: 'error',
+      message: 'Updates are only available in the installed Windows app.',
+    };
+  }
+
   if (downloadedInfo) {
     promptInstall(downloadedInfo);
     return {
       status: 'downloaded',
       version: downloadedInfo.version,
       message: `Version ${downloadedInfo.version} is ready to install.`,
+    };
+  }
+
+  if (downloadInProgress) {
+    return {
+      status: 'available',
+      message: 'An update is already downloading. You’ll be notified when it’s ready to install.',
     };
   }
 
@@ -95,11 +173,11 @@ async function checkForUpdatesManual() {
         if (settled) return;
         settled = true;
         cleanup();
-        checking = false;
         resolve(result);
       };
 
       const onAvailable = (info) => {
+        downloadInProgress = true;
         finish({
           status: 'available',
           version: info.version,
@@ -109,10 +187,11 @@ async function checkForUpdatesManual() {
       const onNotAvailable = () => {
         finish({
           status: 'up-to-date',
-          message: 'You are on the latest version.',
+          message: 'You’re on the latest version.',
         });
       };
       const onDownloaded = (info) => {
+        downloadInProgress = false;
         downloadedInfo = info;
         finish({
           status: 'downloaded',
@@ -121,9 +200,11 @@ async function checkForUpdatesManual() {
         });
       };
       const onError = (err) => {
+        downloadInProgress = false;
+        console.error('Manual update check error:', err);
         finish({
           status: 'error',
-          message: err?.message || 'Could not check for updates. Try again later.',
+          message: userFacingUpdateError(err),
         });
       };
 
@@ -140,17 +221,17 @@ async function checkForUpdatesManual() {
       autoUpdater.on('error', onError);
 
       autoUpdater.checkForUpdates().catch((err) => {
+        console.error('checkForUpdates rejected:', err);
         finish({
           status: 'error',
-          message: err?.message || 'Could not check for updates. Try again later.',
+          message: userFacingUpdateError(err),
         });
       });
 
-      // Safety timeout so Settings never hangs forever
       setTimeout(() => {
         finish({
           status: 'error',
-          message: 'Update check timed out. Check your connection and try again.',
+          message: 'The update check timed out. Check your connection and try again.',
         });
       }, 45000);
     });
@@ -160,9 +241,19 @@ async function checkForUpdatesManual() {
 }
 
 function installDownloadedUpdate() {
-  if (!downloadedInfo) return { success: false, message: 'No update is ready to install yet.' };
-  autoUpdater.quitAndInstall();
-  return { success: true };
+  if (!downloadedInfo) {
+    return { success: false, message: 'No update is ready to install yet.' };
+  }
+  try {
+    autoUpdater.quitAndInstall(false, true);
+    return { success: true };
+  } catch (err) {
+    console.error('installDownloadedUpdate failed:', err);
+    return {
+      success: false,
+      message: 'Could not start the installer. Please restart the app and try again.',
+    };
+  }
 }
 
 module.exports = {
