@@ -1,17 +1,24 @@
 import api from './api';
 
-const getBase = () => {
+/** Normalized broker key from the JWT: `tradex` | `angle_one` (default). */
+const getBrokerKey = (): 'tradex' | 'angle_one' => {
   try {
     const token = localStorage.getItem('mintzy_token');
     if (token) {
       const payload = JSON.parse(atob(token.split('.')[1]));
       // Broker comes from Mintzy API-key onboard (JWT claim), e.g. "angle one" | "tradex"
       const broker = String(payload.broker || '').toLowerCase().replace(/[\s_-]+/g, '');
-      if (broker === 'tradex') return '/api/v1/tradex';
+      if (broker === 'tradex') return 'tradex';
     }
   } catch {}
-  return '/api/v1/angle_one';
+  return 'angle_one';
 };
+
+const getBase = () => (getBrokerKey() === 'tradex' ? '/api/v1/tradex' : '/api/v1/angle_one');
+
+/** Angel One uses /start-simulation; TradeX keeps /start. */
+const getStartPath = () =>
+  getBrokerKey() === 'tradex' ? `${getBase()}/start` : `${getBase()}/start-simulation`;
 
 export type AngelCredentialsPayload = {
   api_key: string;
@@ -115,7 +122,7 @@ export const pluginApi = {
   },
 
   startTrading(payload: StartPayload) {
-    return api.post(`${getBase()}/start`, payload);
+    return api.post(getStartPath(), payload);
   },
 
   stopTrading(sessionId: string) {
