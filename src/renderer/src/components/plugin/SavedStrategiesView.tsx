@@ -7,9 +7,10 @@ import {
   buildPayload,
   validateConfig,
   draftFromConfiguration,
+  alphasFromConfiguration,
   summarizeConfiguration,
 } from '../../lib/pluginTradingConfig';
-import type { TradingConfigurationDraft } from '../../lib/pluginTradingConfig';
+import type { AlphasInfo, TradingConfigurationDraft } from '../../lib/pluginTradingConfig';
 import TradingConfigurationFields from './TradingConfigurationFields';
 import { useToast } from '../ui/Toast';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -45,6 +46,7 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
   const [editorMode, setEditorMode] = useState<EditorMode>('idle');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<TradingConfigurationDraft>(createDefaultConfig());
+  const [alphas, setAlphas] = useState<AlphasInfo | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
@@ -79,6 +81,7 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
     setName('');
     setDescription('');
     setDraft(createDefaultConfig());
+    setAlphas(null);
     setSaveError(null);
   };
 
@@ -88,6 +91,7 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
     setName('');
     setDescription('');
     setDraft(createDefaultConfig());
+    setAlphas(null);
     setSaveError(null);
   };
 
@@ -97,7 +101,9 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
     setEditingId(id);
     setName(configuration.name || '');
     setDescription(configuration.description || '');
-    setDraft(draftFromConfiguration(configuration.configuration));
+    const raw = configuration.configuration as Record<string, unknown>;
+    setDraft(draftFromConfiguration(raw));
+    setAlphas(alphasFromConfiguration(raw));
     setSaveError(null);
   };
 
@@ -107,7 +113,10 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
       setSaveError('Strategy name is required');
       return;
     }
-    const err = validateConfig(draft);
+    const err = validateConfig(draft, {
+      // Updates may clear all manuals (e.g. keep only auto-generated alphas).
+      allowEmptyStocks: editorMode === 'edit',
+    });
     if (err) { setSaveError(err); return; }
 
     setSaveError(null);
@@ -219,8 +228,13 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
                     </p>
                     <div className={`mt-2.5 flex flex-wrap gap-1.5 text-[11px] font-semibold ${isActive ? 'text-slate-200' : 'text-slate-600'}`}>
                       <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-white/10' : 'bg-slate-100'}`}>
-                        {summary.symbolCount} symbol{summary.symbolCount === 1 ? '' : 's'}
+                        {summary.symbolCount} manual
                       </span>
+                      {summary.autoSymbolCount > 0 && (
+                        <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-emerald-400/20 text-emerald-100' : 'bg-emerald-50 text-emerald-700'}`}>
+                          {summary.autoSymbolCount} auto
+                        </span>
+                      )}
                       <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-white/10' : 'bg-slate-100'}`}>
                         {summary.strategyLabel}
                       </span>
@@ -322,7 +336,7 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
                   className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 disabled:opacity-60" />
               </div>
 
-              <TradingConfigurationFields config={draft} onChange={setDraft} />
+              <TradingConfigurationFields config={draft} alphas={alphas} onChange={setDraft} />
 
               {saveError && (
                 <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">

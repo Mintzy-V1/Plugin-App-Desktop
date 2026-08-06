@@ -96,9 +96,11 @@ const users = {
 
 // Trading Factory
 function createBrokerApi(prefix) {
+  // Angel One starts go to /start-simulation; TradeX keeps /start.
+  const startPath = prefix === 'angle_one' ? `/${prefix}/start-simulation` : `/${prefix}/start`;
   return {
     // Sessions
-    start: (body) => request(`/${prefix}/start`, { method: 'POST', auth: true, body }),
+    start: (body) => request(startPath, { method: 'POST', auth: true, body }),
     stopByParam: (sessionId) => request(`/${prefix}/stop/${sessionId}`, { method: 'POST', auth: true }),
     stop: (sessionId) => request(`/${prefix}/stop`, { method: 'POST', auth: true, body: { sessionId } }),
     stopSession: (sessionId) => request(`/${prefix}/sessions/${sessionId}/stop`, { method: 'POST', auth: true }),

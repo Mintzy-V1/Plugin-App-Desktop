@@ -2,8 +2,14 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, Settings2, Bookmark, XCircle } from 'lucide-react';
 import { pluginApi } from '../../lib/pluginApi';
 import type { SavedConfig } from '../../lib/pluginApi';
-import { createDefaultConfig, validateConfig, buildPayload, draftFromConfiguration } from '../../lib/pluginTradingConfig';
-import type { TradingConfigurationDraft } from '../../lib/pluginTradingConfig';
+import {
+  createDefaultConfig,
+  validateConfig,
+  buildPayload,
+  draftFromConfiguration,
+  alphasFromConfiguration,
+} from '../../lib/pluginTradingConfig';
+import type { AlphasInfo, TradingConfigurationDraft } from '../../lib/pluginTradingConfig';
 import TradingConfigurationFields from './TradingConfigurationFields';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
@@ -26,6 +32,7 @@ function parseSavedList(data: unknown): SavedConfig[] {
 
 export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAbandon, onBack }: Props) {
   const [config, setConfig] = useState<TradingConfigurationDraft>(createDefaultConfig());
+  const [alphas, setAlphas] = useState<AlphasInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
   const [confirmAbandon, setConfirmAbandon] = useState(false);
@@ -46,26 +53,35 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
     setSelectedSavedId(id);
     if (!id) {
       setConfig(createDefaultConfig());
+      setAlphas(null);
       return;
     }
     const match = savedConfigs.find(c => (c._id || (c as any).id) === id);
     if (!match) return;
-    setConfig(draftFromConfiguration(match.configuration as Record<string, unknown>));
+    const raw = match.configuration as Record<string, unknown>;
+    setConfig(draftFromConfiguration(raw));
+    setAlphas(alphasFromConfiguration(raw));
     setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const err = validateConfig(config);
+    const err = validateConfig(config, { alphas });
     if (err) { setError(err); return; }
+    const payload = buildPayload(config, alphas);
+    if (payload.symbols.length === 0) {
+      setError('Add at least one stock');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      if (selectedSavedId) {
-        await pluginApi.startTrading({ session_id: sessionId, saved_configuration_id: selectedSavedId });
-      } else {
-        await pluginApi.startTrading({ session_id: sessionId, ...buildPayload(config) });
-      }
+      // Always send the earlier body shape; include saved id when applicable.
+      await pluginApi.startTrading({
+        session_id: sessionId,
+        ...(selectedSavedId ? { saved_configuration_id: selectedSavedId } : {}),
+        ...payload,
+      });
       onSuccess();
     } catch (err: any) {
       setError(pluginErrorMessage(err, 'Could not start trading. Please check your settings and try again.'));
@@ -90,7 +106,8 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
   };
 
   const validStocks = config.stocks.filter(s => s.symbol && Number(s.capital) > 0);
-  const totalCapital = validStocks.reduce((sum, s) => sum + Number(s.capital), 0);
+  const startPreview = buildPayload(config, alphas);
+  const totalCapital = startPreview.symbols.reduce((sum, s) => sum + Number(s.capital), 0);
   const busy = loading || abandoning;
 
   return (
@@ -145,19 +162,30 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
             )}
           </div>
 
-          <TradingConfigurationFields config={config} onChange={(next) => {
-            setConfig(next);
-            // Manual edits drop the "saved id" path so we send the edited payload only.
-            if (selectedSavedId) setSelectedSavedId('');
-          }} />
+          <TradingConfigurationFields
+            config={config}
+            alphas={alphas}
+            onChange={(next) => {
+              setConfig(next);
+              // Manual edits drop the saved-id path so we send the edited payload only.
+              if (selectedSavedId) {
+                setSelectedSavedId('');
+                setAlphas(null);
+              }
+            }}
+          />
 
           {error && (
             <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">{error}</div>
           )}
 
-          {validStocks.length > 0 && (
+          {startPreview.symbols.length > 0 && (
             <div className="rounded-xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
-              Starting <span className="font-semibold text-slate-700">{validStocks.length} symbol{validStocks.length > 1 ? 's' : ''}</span> with a total allocation of{' '}
+              Starting <span className="font-semibold text-slate-700">{startPreview.symbols.length} symbol{startPreview.symbols.length > 1 ? 's' : ''}</span>
+              {alphas && alphas.symbols.length > 0 ? (
+                <> ({validStocks.length} manual + {alphas.symbols.length} auto)</>
+              ) : null}
+              {' '}with a total allocation of{' '}
               <span className="font-semibold text-slate-700">
                 {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalCapital)}
               </span>{' '}on the {config.candle} candle

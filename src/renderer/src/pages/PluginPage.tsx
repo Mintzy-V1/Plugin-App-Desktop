@@ -12,6 +12,7 @@ import { pluginApi } from '../lib/pluginApi';
 import type { TradingSession } from '../lib/pluginApi';
 import { isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
 import { pluginErrorMessage } from '../lib/pluginErrors';
+import { buildStartPayloadFromConfiguration } from '../lib/pluginTradingConfig';
 
 type PluginView = 'empty' | 'broker' | '2fa' | 'config' | 'dashboard' | 'saved';
 
@@ -93,10 +94,19 @@ export default function PluginPage() {
     setPendingDelete(null);
   };
 
-  const handleUseSavedConfig = (configId: string, _config: Record<string, unknown>) => {
+  const handleUseSavedConfig = (configId: string, configuration: Record<string, unknown>) => {
     if (!sessionId || quickStarting) return;
+    const payload = buildStartPayloadFromConfiguration(configuration);
+    if (payload.symbols.length === 0) {
+      toast.error('This strategy has no symbols to start with.');
+      return;
+    }
     setQuickStarting(true);
-    pluginApi.startTrading({ session_id: sessionId, saved_configuration_id: configId })
+    pluginApi.startTrading({
+      session_id: sessionId,
+      saved_configuration_id: configId,
+      ...payload,
+    })
       .then(() => {
         toast.success('Trading started from saved strategy');
         setSessionStatus('trading_active');
