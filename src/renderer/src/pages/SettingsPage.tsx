@@ -63,7 +63,7 @@ export default function SettingsPage() {
     setMinimizeToTray(next);
     try {
       await bridge.system.setMinimizeToTray(next);
-      toast.success(next ? 'Closing will minimize to the tray' : 'Closing will quit the app');
+      toast.success(next ? 'Closing will hide Mintzy in the tray — click the tray icon to reopen' : 'Closing will quit the app completely');
     } catch {
       setMinimizeToTray(!next);
       toast.error('Could not update the tray setting. Please try again.');
@@ -147,7 +147,7 @@ export default function SettingsPage() {
         />
         <SettingRow
           label="Minimize to tray"
-          description="Close button hides to system tray instead of quitting"
+          description="Close (X) hides Mintzy in the system tray. Open it again from the tray icon, or turn this off so X fully quits the app."
           checked={minimizeToTray}
           disabled={desktopUnavailable}
           onToggle={toggleMinimizeToTray}

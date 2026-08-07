@@ -101,6 +101,9 @@ export function pluginErrorMessage(
   if (/session not found|expired/.test(lower)) {
     return 'This broker session expired. Go back and connect your credentials again.';
   }
+  if (/second auth|trading pin|second_auth/i.test(lower)) {
+    return 'Trading PIN / second auth is required for Bear Street. Please enter it and try again.';
+  }
   if (/active trading session cannot be abandoned/.test(lower)) {
     return 'This session is already trading. Stop it from the live dashboard instead.';
   }
