@@ -96,7 +96,7 @@ const users = {
 
 // Trading Factory
 function createBrokerApi(prefix) {
-  // Angel One starts go to /start-simulation; TradeX keeps /start.
+  // Angel One starts go to /start-simulation; TradeX & Bear Street keep /start.
   const startPath = prefix === 'angle_one' ? `/${prefix}/start-simulation` : `/${prefix}/start`;
   return {
     // Sessions
@@ -147,6 +147,7 @@ function createBrokerApi(prefix) {
 
 const angleOne = createBrokerApi('angle_one');
 const tradex = createBrokerApi('tradex');
+const bearStreet = createBrokerApi('bear_street');
 
 // Legacy compatibility wrapper (if needed for migration)
 async function exchangeApiKey(apiKey) {
@@ -173,5 +174,6 @@ module.exports = {
   users,
   angleOne,
   tradex,
+  bearStreet,
   exchangeApiKey,
 };
