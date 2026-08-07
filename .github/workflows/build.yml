@@ -27,6 +27,24 @@ jobs:
       - name: Build Windows installer
         run: npx electron-builder --win --x64 --publish never
 
+      # latest.yml uses hyphenated names (spaces → -). softprops turns spaces into
+      # dots, which breaks electron-updater downloads — normalize before upload.
+      - name: Normalize asset names for updater
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release
+          for f in *.exe *.exe.blockmap; do
+            [ -e "$f" ] || continue
+            new="${f// /-}"
+            if [ "$f" != "$new" ]; then
+              mv "$f" "$new"
+            fi
+          done
+          ls -la
+          test -f latest.yml
+          grep -E '^path:' latest.yml
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

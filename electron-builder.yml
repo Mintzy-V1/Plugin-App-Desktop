@@ -32,4 +32,4 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Mintzy Plugin
-  artifactName: "${productName} Setup ${version}.${ext}"
+  artifactName: "Mintzy-Plugin-Setup-${version}.${ext}"
