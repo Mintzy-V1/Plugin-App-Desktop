@@ -4,7 +4,7 @@ const {
 const path = require('path');
 const { initWindowState, saveWindowState } = require('./window-state');
 const { getSettings, setSetting } = require('./settings');
-const { createTray } = require('./tray');
+const { createTray, destroyTray } = require('./tray');
 const { resolveIconPath, loadAppIcon } = require('./icon');
 const { setupAutoUpdater, checkForUpdatesManual, installDownloadedUpdate } = require('./updater');
 
@@ -12,179 +12,216 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 let mainWindow = null;
 
+/** Bring the existing window back when the user launches the app again (Start menu / desktop). */
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+  if (process.platform === 'win32') {
+    // Windows sometimes needs a brief flash to surface a previously hidden window.
+    mainWindow.setAlwaysOnTop(true);
+    mainWindow.setAlwaysOnTop(false);
+  }
+}
+
+// Single-instance lock: if another copy is already running, focus it and exit this one.
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
-  });
-}
-
-function createMainWindow() {
-  const windowState = initWindowState();
-  const iconPath = resolveIconPath();
-
-  mainWindow = new BrowserWindow({
-    width: windowState.width || 1440,
-    height: windowState.height || 900,
-    x: windowState.x,
-    y: windowState.y,
-    minWidth: 800,
-    minHeight: 600,
-    show: false,
-    title: 'Mintzy Plugin',
-    icon: iconPath || undefined,
-    // Match the renderer's light slate background so there is no dark flash on launch.
-    backgroundColor: '#f8fafc',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
+    showMainWindow();
   });
 
-  // Ensure taskbar / dock uses Mintzy mark even if BrowserWindow icon option is ignored.
-  if (process.platform === 'darwin' && app.dock) {
-    const dockIcon = loadAppIcon(128);
-    if (!dockIcon.isEmpty()) app.dock.setIcon(dockIcon);
-  }
+  function createMainWindow() {
+    const windowState = initWindowState();
+    const iconPath = resolveIconPath();
 
-  mainWindow.on('resize', () => {
-    if (mainWindow) saveWindowState(mainWindow.getBounds());
-  });
-  mainWindow.on('move', () => {
-    if (mainWindow) saveWindowState(mainWindow.getBounds());
-  });
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-  });
-
-  // Open external links in the default browser instead of a new Electron window.
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) shell.openExternal(url);
-    return { action: 'deny' };
-  });
-
-  mainWindow.on('close', (e) => {
-    if (!app.isQuitting && getSettings().minimizeToTray) {
-      e.preventDefault();
-      mainWindow.hide();
-    }
-  });
-
-  if (isDev) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  }
-}
-
-// Vite outputs to <project root>/dist/renderer; __dirname is <project root>/src/main.
-const RENDERER_INDEX = path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html');
-
-function loadApp() {
-  if (!mainWindow) return;
-  mainWindow.loadFile(RENDERER_INDEX);
-}
-
-async function revalidateSession() {
-  loadApp();
-}
-
-app.whenReady().then(async () => {
-  createMainWindow();
-  createTray(mainWindow, {
-    onLogout: () => {
-      mainWindow.loadFile(RENDERER_INDEX);
-    },
-  });
-
-  ipcMain.handle('window:get-state', async () => {
-    return initWindowState();
-  });
-
-  ipcMain.on('window:save-state', (_event, bounds) => {
-    saveWindowState(bounds);
-  });
-
-  ipcMain.handle('system:get-auto-launch', async () => {
-    return app.getLoginItemSettings().openAtLogin;
-  });
-
-  ipcMain.handle('system:set-auto-launch', async (_event, enable) => {
-    app.setLoginItemSettings({ openAtLogin: enable });
-    return { success: true };
-  });
-
-  ipcMain.handle('system:get-minimize-to-tray', async () => {
-    return getSettings().minimizeToTray;
-  });
-
-  ipcMain.handle('system:set-minimize-to-tray', async (_event, enable) => {
-    setSetting('minimizeToTray', Boolean(enable));
-    return { success: true };
-  });
-
-  ipcMain.handle('system:get-notifications', async () => {
-    return getSettings().notificationsEnabled !== false;
-  });
-
-  ipcMain.handle('system:set-notifications', async (_event, enable) => {
-    setSetting('notificationsEnabled', Boolean(enable));
-    return { success: true };
-  });
-
-  ipcMain.handle('app:get-version', async () => {
-    return app.getVersion();
-  });
-
-  ipcMain.handle('app:check-for-updates', async () => {
-    return checkForUpdatesManual();
-  });
-
-  ipcMain.handle('app:install-update', async () => {
-    return installDownloadedUpdate();
-  });
-
-  const canNotify = () => Notification.isSupported() && getSettings().notificationsEnabled !== false;
-
-  ipcMain.on('system:show-notification', (_event, { title, body }) => {
-    if (!canNotify()) return;
-    const notif = new Notification({
-      title,
-      body,
-      icon: resolveIconPath() || undefined,
+    mainWindow = new BrowserWindow({
+      width: windowState.width || 1440,
+      height: windowState.height || 900,
+      x: windowState.x,
+      y: windowState.y,
+      minWidth: 800,
+      minHeight: 600,
+      show: false,
+      title: 'Mintzy Plugin',
+      icon: iconPath || undefined,
+      // Match the renderer's light slate background so there is no dark flash on launch.
+      backgroundColor: '#f8fafc',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
     });
-    notif.on('click', () => {
-      if (mainWindow) {
-        mainWindow.show();
-        mainWindow.focus();
+
+    // Ensure taskbar / dock uses Mintzy mark even if BrowserWindow icon option is ignored.
+    if (process.platform === 'darwin' && app.dock) {
+      const dockIcon = loadAppIcon(128);
+      if (!dockIcon.isEmpty()) app.dock.setIcon(dockIcon);
+    }
+
+    mainWindow.on('resize', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) saveWindowState(mainWindow.getBounds());
+    });
+    mainWindow.on('move', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) saveWindowState(mainWindow.getBounds());
+    });
+
+    mainWindow.once('ready-to-show', () => {
+      mainWindow.show();
+    });
+
+    // Open external links in the default browser instead of a new Electron window.
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith('https://')) shell.openExternal(url);
+      return { action: 'deny' };
+    });
+
+    mainWindow.on('close', (e) => {
+      // X button: hide to tray when enabled; otherwise quit for real.
+      if (!app.isQuitting && getSettings().minimizeToTray !== false) {
+        e.preventDefault();
+        mainWindow.hide();
+        return;
       }
+      // Allow the window to close; window-all-closed will quit on Windows/Linux.
     });
-    notif.show();
+
+    mainWindow.on('closed', () => {
+      mainWindow = null;
+    });
+
+    if (isDev) {
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
+  }
+
+  // Vite outputs to <project root>/dist/renderer; __dirname is <project root>/src/main.
+  const RENDERER_INDEX = path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html');
+
+  function loadApp() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.loadFile(RENDERER_INDEX);
+  }
+
+  async function revalidateSession() {
+    loadApp();
+  }
+
+  app.whenReady().then(async () => {
+    createMainWindow();
+    createTray(mainWindow, {
+      onOpen: showMainWindow,
+      onLogout: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadFile(RENDERER_INDEX);
+        }
+      },
+    });
+
+    ipcMain.handle('window:get-state', async () => {
+      return initWindowState();
+    });
+
+    ipcMain.on('window:save-state', (_event, bounds) => {
+      saveWindowState(bounds);
+    });
+
+    ipcMain.handle('system:get-auto-launch', async () => {
+      return app.getLoginItemSettings().openAtLogin;
+    });
+
+    ipcMain.handle('system:set-auto-launch', async (_event, enable) => {
+      app.setLoginItemSettings({ openAtLogin: Boolean(enable) });
+      return { success: true };
+    });
+
+    ipcMain.handle('system:get-minimize-to-tray', async () => {
+      return getSettings().minimizeToTray !== false;
+    });
+
+    ipcMain.handle('system:set-minimize-to-tray', async (_event, enable) => {
+      setSetting('minimizeToTray', Boolean(enable));
+      return { success: true };
+    });
+
+    ipcMain.handle('system:get-notifications', async () => {
+      return getSettings().notificationsEnabled !== false;
+    });
+
+    ipcMain.handle('system:set-notifications', async (_event, enable) => {
+      setSetting('notificationsEnabled', Boolean(enable));
+      return { success: true };
+    });
+
+    ipcMain.handle('app:get-version', async () => {
+      return app.getVersion();
+    });
+
+    ipcMain.handle('app:check-for-updates', async () => {
+      return checkForUpdatesManual();
+    });
+
+    ipcMain.handle('app:install-update', async () => {
+      return installDownloadedUpdate();
+    });
+
+    const canNotify = () => Notification.isSupported() && getSettings().notificationsEnabled !== false;
+
+    ipcMain.on('system:show-notification', (_event, { title, body }) => {
+      if (!canNotify()) return;
+      const notif = new Notification({
+        title,
+        body,
+        icon: resolveIconPath() || undefined,
+      });
+      notif.on('click', () => {
+        showMainWindow();
+      });
+      notif.show();
+    });
+
+    await revalidateSession();
+
+    setupAutoUpdater(mainWindow, { isDev });
   });
 
-  await revalidateSession();
+  powerMonitor.on('resume', () => {
+    if (mainWindow && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send('system:resume');
+      revalidateSession();
+    }
+  });
 
-  setupAutoUpdater(mainWindow, { isDev });
-});
+  app.on('before-quit', () => {
+    app.isQuitting = true;
+    destroyTray();
+  });
 
-powerMonitor.on('resume', () => {
-  if (mainWindow && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send('system:resume');
-    revalidateSession();
-  }
-});
+  app.on('window-all-closed', () => {
+    // On Windows/Linux, closing the last window should exit the process so the
+    // single-instance lock is released and the app can be opened again.
+    // (macOS keeps apps alive with no windows by convention.)
+    if (process.platform !== 'darwin') {
+      app.isQuitting = true;
+      destroyTray();
+      app.quit();
+    }
+  });
 
-app.on('before-quit', () => {
-  app.isQuitting = true;
-});
+  app.on('activate', () => {
+    // macOS dock click with no windows
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createMainWindow();
+      loadApp();
+    } else {
+      showMainWindow();
+    }
+  });
+}
 
-app.on('window-all-closed', () => {
-});
-
-module.exports = { loadApp };
+// Electron entry point — no exports required.
