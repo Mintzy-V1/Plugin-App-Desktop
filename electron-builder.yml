@@ -6,6 +6,7 @@ publish:
   provider: github
   owner: Mintzy-V1
   repo: Plugin-App-Desktop
+  releaseType: release
 
 directories:
   output: release

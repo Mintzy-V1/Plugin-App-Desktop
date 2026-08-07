@@ -22,9 +22,23 @@ jobs:
 
       - run: npm run build:renderer
 
-      # Use the job's GITHUB_TOKEN (with contents: write) — custom GH_TOKEN often
-      # lacks release permissions and can "succeed" without creating a Release.
-      - name: Build & Publish to GitHub Releases
-        run: npx electron-builder --win --x64 --publish always
+      # Build only — electron-builder's built-in GitHub publish has been racing
+      # (duplicate create-release calls) and exiting green without leaving a Release.
+      - name: Build Windows installer
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Mintzy Plugin ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: true
+          files: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

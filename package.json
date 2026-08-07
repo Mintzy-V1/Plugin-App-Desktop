@@ -1,6 +1,6 @@
 {
   "name": "mintzy-plugin-desktop",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Native Windows desktop wrapper for the Mintzy Plugin terminal",
   "main": "src/main/main.js",
   "scripts": {
@@ -40,7 +40,8 @@
     "publish": {
       "provider": "github",
       "owner": "Mintzy-V1",
-      "repo": "Plugin-App-Desktop"
+      "repo": "Plugin-App-Desktop",
+      "releaseType": "release"
     },
     "nsis": {
       "oneClick": false,
