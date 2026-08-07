@@ -1,24 +1,32 @@
 import api from './api';
 
-/** Normalized broker key from the JWT: `tradex` | `angle_one` (default). */
-const getBrokerKey = (): 'tradex' | 'angle_one' => {
+export type BrokerKey = 'tradex' | 'bear_street' | 'angle_one';
+
+/** Normalized broker key from the JWT onboard claim. */
+const getBrokerKey = (): BrokerKey => {
   try {
     const token = localStorage.getItem('mintzy_token');
     if (token) {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      // Broker comes from Mintzy API-key onboard (JWT claim), e.g. "angle one" | "tradex"
+      // Broker comes from Mintzy API-key onboard, e.g. "angle one" | "tradex" | "bear street"
       const broker = String(payload.broker || '').toLowerCase().replace(/[\s_-]+/g, '');
       if (broker === 'tradex') return 'tradex';
+      if (broker === 'bearstreet' || broker.includes('bear')) return 'bear_street';
     }
   } catch {}
   return 'angle_one';
 };
 
-const getBase = () => (getBrokerKey() === 'tradex' ? '/api/v1/tradex' : '/api/v1/angle_one');
+const getBase = () => {
+  const key = getBrokerKey();
+  if (key === 'tradex') return '/api/v1/tradex';
+  if (key === 'bear_street') return '/api/v1/bear_street';
+  return '/api/v1/angle_one';
+};
 
-/** Angel One uses /start-simulation; TradeX keeps /start. */
+/** Angel One uses /start-simulation; TradeX & Bear Street keep /start. */
 const getStartPath = () =>
-  getBrokerKey() === 'tradex' ? `${getBase()}/start` : `${getBase()}/start-simulation`;
+  getBrokerKey() === 'angle_one' ? `${getBase()}/start-simulation` : `${getBase()}/start`;
 
 export type AngelCredentialsPayload = {
   api_key: string;
@@ -34,7 +42,19 @@ export type TradeXCredentialsPayload = {
   token?: string;
 };
 
-export type CredentialsPayload = AngelCredentialsPayload | TradeXCredentialsPayload;
+export type BearStreetCredentialsPayload = {
+  api_key: string;
+  client_code: string;
+  password: string;
+  second_auth: string;
+  source?: string;
+  base_url?: string;
+};
+
+export type CredentialsPayload =
+  | AngelCredentialsPayload
+  | TradeXCredentialsPayload
+  | BearStreetCredentialsPayload;
 
 export interface CredentialsResponse {
   success: boolean;
