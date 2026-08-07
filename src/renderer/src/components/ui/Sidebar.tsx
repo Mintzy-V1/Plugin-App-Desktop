@@ -51,6 +51,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
   const hasLive = useHasLiveSession();
   const [hovered, setHovered] = useState(false);
 
+  // Peek labels on hover when collapsed, but never invent extra nav items.
   const showLabels = !collapsed || hovered;
   const railWidth = collapsed ? 68 : 220;
 
@@ -63,43 +64,31 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
           showLabels ? 'w-[220px]' : 'w-[68px]'
         } ${collapsed && hovered ? 'shadow-[8px_0_24px_rgba(15,23,42,0.06)]' : ''}`}
       >
-        <div className={`flex h-14 shrink-0 items-center ${showLabels ? 'justify-between px-4' : 'justify-center px-2'}`}>
+        <div className={`flex shrink-0 border-b border-slate-200/60 ${
+          showLabels ? 'h-14 items-center justify-between px-4' : 'flex-col items-center gap-1 px-2 py-2'
+        }`}>
           {showLabels ? (
             <img src="./Mintzy%20Bars%20Full%20Lockup%20Green.png" alt="Mintzy" className="h-6 w-auto object-contain" />
           ) : (
             <img src="./Mintzy%20Bars%20Iconic%20Mark%20Green.jpg" alt="Mintzy" className="h-8 w-8 rounded-lg object-contain" />
           )}
-          {showLabels && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              aria-label={collapsed ? 'Pin sidebar open' : 'Collapse sidebar'}
-              title={collapsed ? 'Pin open' : 'Collapse'}
-              className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
-            >
-              {collapsed
-                ? <IconLayoutSidebarLeftExpand className="h-4 w-4" stroke={1.75} aria-hidden="true" />
-                : <IconLayoutSidebarLeftCollapse className="h-4 w-4" stroke={1.75} aria-hidden="true" />}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+          >
+            {collapsed
+              ? <IconLayoutSidebarLeftExpand className="h-4 w-4" stroke={1.75} aria-hidden="true" />
+              : <IconLayoutSidebarLeftCollapse className="h-4 w-4" stroke={1.75} aria-hidden="true" />}
+          </button>
         </div>
 
         <nav
           aria-label="Main navigation"
           className={`flex flex-1 flex-col gap-0.5 overflow-y-auto py-2 ${showLabels ? 'px-2.5' : 'items-center px-2'}`}
         >
-          {!showLabels && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              aria-label="Expand sidebar"
-              title="Expand sidebar"
-              className="mb-1 flex items-center justify-center rounded-lg p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
-            >
-              <IconLayoutSidebarLeftExpand className="h-[18px] w-[18px]" stroke={1.75} aria-hidden="true" />
-            </button>
-          )}
-
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
             const isActive = active === id;
             return (
