@@ -5,17 +5,26 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+
       - run: npm ci
+
       - run: npm run build:renderer
+
+      # Use the job's GITHUB_TOKEN (with contents: write) — custom GH_TOKEN often
+      # lacks release permissions and can "succeed" without creating a Release.
       - name: Build & Publish to GitHub Releases
         run: npx electron-builder --win --x64 --publish always
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
