@@ -120,6 +120,15 @@ export interface TradingSession {
   status: string;
   created_at: string;
   ended_at?: string;
+  /** Present when the session ran a pre-live simulation (Angel One pyramid flow). */
+  simulation_status?: string | null;
+  simulation_started_at?: string | null;
+  simulation_completed_at?: string | null;
+  /** Cutoff: trades before this are simulation; at/after are live. */
+  simulation_live_started_at?: string | null;
+  simulation_live_switch_triggered?: boolean;
+  simulation_trade_date?: string | null;
+  configuration_name?: string | null;
 }
 
 export const pluginApi = {
