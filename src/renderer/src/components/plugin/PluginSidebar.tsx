@@ -1,6 +1,6 @@
 import { Plus, History, Trash2, Loader2, Bookmark, PanelLeftClose, PanelLeft } from 'lucide-react';
 import type { TradingSession } from '../../lib/pluginApi';
-import { sessionStatusLabel } from '../../lib/sessionStatus';
+import { sessionStatusLabel, isSimulationRunningStatus, simulationStatusLabel } from '../../lib/sessionStatus';
 
 interface Props {
   sessions: TradingSession[];
@@ -14,14 +14,22 @@ interface Props {
   onToggle: () => void;
 }
 
+function isSidebarLiveSession(s: TradingSession) {
+  return (
+    s.status === 'trading_active' ||
+    s.status === 'authenticated' ||
+    isSimulationRunningStatus(s.simulation_status)
+  );
+}
+
 export default function PluginSidebar({
   sessions, activeSessionId, onNewSession, onSelectSession,
   onSavedStrategies, onDeleteSession, deletingId,
   collapsed, onToggle,
 }: Props) {
-  const liveSessions = sessions.filter(s => s.status === 'trading_active' || s.status === 'authenticated');
-  const pastSessions = sessions.filter(s => s.status !== 'trading_active' && s.status !== 'authenticated');
-  const activeCount = sessions.filter(s => s.status === 'trading_active').length;
+  const liveSessions = sessions.filter(isSidebarLiveSession);
+  const pastSessions = sessions.filter(s => !isSidebarLiveSession(s));
+  const activeCount = sessions.filter(s => s.status === 'trading_active' || isSimulationRunningStatus(s.simulation_status)).length;
 
   const formatDate = (ds: string) => {
     const d = new Date(ds);
@@ -118,6 +126,7 @@ export default function PluginSidebar({
             <div className="space-y-0.5">
               {liveSessions.map(s => {
                 const isActive = activeSessionId === s.python_session_id;
+                const simulating = isSimulationRunningStatus(s.simulation_status);
                 return (
                   <button
                     key={s._id}
@@ -130,8 +139,12 @@ export default function PluginSidebar({
                     }`}
                   >
                     <span className="truncate text-[12px] font-medium">{formatDate(s.created_at)}</span>
-                    <span className="ml-2 shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">
-                      Live
+                    <span className={`ml-2 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                      simulating
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {simulating ? (simulationStatusLabel(s.simulation_status) || 'Sim') : 'Live'}
                     </span>
                   </button>
                 );
