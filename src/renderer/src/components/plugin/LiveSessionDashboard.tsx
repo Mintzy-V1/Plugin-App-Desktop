@@ -1,12 +1,21 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee } from 'lucide-react';
 import { pluginApi } from '../../lib/pluginApi';
 import { useToast } from '../ui/Toast';
 import ConfirmDialog from '../ui/ConfirmDialog';
-import { sessionStatusLabel, resolveSessionStatus, isLiveSessionStatus } from '../../lib/sessionStatus';
+import {
+  sessionStatusLabel,
+  resolveSessionStatus,
+  isLiveSessionStatus,
+  isTerminalSessionStatus,
+  isSimulationRunningStatus,
+  simulationStatusLabel,
+  simulationStatusBadgeClass,
+} from '../../lib/sessionStatus';
 import { downloadSessionCsv } from '../../lib/downloadSessionCsv';
 import LivePnlPanel from './LivePnlPanel';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
+import type { TradingSession } from '../../lib/pluginApi';
 
 interface Props {
   sessionId: string;
@@ -24,14 +33,46 @@ type Tab = 'logs' | 'pnl';
 
 interface TradeLogRow {
   time: string;
+  /** Epoch ms for comparing against simulation_live_started_at; null if unparseable. */
+  timeMs: number | null;
   symbol: string;
   signal: string;
   action: string;
+  quantity: string | number;
   price: string | number;
   change: string | number;
   pnl: string | number;
   capital: string | number;
   return_pct: string | number;
+}
+
+/** Engine logs often use naive IST wall times (`YYYY-MM-DD HH:mm:ss`). */
+function parseTradeTimeMs(raw: unknown): number | null {
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw < 1e12 ? Math.round(raw * 1000) : raw;
+  }
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) {
+    const ms = Date.parse(s);
+    return Number.isNaN(ms) ? null : ms;
+  }
+  const normalized = s.includes('T') ? s : s.replace(' ', 'T');
+  // Assume India Standard Time for naive engine timestamps.
+  const ms = Date.parse(`${normalized}+05:30`);
+  if (!Number.isNaN(ms)) return ms;
+  const fallback = Date.parse(normalized);
+  return Number.isNaN(fallback) ? null : fallback;
+}
+
+function parseInstantMs(raw: unknown): number | null {
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw < 1e12 ? Math.round(raw * 1000) : raw;
+  }
+  const ms = Date.parse(String(raw));
+  return Number.isNaN(ms) ? null : ms;
 }
 
 function pickStatus(value: unknown): string | null {
@@ -83,27 +124,26 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
   return rows.map((item) => {
     const r = (item && typeof item === 'object' ? item : {}) as Record<string, any>;
     const timeRaw = r.timestamp ?? r.time ?? r.Timestamp ?? r.Time;
+    const timeMs = parseTradeTimeMs(timeRaw);
     let time = '-';
-    if (timeRaw != null) {
-      if (typeof timeRaw === 'string' && timeRaw.includes('-') && !Number.isNaN(Date.parse(timeRaw))) {
-        time = new Date(timeRaw).toLocaleString('en-IN');
-      } else if (typeof timeRaw === 'number' || !Number.isNaN(Date.parse(String(timeRaw)))) {
-        time = new Date(timeRaw).toLocaleString('en-IN');
-      } else {
-        time = String(timeRaw);
-      }
+    if (timeMs != null) {
+      time = new Date(timeMs).toLocaleString('en-IN');
+    } else if (timeRaw != null) {
+      time = String(timeRaw);
     }
 
     return {
       time,
+      timeMs,
       symbol: String(r.Symbol ?? r.symbol ?? '-'),
-      signal: String(r.Signal ?? r.signal ?? '-'),
+      signal: String(r.Signal ?? r.signal ?? r.side ?? r.Side ?? '-'),
       action: String(r.Action_Status ?? r.Action ?? r.action ?? r.action_status ?? r.status ?? '-'),
+      quantity: r.Quantity ?? r.quantity ?? r.Qty ?? r.qty ?? r.qty_traded ?? r.filled_qty ?? r.FilledQty ?? r.lots ?? '-',
       price: r.Price ?? r.price ?? r.curr_price ?? '-',
       change: r['Change(%)'] ?? r.Change ?? r.change ?? r.return_pct ?? '-',
       pnl: r['P&L'] ?? r.PnL ?? r.pnl ?? r.unrealized_pnl ?? r.realized_pnl ?? '-',
-      capital: r['Total_Capital'] ?? r.TotalCapital ?? r.total_capital ?? r.capital ?? r.cash_balance ?? '-',
-      return_pct: r['Return(%)'] ?? r.Return ?? r.return ?? '-',
+      capital: r['Total_Capital'] ?? r.TotalCapital ?? r.total_capital ?? r.capital ?? r.cash_balance ?? r.portfolio_cash_balance ?? '-',
+      return_pct: r['Return(%)'] ?? r.Return ?? r.return_pct ?? r.return ?? '-',
     };
   });
 }
@@ -120,11 +160,27 @@ function formatCell(v: string | number, asMoney = false) {
   return String(v);
 }
 
+function formatQuantity(v: string | number) {
+  if (v === '-' || v == null || v === '') return '-';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  return Number.isInteger(n) ? String(n) : n.toLocaleString('en-IN');
+}
+
+function extractTradingSession(raw: unknown): TradingSession | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const session = (o.session && typeof o.session === 'object' ? o.session : o) as TradingSession;
+  return session?.python_session_id || session?.status != null ? session : null;
+}
+
 export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop }: Props) {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('logs');
   const [logs, setLogs] = useState<TradeLogRow[]>([]);
   const [sessionStatus, setSessionStatus] = useState<string>(initialStatus || '');
+  const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
+  const [liveStartedAtMs, setLiveStartedAtMs] = useState<number | null>(null);
   const [availableCash, setAvailableCash] = useState<number | null>(
     initialFreeCash != null && Number.isFinite(initialFreeCash) ? initialFreeCash : null
   );
@@ -135,8 +191,24 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const [stopping, setStopping] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const seenLiveRef = useRef(!readOnly && isLiveSessionStatus(initialStatus));
 
-  const isLive = !readOnly && isLiveSessionStatus(sessionStatus || initialStatus);
+  useEffect(() => {
+    if (isLiveSessionStatus(sessionStatus || initialStatus)) seenLiveRef.current = true;
+    if (isTerminalSessionStatus(sessionStatus || initialStatus)) seenLiveRef.current = false;
+  }, [sessionStatus, initialStatus]);
+
+  const effectiveStatus = sessionStatus || initialStatus || '';
+  // Keep Stop/Force visible for live sessions even if a poll briefly returns a
+  // non-active status (e.g. authenticated / unknown). Only hide on terminal.
+  const showStopControls =
+    !isTerminalSessionStatus(effectiveStatus) &&
+    (seenLiveRef.current || isLiveSessionStatus(effectiveStatus) || !readOnly);
+
+  const isLive = showStopControls;
+  const hasLiveCutoff = liveStartedAtMs != null;
+  const simLabel = simulationStatusLabel(simulationStatus);
+  const simRunning = isSimulationRunningStatus(simulationStatus);
 
   const fetchDashboard = async () => {
     // Pull from several endpoints in parallel — same strategy as the web plugin UI.
@@ -154,7 +226,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     const pluginStatus = statusRes.status === 'fulfilled' ? statusRes.value.data : null;
     const tradesRaw = tradesRes.status === 'fulfilled' ? tradesRes.value.data : null;
     const tradingSession = tsRes.status === 'fulfilled'
-      ? ((tsRes.value.data as any)?.session ?? tsRes.value.data)
+      ? extractTradingSession(tsRes.value.data)
       : null;
     const pnlSummary = pnlRes.status === 'fulfilled' ? pnlRes.value.data as Record<string, any> : null;
     const fullState = fullRes.status === 'fulfilled' ? fullRes.value.data : null;
@@ -170,6 +242,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       || dash?.snapshot
       || null;
 
+    if (tradingSession) {
+      if (typeof tradingSession.simulation_status === 'string' && tradingSession.simulation_status.trim()) {
+        setSimulationStatus(tradingSession.simulation_status.trim().toLowerCase());
+      }
+      const liveStart = parseInstantMs(tradingSession.simulation_live_started_at);
+      if (liveStart != null) setLiveStartedAtMs(liveStart);
+    }
+
     const resolved = resolveSessionStatus(
       pickStatus(pluginStatus),
       pickStatus(fullMatches?.status),
@@ -178,7 +258,19 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       pickStatus(tradingSession),
       initialStatus,
     );
-    if (resolved) setSessionStatus(resolved);
+    if (resolved) {
+      setSessionStatus((prev) => {
+        // Don't let a flaky poll demote a live session to a non-terminal status.
+        if (
+          isLiveSessionStatus(prev) &&
+          !isLiveSessionStatus(resolved) &&
+          !isTerminalSessionStatus(resolved)
+        ) {
+          return prev;
+        }
+        return resolved;
+      });
+    }
 
     const cash = pickCash(snapshot, pluginStatus, fullMatches?.status, dash?.status, tradingSession, pnlSummary?.current);
     if (cash != null) setAvailableCash(cash);
@@ -199,7 +291,13 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   useEffect(() => {
     setLoading(true);
     setLogs([]);
+    setLastUpdated(null);
+    setConnected(true);
+    setSimulationStatus(null);
+    setLiveStartedAtMs(null);
+    seenLiveRef.current = !readOnly && isLiveSessionStatus(initialStatus);
     if (initialStatus) setSessionStatus(initialStatus);
+    else setSessionStatus('');
     if (initialFreeCash != null && Number.isFinite(initialFreeCash)) setAvailableCash(initialFreeCash);
     setTab('logs');
     fetchDashboard();
@@ -217,6 +315,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       else await pluginApi.stopTrading(sessionId);
       toast.success(force ? 'Session force-stopped' : 'Session stopped');
       setSessionStatus('stopped');
+      seenLiveRef.current = false;
       setConfirming(null);
       onStop();
     } catch (err: any) {
@@ -243,16 +342,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-20 text-slate-400">
-        <RefreshCw className="h-6 w-6 animate-spin" aria-hidden="true" />
-        <p className="text-sm">Loading session…</p>
-      </div>
-    );
-  }
-
   const statusColor = (() => {
+    if (simRunning && !hasLiveCutoff) return 'text-amber-600';
     const s = (sessionStatus || '').toLowerCase();
     if (['trading_active', 'active', 'running', 'started'].includes(s)) return 'text-emerald-600';
     if (['stopped', 'completed', 'abandoned'].includes(s)) return 'text-slate-500';
@@ -274,8 +365,13 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
         <div className="hidden h-8 w-px bg-slate-100 sm:block" aria-hidden="true" />
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Status</p>
+            {simLabel && (
+              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${simulationStatusBadgeClass(simulationStatus)}`}>
+                Simulation · {simLabel}
+              </span>
+            )}
             {!connected && (
               <span className="flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
                 <WifiOff className="h-3 w-3" aria-hidden="true" /> Reconnecting…
@@ -283,7 +379,9 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
             )}
           </div>
           <p className={`mt-0.5 text-[15px] font-semibold capitalize ${statusColor}`}>
-            {sessionStatusLabel(sessionStatus) || 'Loading…'}
+            {simRunning && !hasLiveCutoff
+              ? 'Simulating'
+              : (sessionStatusLabel(sessionStatus) || 'Loading…')}
           </p>
           {lastUpdated && (
             <p className="text-[11px] text-slate-400">
@@ -298,7 +396,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
             {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
             CSV
           </button>
-          {isLive && (
+          {showStopControls && (
             <>
               <button type="button" onClick={() => setConfirming('stop')}
                 className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40">
@@ -331,13 +429,23 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
       <div hidden={tab !== 'logs'}>
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          {logs.length === 0 ? (
+          {loading && logs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-slate-400">
+              <RefreshCw className="h-5 w-5 animate-spin" aria-hidden="true" />
+              <p className="text-sm">Loading trades…</p>
+            </div>
+          ) : logs.length === 0 ? (
             <div className="px-4 py-8 text-center">
               <p className="text-sm font-medium text-slate-500">No trades yet</p>
               <p className="mt-1 text-xs text-slate-400">Executed trades will appear here as the engine runs.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
+              {hasLiveCutoff && logs.some(l => l.timeMs != null && l.timeMs < liveStartedAtMs!) && (
+                <p className="border-b border-slate-100 bg-slate-50/80 px-3.5 py-2 text-[11px] text-slate-500">
+                  Dimmed rows are simulation trades. Clear rows are live trades after the switch.
+                </p>
+              )}
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -345,6 +453,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                     <th scope="col" className="px-3.5 py-2.5">Symbol</th>
                     <th scope="col" className="px-3.5 py-2.5">Signal</th>
                     <th scope="col" className="px-3.5 py-2.5">Action</th>
+                    <th scope="col" className="px-3.5 py-2.5 text-right">Qty</th>
                     <th scope="col" className="px-3.5 py-2.5 text-right">Price</th>
                     <th scope="col" className="px-3.5 py-2.5 text-right">Change</th>
                     <th scope="col" className="px-3.5 py-2.5 text-right">P&L</th>
@@ -358,28 +467,59 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                     const changeNum = Number(log.change);
                     const pnlColor = Number.isFinite(pnlNum) ? (pnlNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
                     const changeColor = Number.isFinite(changeNum) ? (changeNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
+                    const isSimTrade = hasLiveCutoff && log.timeMs != null && log.timeMs < liveStartedAtMs!;
+                    const prev = i > 0 ? logs[i - 1] : null;
+                    const prevWasSim = hasLiveCutoff && prev != null && prev.timeMs != null && prev.timeMs < liveStartedAtMs!;
+                    const showLiveDivider = hasLiveCutoff && isSimTrade === false && (i === 0 || prevWasSim);
+
                     return (
-                      <tr key={i} className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50">
-                        <td className="px-3.5 py-2 text-xs font-mono">{log.time}</td>
-                        <td className="px-3.5 py-2 font-semibold">{log.symbol}</td>
-                        <td className="px-3.5 py-2">
-                          {log.signal !== '-' ? (
-                            <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-                              String(log.signal).toUpperCase() === 'BUY' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-                            }`}>{log.signal}</span>
-                          ) : '-'}
-                        </td>
-                        <td className="px-3.5 py-2">{log.action}</td>
-                        <td className="px-3.5 py-2 text-right font-mono">{formatCell(log.price, true)}</td>
-                        <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
-                          {log.change === '-' ? '-' : `${Number.isFinite(changeNum) && changeNum > 0 ? '+' : ''}${formatCell(log.change)}${Number.isFinite(changeNum) ? '%' : ''}`}
-                        </td>
-                        <td className={`px-3.5 py-2 text-right font-mono ${pnlColor}`}>{formatCell(log.pnl, true)}</td>
-                        <td className="px-3.5 py-2 text-right font-mono">{formatCell(log.capital, true)}</td>
-                        <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
-                          {log.return_pct === '-' ? '-' : `${formatCell(log.return_pct)}${Number.isFinite(Number(log.return_pct)) ? '%' : ''}`}
-                        </td>
-                      </tr>
+                      <Fragment key={`${log.time}-${log.symbol}-${i}`}>
+                        {showLiveDivider && (
+                          <tr className="bg-emerald-50/70">
+                            <td colSpan={10} className="px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                              Live trading
+                            </td>
+                          </tr>
+                        )}
+                        <tr
+                          className={`border-b border-slate-50 text-slate-700 last:border-0 ${
+                            isSimTrade
+                              ? 'bg-slate-50/60 opacity-50 blur-[1.5px] saturate-50'
+                              : 'hover:bg-slate-50'
+                          }`}
+                          title={isSimTrade ? 'Simulation trade' : undefined}
+                        >
+                          <td className="px-3.5 py-2 text-xs font-mono">
+                            <span className="inline-flex items-center gap-1.5">
+                              {isSimTrade && (
+                                <span className="rounded bg-slate-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                  Sim
+                                </span>
+                              )}
+                              {log.time}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2 font-semibold">{log.symbol}</td>
+                          <td className="px-3.5 py-2">
+                            {log.signal !== '-' ? (
+                              <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                                String(log.signal).toUpperCase() === 'BUY' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                              }`}>{log.signal}</span>
+                            ) : '-'}
+                          </td>
+                          <td className="px-3.5 py-2">{log.action}</td>
+                          <td className="px-3.5 py-2 text-right font-mono">{formatQuantity(log.quantity)}</td>
+                          <td className="px-3.5 py-2 text-right font-mono">{formatCell(log.price, true)}</td>
+                          <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
+                            {log.change === '-' ? '-' : `${Number.isFinite(changeNum) && changeNum > 0 ? '+' : ''}${formatCell(log.change)}${Number.isFinite(changeNum) ? '%' : ''}`}
+                          </td>
+                          <td className={`px-3.5 py-2 text-right font-mono ${pnlColor}`}>{formatCell(log.pnl, true)}</td>
+                          <td className="px-3.5 py-2 text-right font-mono">{formatCell(log.capital, true)}</td>
+                          <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
+                            {log.return_pct === '-' ? '-' : `${formatCell(log.return_pct)}${Number.isFinite(Number(log.return_pct)) ? '%' : ''}`}
+                          </td>
+                        </tr>
+                      </Fragment>
                     );
                   })}
                 </tbody>
