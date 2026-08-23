@@ -3,7 +3,7 @@ import api from './api';
 export type BrokerKey = 'tradex' | 'bear_street' | 'angle_one';
 
 /** Normalized broker key from the JWT onboard claim. */
-const getBrokerKey = (): BrokerKey => {
+export const getBrokerKey = (): BrokerKey => {
   try {
     const token = localStorage.getItem('mintzy_token');
     if (token) {
@@ -16,6 +16,9 @@ const getBrokerKey = (): BrokerKey => {
   } catch {}
   return 'angle_one';
 };
+
+/** Leverage multiplier endpoint is currently Angel One–scoped. */
+export const supportsLeverageMultiplier = () => getBrokerKey() === 'angle_one';
 
 const getBase = () => {
   const key = getBrokerKey();
@@ -111,7 +114,10 @@ export interface SavedConfig {
   name: string;
   description?: string;
   configuration: Record<string, unknown>;
+  /** Angel One: 1–5× position scale on this saved strategy. */
+  leverage_multiplier?: number;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface TradingSession {
@@ -267,5 +273,20 @@ export const pluginApi = {
 
   deleteSavedConfig(id: string) {
     return api.delete(`${getBase()}/saved-configurations/${id}`);
+  },
+
+  /**
+   * Set leverage multiplier (1–5) on a saved configuration.
+   * Angel One: POST /api/v1/angle_one/saved-configurations/leverage
+   */
+  setSavedConfigLeverage(configuration_id: string, leverage_multiplier: number) {
+    return api.post<{
+      success: boolean;
+      message?: string;
+      configuration?: SavedConfig;
+    }>(`${getBase()}/saved-configurations/leverage`, {
+      configuration_id,
+      leverage_multiplier,
+    });
   },
 };
