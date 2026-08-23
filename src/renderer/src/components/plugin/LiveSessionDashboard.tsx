@@ -44,6 +44,8 @@ interface TradeLogRow {
   pnl: string | number;
   capital: string | number;
   return_pct: string | number;
+  /** `simulation_logs` from the trading-logs record; null when the field is absent (pre-field logs). */
+  simulation: boolean | null;
 }
 
 /** Engine logs often use naive IST wall times (`YYYY-MM-DD HH:mm:ss`). */
@@ -132,6 +134,8 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
       time = String(timeRaw);
     }
 
+    const simRaw = r.simulation_logs ?? r.simulationLogs ?? r.is_simulation;
+
     return {
       time,
       timeMs,
@@ -144,6 +148,13 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
       pnl: r['P&L'] ?? r.PnL ?? r.pnl ?? r.unrealized_pnl ?? r.realized_pnl ?? '-',
       capital: r['Total_Capital'] ?? r.TotalCapital ?? r.total_capital ?? r.capital ?? r.cash_balance ?? r.portfolio_cash_balance ?? '-',
       return_pct: r['Return(%)'] ?? r.Return ?? r.return_pct ?? r.return ?? '-',
+      simulation: typeof simRaw === 'boolean'
+        ? simRaw
+        : simRaw === 'true' || simRaw === 1
+          ? true
+          : simRaw === 'false' || simRaw === 0
+            ? false
+            : null,
     };
   });
 }
@@ -165,6 +176,18 @@ function formatQuantity(v: string | number) {
   const n = Number(v);
   if (!Number.isFinite(n)) return String(v);
   return Number.isInteger(n) ? String(n) : n.toLocaleString('en-IN');
+}
+
+/**
+ * Simulation/live per row. Prefer the record's `simulation_logs` field; older
+ * logs without it fall back to the timestamp cutoff before simulation_live_started_at.
+ */
+function resolveSimulation(log: TradeLogRow, liveCutoff: { hasLiveCutoff: boolean; liveStartedAtMs: number | null }): boolean {
+  if (log.simulation !== null) return log.simulation;
+  return liveCutoff.hasLiveCutoff
+    && liveCutoff.liveStartedAtMs != null
+    && log.timeMs != null
+    && log.timeMs < liveCutoff.liveStartedAtMs;
 }
 
 function extractTradingSession(raw: unknown): TradingSession | null {
@@ -441,9 +464,9 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
             </div>
           ) : (
             <div className="overflow-x-auto">
-              {hasLiveCutoff && logs.some(l => l.timeMs != null && l.timeMs < liveStartedAtMs!) && (
+              {logs.some(l => resolveSimulation(l, { hasLiveCutoff, liveStartedAtMs })) && (
                 <p className="border-b border-slate-100 bg-slate-50/80 px-3.5 py-2 text-[11px] text-slate-500">
-                  Dimmed rows are simulation trades. Clear rows are live trades after the switch.
+                  Dimmed rows are simulation trades. Clear rows are live trades.
                 </p>
               )}
               <table className="w-full text-left text-sm">
@@ -467,10 +490,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                     const changeNum = Number(log.change);
                     const pnlColor = Number.isFinite(pnlNum) ? (pnlNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
                     const changeColor = Number.isFinite(changeNum) ? (changeNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
-                    const isSimTrade = hasLiveCutoff && log.timeMs != null && log.timeMs < liveStartedAtMs!;
+                    const cutoff = { hasLiveCutoff, liveStartedAtMs };
+                    const isSimTrade = resolveSimulation(log, cutoff);
                     const prev = i > 0 ? logs[i - 1] : null;
-                    const prevWasSim = hasLiveCutoff && prev != null && prev.timeMs != null && prev.timeMs < liveStartedAtMs!;
-                    const showLiveDivider = hasLiveCutoff && isSimTrade === false && (i === 0 || prevWasSim);
+                    const prevWasSim = prev != null && resolveSimulation(prev, cutoff);
+                    const showLiveDivider = !isSimTrade && (i === 0 || prevWasSim);
 
                     return (
                       <Fragment key={`${log.time}-${log.symbol}-${i}`}>
@@ -484,7 +508,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                         <tr
                           className={`border-b border-slate-50 text-slate-700 last:border-0 ${
                             isSimTrade
-                              ? 'bg-slate-50/60 opacity-50 blur-[1.5px] saturate-50'
+                              ? 'bg-slate-50/70 opacity-75 blur-[0.5px]'
                               : 'hover:bg-slate-50'
                           }`}
                           title={isSimTrade ? 'Simulation trade' : undefined}

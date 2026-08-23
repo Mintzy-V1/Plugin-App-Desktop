@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Plus, Loader2, Bookmark, PencilLine, Save, Trash2 } from 'lucide-react';
-import { pluginApi } from '../../lib/pluginApi';
+import { pluginApi, supportsLeverageMultiplier } from '../../lib/pluginApi';
 import type { SavedConfig } from '../../lib/pluginApi';
 import {
   createDefaultConfig,
@@ -12,6 +12,7 @@ import {
 } from '../../lib/pluginTradingConfig';
 import type { AlphasInfo, TradingConfigurationDraft } from '../../lib/pluginTradingConfig';
 import TradingConfigurationFields from './TradingConfigurationFields';
+import { clampLeverage } from './LeverageMultiplierControl';
 import { useToast } from '../ui/Toast';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
@@ -39,6 +40,7 @@ function configId(c: SavedConfig | Record<string, unknown>): string {
 
 export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, quickStarting }: Props) {
   const toast = useToast();
+  const showLeverage = supportsLeverageMultiplier();
   const [configs, setConfigs] = useState<SavedConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -51,6 +53,8 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [leverageValue, setLeverageValue] = useState(1);
+  const [appliedLeverage, setAppliedLeverage] = useState<number | null>(null);
 
   const [pendingDelete, setPendingDelete] = useState<SavedConfig | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -83,6 +87,8 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
     setDraft(createDefaultConfig());
     setAlphas(null);
     setSaveError(null);
+    setLeverageValue(1);
+    setAppliedLeverage(null);
   };
 
   const handleCreate = () => {
@@ -93,6 +99,8 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
     setDraft(createDefaultConfig());
     setAlphas(null);
     setSaveError(null);
+    setLeverageValue(1);
+    setAppliedLeverage(null);
   };
 
   const handleEdit = (configuration: SavedConfig) => {
@@ -105,6 +113,35 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
     setDraft(draftFromConfiguration(raw));
     setAlphas(alphasFromConfiguration(raw));
     setSaveError(null);
+    if (configuration.leverage_multiplier != null) {
+      const lev = clampLeverage(configuration.leverage_multiplier);
+      setLeverageValue(lev);
+      setAppliedLeverage(lev);
+    } else {
+      setLeverageValue(1);
+      setAppliedLeverage(null);
+    }
+  };
+
+  const handleSetLeverage = async (value: number) => {
+    if (!editingId) {
+      throw new Error('Save the strategy first, then set leverage.');
+    }
+    try {
+      const res = await pluginApi.setSavedConfigLeverage(editingId, value);
+      const updated = res.data?.configuration;
+      const next = clampLeverage(updated?.leverage_multiplier ?? value);
+      setAppliedLeverage(next);
+      setLeverageValue(next);
+      setConfigs(prev => prev.map(c => (
+        configId(c) === editingId
+          ? { ...c, ...updated, leverage_multiplier: next }
+          : c
+      )));
+      toast.success(`Leverage set to ${next}×`);
+    } catch (err: any) {
+      throw new Error(pluginErrorMessage(err, 'Could not update leverage. Please try again.'));
+    }
   };
 
   const handleSave = async () => {
@@ -131,12 +168,23 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
       if (editorMode === 'edit' && editingId) {
         await pluginApi.updateSavedConfig(editingId, payload);
         toast.success('Strategy updated');
+        await fetchConfigs();
       } else {
-        await pluginApi.createSavedConfig(payload.name, payload.configuration, payload.description);
+        const res = await pluginApi.createSavedConfig(payload.name, payload.configuration, payload.description);
         toast.success('Strategy saved');
+        await fetchConfigs();
+        // Stay in edit mode on the new strategy so leverage can be set immediately.
+        const created = (res.data as any)?.configuration || (res.data as any)?.config || res.data;
+        const newId = created ? configId(created) : '';
+        if (newId) {
+          setEditorMode('edit');
+          setEditingId(newId);
+          setLeverageValue(1);
+          setAppliedLeverage(created?.leverage_multiplier != null ? clampLeverage(created.leverage_multiplier) : null);
+        } else {
+          resetEditor();
+        }
       }
-      await fetchConfigs();
-      resetEditor();
     } catch (e: any) {
       setSaveError(pluginErrorMessage(e, 'Could not save the strategy. Please try again.'));
     } finally {
@@ -212,6 +260,7 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
               const id = configId(c);
               const summary = summarizeConfiguration(c.configuration);
               const isActive = editingId === id && editorMode === 'edit';
+              const lev = c.leverage_multiplier != null ? clampLeverage(c.leverage_multiplier) : null;
               return (
                 <article
                   key={id || c.name}
@@ -241,6 +290,15 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
                       <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-white/10' : 'bg-slate-100'}`}>
                         {summary.candle}
                       </span>
+                      {showLeverage && (
+                        <span className={`rounded-md px-2 py-0.5 ${
+                          isActive
+                            ? 'bg-amber-400/20 text-amber-100'
+                            : lev != null ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {lev != null ? `${lev}× leverage` : '1× default'}
+                        </span>
+                      )}
                       {summary.symbols.length > 0 && (
                         <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-white/10' : 'bg-slate-100'}`}>
                           {summary.symbols.slice(0, 4).join(', ')}
@@ -336,7 +394,20 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
                   className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 disabled:opacity-60" />
               </div>
 
-              <TradingConfigurationFields config={draft} alphas={alphas} onChange={setDraft} />
+              <TradingConfigurationFields
+                config={draft}
+                alphas={alphas}
+                onChange={setDraft}
+                leverage={showLeverage ? {
+                  configurationId: editorMode === 'edit' ? editingId : null,
+                  appliedValue: appliedLeverage,
+                  value: leverageValue,
+                  onChange: setLeverageValue,
+                  onApply: handleSetLeverage,
+                  disabled: saving,
+                  unavailableHint: 'Save the strategy first, then set leverage (1–5×).',
+                } : null}
+              />
 
               {saveError && (
                 <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">
