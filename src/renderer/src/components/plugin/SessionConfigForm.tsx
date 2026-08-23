@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, Settings2, Bookmark, XCircle } from 'lucide-react';
-import { pluginApi } from '../../lib/pluginApi';
+import { pluginApi, supportsLeverageMultiplier } from '../../lib/pluginApi';
 import type { SavedConfig } from '../../lib/pluginApi';
 import {
   createDefaultConfig,
@@ -11,6 +11,7 @@ import {
 } from '../../lib/pluginTradingConfig';
 import type { AlphasInfo, TradingConfigurationDraft } from '../../lib/pluginTradingConfig';
 import TradingConfigurationFields from './TradingConfigurationFields';
+import { clampLeverage } from './LeverageMultiplierControl';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 
@@ -30,6 +31,10 @@ function parseSavedList(data: unknown): SavedConfig[] {
   return Array.isArray(list) ? list : [];
 }
 
+function savedId(c: SavedConfig): string {
+  return String(c._id || (c as any).id || '');
+}
+
 export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAbandon, onBack }: Props) {
   const [config, setConfig] = useState<TradingConfigurationDraft>(createDefaultConfig());
   const [alphas, setAlphas] = useState<AlphasInfo | null>(null);
@@ -40,6 +45,11 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
   const [savedConfigs, setSavedConfigs] = useState<SavedConfig[]>([]);
   const [savedLoading, setSavedLoading] = useState(true);
   const [selectedSavedId, setSelectedSavedId] = useState('');
+  /** Kept when fields are edited so leverage can still target the chosen strategy. */
+  const [leverageConfigId, setLeverageConfigId] = useState('');
+  const [leverageValue, setLeverageValue] = useState(1);
+  const [appliedLeverage, setAppliedLeverage] = useState<number | null>(null);
+  const showLeverage = supportsLeverageMultiplier();
 
   useEffect(() => {
     setSavedLoading(true);
@@ -49,19 +59,53 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
       .finally(() => setSavedLoading(false));
   }, []);
 
+  const hydrateLeverage = (match: SavedConfig | undefined) => {
+    if (!match || match.leverage_multiplier == null) {
+      setLeverageValue(1);
+      setAppliedLeverage(null);
+      return;
+    }
+    const lev = clampLeverage(match.leverage_multiplier);
+    setLeverageValue(lev);
+    setAppliedLeverage(lev);
+  };
+
   const applySaved = (id: string) => {
     setSelectedSavedId(id);
+    setLeverageConfigId(id);
     if (!id) {
       setConfig(createDefaultConfig());
       setAlphas(null);
+      hydrateLeverage(undefined);
       return;
     }
-    const match = savedConfigs.find(c => (c._id || (c as any).id) === id);
+    const match = savedConfigs.find(c => savedId(c) === id);
     if (!match) return;
     const raw = match.configuration as Record<string, unknown>;
     setConfig(draftFromConfiguration(raw));
     setAlphas(alphasFromConfiguration(raw));
+    hydrateLeverage(match);
     setError(null);
+  };
+
+  const handleSetLeverage = async (value: number) => {
+    if (!leverageConfigId) {
+      throw new Error('Select a saved strategy to set leverage.');
+    }
+    try {
+      const res = await pluginApi.setSavedConfigLeverage(leverageConfigId, value);
+      const updated = res.data?.configuration;
+      const next = clampLeverage(updated?.leverage_multiplier ?? value);
+      setAppliedLeverage(next);
+      setLeverageValue(next);
+      setSavedConfigs(prev => prev.map(c => (
+        savedId(c) === leverageConfigId
+          ? { ...c, ...updated, leverage_multiplier: next }
+          : c
+      )));
+    } catch (err: any) {
+      throw new Error(pluginErrorMessage(err, 'Could not update leverage. Please try again.'));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,9 +193,12 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
                 {savedLoading ? 'Loading strategies…' : savedConfigs.length === 0 ? 'No saved strategies' : 'Configure manually'}
               </option>
               {savedConfigs.map((c) => {
-                const id = c._id || (c as any).id;
+                const id = savedId(c);
+                const lev = c.leverage_multiplier != null ? clampLeverage(c.leverage_multiplier) : null;
                 return (
-                  <option key={id} value={id}>{c.name}</option>
+                  <option key={id} value={id}>
+                    {c.name}{lev != null ? ` · ${lev}×` : ''}
+                  </option>
                 );
               })}
             </select>
@@ -173,6 +220,17 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
                 setAlphas(null);
               }
             }}
+            leverage={showLeverage ? {
+              configurationId: leverageConfigId || null,
+              appliedValue: appliedLeverage,
+              value: leverageValue,
+              onChange: setLeverageValue,
+              onApply: handleSetLeverage,
+              disabled: busy,
+              unavailableHint: savedConfigs.length === 0
+                ? 'Save a strategy first (Saved Strategies), then set leverage here before starting.'
+                : 'Select a saved strategy above to attach leverage — works with pre-saved and before you start.',
+            } : null}
           />
 
           {error && (
@@ -189,6 +247,9 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
               <span className="font-semibold text-slate-700">
                 {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalCapital)}
               </span>{' '}on the {config.candle} candle
+              {showLeverage && appliedLeverage != null && leverageConfigId ? (
+                <> · leverage <span className="font-semibold text-slate-700">{appliedLeverage}×</span></>
+              ) : null}
             </div>
           )}
 
