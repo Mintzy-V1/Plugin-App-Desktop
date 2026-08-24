@@ -278,7 +278,7 @@ export const pluginApi = {
 
   /** Set leverage multiplier (1–5) on a saved configuration for the active broker. */
   setSavedConfigLeverage(configuration_id: string, leverage_multiplier: number) {
-    return api.post<{
+    return api.patch<{
       success: boolean;
       message?: string;
       configuration?: SavedConfig;
