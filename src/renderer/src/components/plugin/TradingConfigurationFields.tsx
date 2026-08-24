@@ -24,7 +24,7 @@ interface Props {
   onChange: (config: TradingConfigurationDraft) => void;
   /** Auto-generated alpha rows from saved configuration (read-only). */
   alphas?: AlphasInfo | null;
-  /** Angel One leverage control (1–5×) — shown when provided. */
+  /** Leverage control (1–5×) — shown when provided. */
   leverage?: LeverageFieldProps | null;
 }
 

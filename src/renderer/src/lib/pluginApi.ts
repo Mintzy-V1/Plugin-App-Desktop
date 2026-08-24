@@ -17,8 +17,8 @@ export const getBrokerKey = (): BrokerKey => {
   return 'angle_one';
 };
 
-/** Leverage multiplier endpoint is currently Angel One–scoped. */
-export const supportsLeverageMultiplier = () => getBrokerKey() === 'angle_one';
+/** All supported brokers expose the saved-configuration leverage endpoint. */
+export const supportsLeverageMultiplier = () => true;
 
 const getBase = () => {
   const key = getBrokerKey();
@@ -47,6 +47,7 @@ export type TradeXCredentialsPayload = {
 
 export type BearStreetCredentialsPayload = {
   api_key: string;
+  userId: string;
   client_code: string;
   password: string;
   second_auth: string;
@@ -114,7 +115,7 @@ export interface SavedConfig {
   name: string;
   description?: string;
   configuration: Record<string, unknown>;
-  /** Angel One: 1–5× position scale on this saved strategy. */
+  /** 1–5× position scale on this saved strategy. */
   leverage_multiplier?: number;
   created_at: string;
   updated_at?: string;
@@ -275,10 +276,7 @@ export const pluginApi = {
     return api.delete(`${getBase()}/saved-configurations/${id}`);
   },
 
-  /**
-   * Set leverage multiplier (1–5) on a saved configuration.
-   * Angel One: POST /api/v1/angle_one/saved-configurations/leverage
-   */
+  /** Set leverage multiplier (1–5) on a saved configuration for the active broker. */
   setSavedConfigLeverage(configuration_id: string, leverage_multiplier: number) {
     return api.post<{
       success: boolean;

@@ -91,7 +91,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
       return;
     }
     if (isBearStreet && !secondAuth) {
-      setError('Trading PIN / second auth is required for Bear Street');
+      setError('Registered mobile number is required for Bear Street');
       return;
     }
 
@@ -106,6 +106,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
     } else if (isBearStreet) {
       payload = {
         api_key: accessKey,
+        userId: user.id,
         client_code: clientId,
         password: secret,
         second_auth: secondAuth,
@@ -230,11 +231,11 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
           {isBearStreet && (
             <>
               <div className="relative">
-                <label htmlFor="broker-second-auth" className="sr-only">Trading PIN / Second Auth</label>
+                <label htmlFor="broker-second-auth" className="sr-only">Registered Mobile Number</label>
                 <input
                   id="broker-second-auth"
                   type={showSecondAuth ? 'text' : 'password'}
-                  placeholder="Trading PIN / Second Auth"
+                  placeholder="Registered Mobile Number"
                   required
                   value={form.secondAuth}
                   autoComplete="one-time-code"
@@ -245,14 +246,14 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
                 <button
                   type="button"
                   onClick={() => setShowSecondAuth(s => !s)}
-                  aria-label={showSecondAuth ? 'Hide trading PIN' : 'Show trading PIN'}
+                  aria-label={showSecondAuth ? 'Hide registered mobile number' : 'Show registered mobile number'}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
                 >
                   {showSecondAuth ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                 </button>
               </div>
               <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-5 text-blue-800">
-                Bear Street authenticates in one step — enter your trading PIN here. No separate TOTP screen is required.
+                Bear Street authenticates in one step — enter your registered mobile number here. No separate TOTP screen is required.
               </p>
             </>
           )}
