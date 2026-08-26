@@ -68,7 +68,7 @@ export default function LivePnlPanel({ sessionId }: Props) {
   const [totalPnl, setTotalPnl] = useState(0);
   const [realizedPnl, setRealizedPnl] = useState(0);
   const [unrealizedPnl, setUnrealizedPnl] = useState(0);
-  const [symbols, setSymbols] = useState<Record<string, { unrealized_pnl: number; realized_pnl: number }>>({});
+  const [symbols, setSymbols] = useState<Record<string, { unrealized_pnl: number; realized_pnl?: number; qty?: number; side?: string }>>({});
   const [history, setHistory] = useState<PnlPoint[]>([]);
   const [stopped, setStopped] = useState(false);
   const [ready, setReady] = useState(false);
@@ -307,9 +307,21 @@ export default function LivePnlPanel({ sessionId }: Props) {
           <div className="space-y-1">
             {Object.entries(symbols).map(([sym, data]) => (
               <div key={sym} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                <span className="font-semibold text-slate-900">{sym}</span>
-                <span className={data.unrealized_pnl >= 0 ? 'text-emerald-600' : 'text-red-600'}>
-                  ₹{data.unrealized_pnl.toFixed(2)}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="font-semibold text-slate-900">{sym}</span>
+                  {data.side && (
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                      String(data.side).toUpperCase() === 'BUY' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                    }`}>{data.side}</span>
+                  )}
+                </span>
+                <span className="flex items-center gap-3 font-mono">
+                  {data.qty != null && Number.isFinite(Number(data.qty)) && (
+                    <span className="text-slate-500">Qty {Number.isInteger(Number(data.qty)) ? data.qty : Number(data.qty).toLocaleString('en-IN')}</span>
+                  )}
+                  <span className={data.unrealized_pnl >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                    ₹{data.unrealized_pnl.toFixed(2)}
+                  </span>
                 </span>
               </div>
             ))}
