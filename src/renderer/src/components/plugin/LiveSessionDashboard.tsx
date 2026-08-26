@@ -91,6 +91,186 @@ function pickStatus(value: unknown): string | null {
   return null;
 }
 
+const QTY_KEYS = [
+  'Quantity', 'quantity', 'QTY', 'Qty', 'qty',
+  'qty_traded', 'filled_qty', 'FilledQty', 'filledQty',
+  'lots', 'Lots', 'net_qty', 'netqty', 'NetQty',
+  'position_qty', 'traded_qty', 'order_qty',
+];
+
+function unwrapQuantity(value: unknown): string | number | null {
+  if (value == null || value === '' || value === '-') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === '-') return null;
+    const n = Number(trimmed.replace(/,/g, ''));
+    return Number.isFinite(n) ? n : trimmed;
+  }
+  if (typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    if (o.$numberInt != null) return unwrapQuantity(o.$numberInt);
+    if (o.$numberDouble != null) return unwrapQuantity(o.$numberDouble);
+    if (o.$numberLong != null) return unwrapQuantity(o.$numberLong);
+    for (const key of QTY_KEYS) {
+      if (key in o) {
+        const nested = unwrapQuantity(o[key]);
+        if (nested != null) return nested;
+      }
+    }
+  }
+  return null;
+}
+
+function pickQuantity(r: Record<string, unknown> | null | undefined): string | number {
+  if (!r) return '-';
+  for (const key of QTY_KEYS) {
+    const v = unwrapQuantity(r[key]);
+    if (v != null) return v;
+  }
+  for (const [key, val] of Object.entries(r)) {
+    if (/qty|quantity|lots/i.test(key) && !/price|pnl|pct|percent/i.test(key)) {
+      const v = unwrapQuantity(val);
+      if (v != null) return v;
+    }
+  }
+  return '-';
+}
+
+function hasQuantity(v: string | number | null | undefined): boolean {
+  return v != null && v !== '' && v !== '-';
+}
+
+function applySymbolQuantities(
+  logs: TradeLogRow[],
+  symbols: Record<string, unknown> | null | undefined,
+): TradeLogRow[] {
+  if (!symbols || typeof symbols !== 'object') return logs;
+  const bySym = new Map<string, string | number>();
+  for (const [sym, data] of Object.entries(symbols)) {
+    const qty = pickQuantity(
+      data && typeof data === 'object' ? data as Record<string, unknown> : null,
+    );
+    if (hasQuantity(qty)) bySym.set(sym.toUpperCase(), qty);
+  }
+  if (bySym.size === 0) return logs;
+  return logs.map((row) => {
+    if (hasQuantity(row.quantity)) return row;
+    const qty = bySym.get(String(row.symbol).toUpperCase());
+    return qty != null ? { ...row, quantity: qty } : row;
+  });
+}
+
+function mergeLogQuantities(primary: TradeLogRow[], ...fallbacks: TradeLogRow[][]): TradeLogRow[] {
+  if (primary.length === 0) return fallbacks.find((rows) => rows.length > 0) ?? [];
+  const byKey = new Map<string, string | number>();
+  for (const rows of [...fallbacks, primary]) {
+    for (const row of rows) {
+      if (!hasQuantity(row.quantity)) continue;
+      const key = `${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`;
+      if (!byKey.has(key)) byKey.set(key, row.quantity);
+    }
+  }
+  if (byKey.size === 0) return primary;
+  return primary.map((row) => {
+    if (hasQuantity(row.quantity)) return row;
+    const qty = byKey.get(`${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`);
+    return qty != null ? { ...row, quantity: qty } : row;
+  });
+}
+
+function pickLivePnlSymbols(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (o.symbols && typeof o.symbols === 'object' && !Array.isArray(o.symbols)) {
+    return o.symbols as Record<string, unknown>;
+  }
+  if (Array.isArray(o.symbols)) {
+    const mapped: Record<string, unknown> = {};
+    for (const item of o.symbols) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      const sym = String(row.symbol ?? row.Symbol ?? '').toUpperCase();
+      if (sym) mapped[sym] = row;
+    }
+    return Object.keys(mapped).length ? mapped : null;
+  }
+  if (o.data && typeof o.data === 'object') return pickLivePnlSymbols(o.data);
+  return null;
+}
+
+interface QtySample {
+  ts: number;
+  bySym: Map<string, string | number>;
+}
+
+function qtyMapFromSymbols(raw: unknown): Map<string, string | number> {
+  const bySym = new Map<string, string | number>();
+  const symbols = pickLivePnlSymbols(raw);
+  if (!symbols) return bySym;
+  for (const [sym, data] of Object.entries(symbols)) {
+    const qty = pickQuantity(
+      data && typeof data === 'object' ? data as Record<string, unknown> : null,
+    );
+    if (hasQuantity(qty)) bySym.set(sym.toUpperCase(), qty);
+  }
+  return bySym;
+}
+
+/** Time-ordered qty samples from `/trading/live-pnl/:id/history`. */
+function buildQtyTimeline(raw: unknown): QtySample[] {
+  let snapshots: unknown[] = [];
+  if (Array.isArray(raw)) snapshots = raw;
+  else if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    if (Array.isArray(o.snapshots)) snapshots = o.snapshots;
+    else if (o.data && typeof o.data === 'object' && Array.isArray((o.data as Record<string, unknown>).snapshots)) {
+      snapshots = (o.data as Record<string, unknown>).snapshots as unknown[];
+    }
+  }
+
+  const samples: QtySample[] = [];
+  for (const item of snapshots) {
+    if (!item || typeof item !== 'object') continue;
+    const snap = item as Record<string, unknown>;
+    const ts = parseInstantMs(snap.sampled_at)
+      ?? parseInstantMs(snap.source_ts)
+      ?? parseInstantMs((snap.data as Record<string, unknown> | undefined)?.ts);
+    if (ts == null) continue;
+    const bySym = qtyMapFromSymbols(snap.data ?? snap);
+    if (bySym.size === 0) continue;
+    samples.push({ ts, bySym });
+  }
+  samples.sort((a, b) => a.ts - b.ts);
+  return samples;
+}
+
+function qtyAsOf(timeline: QtySample[], symbol: string, timeMs: number | null): string | number | null {
+  if (timeline.length === 0) return null;
+  const key = symbol.toUpperCase();
+  let last: string | number | null = null;
+  for (const sample of timeline) {
+    if (timeMs != null && sample.ts > timeMs) break;
+    const q = sample.bySym.get(key);
+    if (q != null) last = q;
+  }
+  if (last != null) return last;
+  for (const sample of timeline) {
+    const q = sample.bySym.get(key);
+    if (q != null) return q;
+  }
+  return null;
+}
+
+function applyHistoryQuantities(logs: TradeLogRow[], timeline: QtySample[]): TradeLogRow[] {
+  if (timeline.length === 0) return logs;
+  return logs.map((row) => {
+    if (hasQuantity(row.quantity)) return row;
+    const qty = qtyAsOf(timeline, String(row.symbol), row.timeMs);
+    return qty != null ? { ...row, quantity: qty } : row;
+  });
+}
+
 function pickCash(...sources: unknown[]): number | null {
   for (const src of sources) {
     if (src == null) continue;
@@ -142,7 +322,7 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
       symbol: String(r.Symbol ?? r.symbol ?? '-'),
       signal: String(r.Signal ?? r.signal ?? r.side ?? r.Side ?? '-'),
       action: String(r.Action_Status ?? r.Action ?? r.action ?? r.action_status ?? r.status ?? '-'),
-      quantity: r.Quantity ?? r.quantity ?? r.Qty ?? r.qty ?? r.qty_traded ?? r.filled_qty ?? r.FilledQty ?? r.lots ?? '-',
+      quantity: pickQuantity(r),
       price: r.Price ?? r.price ?? r.curr_price ?? '-',
       change: r['Change(%)'] ?? r.Change ?? r.change ?? r.return_pct ?? '-',
       pnl: r['P&L'] ?? r.PnL ?? r.pnl ?? r.unrealized_pnl ?? r.realized_pnl ?? '-',
@@ -236,13 +416,15 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const fetchDashboard = async () => {
     // Pull from several endpoints in parallel — same strategy as the web plugin UI.
     // A failure in one source must not blank out status / cash / logs.
-    const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes] = await Promise.allSettled([
+    const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes] = await Promise.allSettled([
       pluginApi.getDashboard(sessionId),
       pluginApi.getSessionStatus(sessionId),
       pluginApi.getSessionTrades(sessionId),
       pluginApi.getSessionById(sessionId),
       pluginApi.getPnlSummary(sessionId),
       pluginApi.getFullSessionState(),
+      pluginApi.getLivePnl(sessionId),
+      pluginApi.getLivePnlHistory(sessionId),
     ]);
 
     const dash = dashRes.status === 'fulfilled' ? dashRes.value.data : null;
@@ -256,7 +438,9 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     // /session always returns the user's latest session — only trust it for this id
     const fullMatches = fullState?.python_session_id === sessionId ? fullState : null;
 
-    const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes].some(r => r.status === 'fulfilled');
+    const livePnl = livePnlRes.status === 'fulfilled' ? livePnlRes.value.data : null;
+    const historyRaw = historyRes.status === 'fulfilled' ? historyRes.value.data : null;
+    const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes].some(r => r.status === 'fulfilled');
     setConnected(anyOk);
 
     const snapshot = (fullMatches?.snapshot as any)?.data
@@ -299,12 +483,22 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     if (cash != null) setAvailableCash(cash);
 
     // Prefer live plugin execution trades (/session), then Mongo trading_logs.
+    // Bear Street omits qty on log rows. History snapshots have per-sample qty
+    // (e.g. 3 then 6 after a flip); live-pnl is only the latest fallback.
     const fromPlugin = normalizeLogs(fullMatches?.logs);
     const fromTrades = normalizeLogs(tradesRaw);
     const fromDash = normalizeLogs(dash?.logs);
-    if (fromPlugin.length > 0) setLogs(fromPlugin);
-    else if (fromTrades.length > 0) setLogs(fromTrades);
-    else if (fromDash.length > 0) setLogs(fromDash);
+    const merged = applySymbolQuantities(
+      applySymbolQuantities(
+        applyHistoryQuantities(
+          mergeLogQuantities(fromPlugin, fromTrades, fromDash),
+          buildQtyTimeline(historyRaw),
+        ),
+        pickLivePnlSymbols(snapshot),
+      ),
+      pickLivePnlSymbols(livePnl),
+    );
+    if (merged.length > 0) setLogs(merged);
     // If all empty, keep previous logs so a flaky poll doesn't flash "No trades yet".
 
     if (anyOk) setLastUpdated(new Date());

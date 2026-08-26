@@ -76,11 +76,21 @@ export interface StartPayload {
   symbols?: { symbol: string; capital: number; stop_loss: number }[];
 }
 
+export interface LivePnlSymbol {
+  unrealized_pnl: number;
+  realized_pnl?: number;
+  total_pnl?: number;
+  qty?: number;
+  ltp?: number;
+  entry?: number;
+  side?: string;
+}
+
 export interface LivePnlData {
   total_pnl: number;
   realized_pnl: number;
   live_unrealized_pnl: number;
-  symbols: Record<string, { unrealized_pnl: number; realized_pnl: number }>;
+  symbols: Record<string, LivePnlSymbol>;
   ts: number;
 }
 
@@ -94,11 +104,14 @@ export interface LivePnlResponse {
 
 export interface PnlSnapshot {
   sampled_at: string;
+  source_ts?: number;
+  market_date?: string;
   data: {
     total_pnl: number;
     realized_pnl: number;
     live_unrealized_pnl: number;
     symbols: Record<string, unknown>;
+    ts?: number;
   };
 }
 
