@@ -96,8 +96,8 @@ const users = {
 
 // Trading Factory
 function createBrokerApi(prefix) {
-  // Angel One starts go to /start-simulation; TradeX & Bear Street keep /start.
-  const startPath = prefix === 'angle_one' ? `/${prefix}/start-simulation` : `/${prefix}/start`;
+  // Angel One and Bear Street start via /start-simulation; TradeX keeps /start.
+  const startPath = prefix === 'tradex' ? `/${prefix}/start` : `/${prefix}/start-simulation`;
   return {
     // Sessions
     start: (body) => request(startPath, { method: 'POST', auth: true, body }),

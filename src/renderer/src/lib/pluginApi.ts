@@ -27,9 +27,12 @@ const getBase = () => {
   return '/api/v1/angle_one';
 };
 
-/** Angel One uses /start-simulation; TradeX & Bear Street keep /start. */
-const getStartPath = () =>
-  getBrokerKey() === 'angle_one' ? `${getBase()}/start-simulation` : `${getBase()}/start`;
+/** Angel One and Bear Street use /start-simulation; TradeX keeps /start. */
+const getStartPath = () => {
+  const key = getBrokerKey();
+  const route = key === 'tradex' ? 'start' : 'start-simulation';
+  return `${getBase()}/${route}`;
+};
 
 export type AngelCredentialsPayload = {
   api_key: string;
