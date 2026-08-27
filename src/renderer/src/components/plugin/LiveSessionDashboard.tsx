@@ -13,7 +13,10 @@ import {
   simulationStatusBadgeClass,
 } from '../../lib/sessionStatus';
 import { downloadSessionCsv } from '../../lib/downloadSessionCsv';
+import { pickCash, rememberBrokerCash } from '../../lib/brokerCash';
+import { isWaitAction } from '../../lib/tradeSignals';
 import LivePnlPanel from './LivePnlPanel';
+import TradeActionPill from './TradeActionPill';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import type { TradingSession } from '../../lib/pluginApi';
 
@@ -35,6 +38,8 @@ interface TradeLogRow {
   time: string;
   /** Epoch ms for comparing against simulation_live_started_at; null if unparseable. */
   timeMs: number | null;
+  /** Wall-clock when the row was logged, if the engine sent `logged_at`; else timeMs. */
+  chartTimeMs: number | null;
   symbol: string;
   signal: string;
   action: string;
@@ -52,7 +57,12 @@ interface TradeLogRow {
 function parseTradeTimeMs(raw: unknown): number | null {
   if (raw == null || raw === '') return null;
   if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return raw < 1e12 ? Math.round(raw * 1000) : raw;
+    if (raw <= 0) return null;
+    return raw < 1e12 ? Math.round(raw * 1000) : Math.round(raw);
+  }
+  if (typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    return parseTradeTimeMs(o.$date ?? o.$numberLong ?? o.$numberInt);
   }
   const s = String(raw).trim();
   if (!s) return null;
@@ -61,7 +71,6 @@ function parseTradeTimeMs(raw: unknown): number | null {
     return Number.isNaN(ms) ? null : ms;
   }
   const normalized = s.includes('T') ? s : s.replace(' ', 'T');
-  // Assume India Standard Time for naive engine timestamps.
   const ms = Date.parse(`${normalized}+05:30`);
   if (!Number.isNaN(ms)) return ms;
   const fallback = Date.parse(normalized);
@@ -69,12 +78,7 @@ function parseTradeTimeMs(raw: unknown): number | null {
 }
 
 function parseInstantMs(raw: unknown): number | null {
-  if (raw == null || raw === '') return null;
-  if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return raw < 1e12 ? Math.round(raw * 1000) : raw;
-  }
-  const ms = Date.parse(String(raw));
-  return Number.isNaN(ms) ? null : ms;
+  return parseTradeTimeMs(raw);
 }
 
 function pickStatus(value: unknown): string | null {
@@ -137,8 +141,19 @@ function pickQuantity(r: Record<string, unknown> | null | undefined): string | n
   return '-';
 }
 
+function isPlaceholderValue(v: unknown): boolean {
+  return v == null || v === '' || v === '-' || v === '—' || v === '--';
+}
+
 function hasQuantity(v: string | number | null | undefined): boolean {
   return v != null && v !== '' && v !== '-';
+}
+
+/** Live-pnl often reports 0 after sim→live or when a position is flat. Never treat that as a fill. */
+function isPositiveQty(v: string | number | null | undefined): boolean {
+  if (!hasQuantity(v)) return false;
+  const n = Number(v);
+  return Number.isFinite(n) ? n !== 0 : true;
 }
 
 function applySymbolQuantities(
@@ -151,11 +166,11 @@ function applySymbolQuantities(
     const qty = pickQuantity(
       data && typeof data === 'object' ? data as Record<string, unknown> : null,
     );
-    if (hasQuantity(qty)) bySym.set(sym.toUpperCase(), qty);
+    if (isPositiveQty(qty)) bySym.set(sym.toUpperCase(), qty);
   }
   if (bySym.size === 0) return logs;
   return logs.map((row) => {
-    if (hasQuantity(row.quantity)) return row;
+    if (isPositiveQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
     const qty = bySym.get(String(row.symbol).toUpperCase());
     return qty != null ? { ...row, quantity: qty } : row;
   });
@@ -166,14 +181,14 @@ function mergeLogQuantities(primary: TradeLogRow[], ...fallbacks: TradeLogRow[][
   const byKey = new Map<string, string | number>();
   for (const rows of [...fallbacks, primary]) {
     for (const row of rows) {
-      if (!hasQuantity(row.quantity)) continue;
+      if (!isPositiveQty(row.quantity)) continue;
       const key = `${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`;
-      if (!byKey.has(key)) byKey.set(key, row.quantity);
+      byKey.set(key, row.quantity);
     }
   }
   if (byKey.size === 0) return primary;
   return primary.map((row) => {
-    if (hasQuantity(row.quantity)) return row;
+    if (isPositiveQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
     const qty = byKey.get(`${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`);
     return qty != null ? { ...row, quantity: qty } : row;
   });
@@ -212,7 +227,7 @@ function qtyMapFromSymbols(raw: unknown): Map<string, string | number> {
     const qty = pickQuantity(
       data && typeof data === 'object' ? data as Record<string, unknown> : null,
     );
-    if (hasQuantity(qty)) bySym.set(sym.toUpperCase(), qty);
+    if (isPositiveQty(qty)) bySym.set(sym.toUpperCase(), qty);
   }
   return bySym;
 }
@@ -252,12 +267,12 @@ function qtyAsOf(timeline: QtySample[], symbol: string, timeMs: number | null): 
   for (const sample of timeline) {
     if (timeMs != null && sample.ts > timeMs) break;
     const q = sample.bySym.get(key);
-    if (q != null) last = q;
+    if (q != null && isPositiveQty(q)) last = q;
   }
   if (last != null) return last;
   for (const sample of timeline) {
     const q = sample.bySym.get(key);
-    if (q != null) return q;
+    if (q != null && isPositiveQty(q)) return q;
   }
   return null;
 }
@@ -265,32 +280,117 @@ function qtyAsOf(timeline: QtySample[], symbol: string, timeMs: number | null): 
 function applyHistoryQuantities(logs: TradeLogRow[], timeline: QtySample[]): TradeLogRow[] {
   if (timeline.length === 0) return logs;
   return logs.map((row) => {
-    if (hasQuantity(row.quantity)) return row;
+    if (isPositiveQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
     const qty = qtyAsOf(timeline, String(row.symbol), row.timeMs);
     return qty != null ? { ...row, quantity: qty } : row;
   });
 }
 
-function pickCash(...sources: unknown[]): number | null {
-  for (const src of sources) {
-    if (src == null) continue;
-    if (typeof src === 'number' && Number.isFinite(src)) return src;
-    if (typeof src === 'object') {
-      const o = src as Record<string, unknown>;
-      const candidates = [o.cash_balance, o.free_cash, o.total_capital, o.available_cash, o.availablecash, o.AvailableCash, o.net];
-      for (const c of candidates) {
-        if (c == null || c === '') continue;
-        const n = Number(c);
-        if (Number.isFinite(n)) return n;
-      }
-      // nested data wrappers
-      if (o.data && typeof o.data === 'object') {
-        const nested = pickCash(o.data);
-        if (nested != null) return nested;
-      }
+function logRowKey(row: TradeLogRow): string {
+  return `${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`;
+}
+
+function scoreLogRow(row: TradeLogRow): number {
+  let score = 0;
+  for (const v of [row.quantity, row.price, row.pnl, row.capital, row.change, row.signal, row.action]) {
+    if (!isPlaceholderValue(v)) score += 1;
+    if (isPositiveQty(v as string | number)) score += 1;
+  }
+  return score;
+}
+
+function scoreLogs(rows: TradeLogRow[]): number {
+  return rows.reduce((n, row) => n + scoreLogRow(row), 0) + rows.length;
+}
+
+function fillMissingLogFields(row: TradeLogRow, fallback?: TradeLogRow | null): TradeLogRow {
+  if (!fallback) return row;
+  const next = { ...row };
+  const keys: Array<keyof TradeLogRow> = [
+    'quantity', 'price', 'change', 'pnl', 'capital', 'return_pct', 'signal', 'action',
+  ];
+  for (const key of keys) {
+    const cur = next[key];
+    const prev = fallback[key];
+    if (isPlaceholderValue(cur) && !isPlaceholderValue(prev)) {
+      (next as TradeLogRow)[key] = prev as never;
     }
   }
-  return null;
+  if (
+    !isWaitAction(next.action) &&
+    !isWaitAction(next.signal) &&
+    !isPositiveQty(next.quantity) &&
+    isPositiveQty(fallback.quantity)
+  ) {
+    next.quantity = fallback.quantity;
+  }
+  if (next.chartTimeMs == null && fallback.chartTimeMs != null) next.chartTimeMs = fallback.chartTimeMs;
+  if (next.timeMs == null && fallback.timeMs != null) next.timeMs = fallback.timeMs;
+  return next;
+}
+
+function carryForwardQuantities(logs: TradeLogRow[]): TradeLogRow[] {
+  const indexed = logs.map((row, i) => ({ row, i }));
+  indexed.sort((a, b) => (a.row.timeMs ?? 0) - (b.row.timeMs ?? 0));
+  const lastBySym = new Map<string, string | number>();
+  const updated = new Map<number, TradeLogRow>();
+  for (const { row, i } of indexed) {
+    const key = String(row.symbol).toUpperCase();
+    if (isPositiveQty(row.quantity)) {
+      lastBySym.set(key, row.quantity);
+      updated.set(i, row);
+      continue;
+    }
+    if (isWaitAction(row.action) || isWaitAction(row.signal)) {
+      updated.set(i, row);
+      continue;
+    }
+    const last = lastBySym.get(key);
+    updated.set(i, last != null ? { ...row, quantity: last } : row);
+  }
+  return logs.map((row, i) => updated.get(i) ?? row);
+}
+
+function mergeIncomingLogs(
+  fromPlugin: TradeLogRow[],
+  fromTrades: TradeLogRow[],
+  fromDash: TradeLogRow[],
+  previous: TradeLogRow[],
+  timeline: QtySample[],
+  snapSymbols: Record<string, unknown> | null,
+  liveSymbols: Record<string, unknown> | null,
+): TradeLogRow[] {
+  const sources = [fromPlugin, fromTrades, fromDash].filter((rows) => rows.length > 0);
+  if (sources.length === 0) return previous;
+
+  const primary = sources.reduce((best, cur) => {
+    const bestScore = scoreLogs(best);
+    const curScore = scoreLogs(cur);
+    if (curScore !== bestScore) return curScore > bestScore ? cur : best;
+    return cur.length > best.length ? cur : best;
+  });
+
+  const byKey = new Map<string, TradeLogRow>();
+  for (const rows of [...sources, previous]) {
+    for (const row of rows) {
+      const key = logRowKey(row);
+      const existing = byKey.get(key);
+      byKey.set(key, existing ? fillMissingLogFields(existing, row) : row);
+    }
+  }
+
+  let merged = primary.map((row) => fillMissingLogFields(byKey.get(logRowKey(row)) ?? row, row));
+  merged = mergeLogQuantities(merged, fromPlugin, fromTrades, fromDash, previous);
+  merged = applyHistoryQuantities(merged, timeline);
+  merged = applySymbolQuantities(merged, snapSymbols);
+  merged = applySymbolQuantities(merged, liveSymbols);
+  merged = merged.map((row) => fillMissingLogFields(row, byKey.get(logRowKey(row))));
+  merged = carryForwardQuantities(merged);
+
+  if (previous.length > 0 && scoreLogs(merged) < scoreLogs(previous) * 0.5) {
+    return carryForwardQuantities(previous.map((row) => fillMissingLogFields(row, byKey.get(logRowKey(row)))));
+  }
+  return merged;
 }
 
 function normalizeLogs(raw: unknown): TradeLogRow[] {
@@ -307,9 +407,10 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
     const r = (item && typeof item === 'object' ? item : {}) as Record<string, any>;
     const timeRaw = r.timestamp ?? r.time ?? r.Timestamp ?? r.Time;
     const timeMs = parseTradeTimeMs(timeRaw);
+    const chartTimeMs = parseTradeTimeMs(r.logged_at ?? r.loggedAt ?? r.Logged_At) ?? timeMs;
     let time = '-';
     if (timeMs != null) {
-      time = new Date(timeMs).toLocaleString('en-IN');
+      time = new Date(timeMs).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
     } else if (timeRaw != null) {
       time = String(timeRaw);
     }
@@ -319,6 +420,7 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
     return {
       time,
       timeMs,
+      chartTimeMs,
       symbol: String(r.Symbol ?? r.symbol ?? '-'),
       signal: String(r.Signal ?? r.signal ?? r.side ?? r.Side ?? '-'),
       action: String(r.Action_Status ?? r.Action ?? r.action ?? r.action_status ?? r.status ?? '-'),
@@ -344,16 +446,17 @@ function formatMoney(n: number) {
 }
 
 function formatCell(v: string | number, asMoney = false) {
-  if (v === '-' || v == null || v === '') return '-';
+  if (isPlaceholderValue(v)) return '—';
   const n = Number(v);
   if (asMoney && Number.isFinite(n)) return formatMoney(n);
   if (Number.isFinite(n) && asMoney === false && typeof v === 'number') return n.toFixed(2);
   return String(v);
 }
 
-function formatQuantity(v: string | number) {
-  if (v === '-' || v == null || v === '') return '-';
+function formatQuantity(v: string | number, action?: string, signal?: string) {
+  if (isPlaceholderValue(v)) return '—';
   const n = Number(v);
+  if (Number.isFinite(n) && n === 0 && (isWaitAction(action) || isWaitAction(signal))) return '—';
   if (!Number.isFinite(n)) return String(v);
   return Number.isInteger(n) ? String(n) : n.toLocaleString('en-IN');
 }
@@ -395,6 +498,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const [downloading, setDownloading] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const seenLiveRef = useRef(!readOnly && isLiveSessionStatus(initialStatus));
+  const logsRef = useRef<TradeLogRow[]>([]);
+  const fetchForSessionRef = useRef(sessionId);
 
   useEffect(() => {
     if (isLiveSessionStatus(sessionStatus || initialStatus)) seenLiveRef.current = true;
@@ -414,6 +519,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const simRunning = isSimulationRunningStatus(simulationStatus);
 
   const fetchDashboard = async () => {
+    const forSession = sessionId;
     // Pull from several endpoints in parallel — same strategy as the web plugin UI.
     // A failure in one source must not blank out status / cash / logs.
     const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes] = await Promise.allSettled([
@@ -426,6 +532,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       pluginApi.getLivePnl(sessionId),
       pluginApi.getLivePnlHistory(sessionId),
     ]);
+    if (fetchForSessionRef.current !== forSession) return;
 
     const dash = dashRes.status === 'fulfilled' ? dashRes.value.data : null;
     const pluginStatus = statusRes.status === 'fulfilled' ? statusRes.value.data : null;
@@ -480,34 +587,36 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     }
 
     const cash = pickCash(snapshot, pluginStatus, fullMatches?.status, dash?.status, tradingSession, pnlSummary?.current);
-    if (cash != null) setAvailableCash(cash);
+    if (cash != null) {
+      setAvailableCash(cash);
+      rememberBrokerCash(cash);
+    }
 
-    // Prefer live plugin execution trades (/session), then Mongo trading_logs.
-    // Bear Street omits qty on log rows. History snapshots have per-sample qty
-    // (e.g. 3 then 6 after a flip); live-pnl is only the latest fallback.
-    const fromPlugin = normalizeLogs(fullMatches?.logs);
-    const fromTrades = normalizeLogs(tradesRaw);
-    const fromDash = normalizeLogs(dash?.logs);
-    const merged = applySymbolQuantities(
-      applySymbolQuantities(
-        applyHistoryQuantities(
-          mergeLogQuantities(fromPlugin, fromTrades, fromDash),
-          buildQtyTimeline(historyRaw),
-        ),
-        pickLivePnlSymbols(snapshot),
-      ),
+    // Prefer the richest log source. After market close the live VM often
+    // returns empty qty/price — keep last known values instead of flashing —.
+    const merged = mergeIncomingLogs(
+      normalizeLogs(fullMatches?.logs),
+      normalizeLogs(tradesRaw),
+      normalizeLogs(dash?.logs),
+      logsRef.current,
+      buildQtyTimeline(historyRaw),
+      pickLivePnlSymbols(snapshot),
       pickLivePnlSymbols(livePnl),
     );
-    if (merged.length > 0) setLogs(merged);
-    // If all empty, keep previous logs so a flaky poll doesn't flash "No trades yet".
+    if (merged.length > 0) {
+      logsRef.current = merged;
+      setLogs(merged);
+    }
 
     if (anyOk) setLastUpdated(new Date());
     setLoading(false);
   };
 
   useEffect(() => {
+    fetchForSessionRef.current = sessionId;
     setLoading(true);
     setLogs([]);
+    logsRef.current = [];
     setLastUpdated(null);
     setConnected(true);
     setSimulationStatus(null);
@@ -516,6 +625,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     if (initialStatus) setSessionStatus(initialStatus);
     else setSessionStatus('');
     if (initialFreeCash != null && Number.isFinite(initialFreeCash)) setAvailableCash(initialFreeCash);
+    else setAvailableCash(null);
     setTab('logs');
     fetchDashboard();
 
@@ -534,6 +644,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       setSessionStatus('stopped');
       seenLiveRef.current = false;
       setConfirming(null);
+      if (availableCash != null) rememberBrokerCash(availableCash);
       onStop();
     } catch (err: any) {
       toast.error(pluginErrorMessage(err, 'Could not stop the session. It may still be running.'));
@@ -570,7 +681,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
   return (
     <div className="page-stack">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
         <div className="min-w-0">
           <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Free cash</p>
           <p className="mt-0.5 flex items-center gap-1 text-[15px] font-semibold text-slate-900">
@@ -641,7 +752,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
       {/* Keep both panes mounted so Live P&L history/polling survives tab switches. */}
       <div hidden={tab !== 'pnl'}>
-        <LivePnlPanel sessionId={sessionId} />
+        <LivePnlPanel key={sessionId} sessionId={sessionId} logRows={logs} liveStartedAtMs={liveStartedAtMs} />
       </div>
 
       <div hidden={tab !== 'logs'}>
@@ -719,22 +830,20 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                           </td>
                           <td className="px-3.5 py-2 font-semibold">{log.symbol}</td>
                           <td className="px-3.5 py-2">
-                            {log.signal !== '-' ? (
-                              <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-                                String(log.signal).toUpperCase() === 'BUY' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-                              }`}>{log.signal}</span>
-                            ) : '-'}
+                            <TradeActionPill value={log.signal} />
                           </td>
-                          <td className="px-3.5 py-2">{log.action}</td>
-                          <td className="px-3.5 py-2 text-right font-mono">{formatQuantity(log.quantity)}</td>
+                          <td className="px-3.5 py-2">
+                            <TradeActionPill value={log.action} />
+                          </td>
+                          <td className="px-3.5 py-2 text-right font-mono">{formatQuantity(log.quantity, log.action, log.signal)}</td>
                           <td className="px-3.5 py-2 text-right font-mono">{formatCell(log.price, true)}</td>
                           <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
-                            {log.change === '-' ? '-' : `${Number.isFinite(changeNum) && changeNum > 0 ? '+' : ''}${formatCell(log.change)}${Number.isFinite(changeNum) ? '%' : ''}`}
+                            {isPlaceholderValue(log.change) ? '—' : `${Number.isFinite(changeNum) && changeNum > 0 ? '+' : ''}${formatCell(log.change)}${Number.isFinite(changeNum) ? '%' : ''}`}
                           </td>
                           <td className={`px-3.5 py-2 text-right font-mono ${pnlColor}`}>{formatCell(log.pnl, true)}</td>
                           <td className="px-3.5 py-2 text-right font-mono">{formatCell(log.capital, true)}</td>
                           <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
-                            {log.return_pct === '-' ? '-' : `${formatCell(log.return_pct)}${Number.isFinite(Number(log.return_pct)) ? '%' : ''}`}
+                            {isPlaceholderValue(log.return_pct) ? '—' : `${formatCell(log.return_pct)}${Number.isFinite(Number(log.return_pct)) ? '%' : ''}`}
                           </td>
                         </tr>
                       </Fragment>
