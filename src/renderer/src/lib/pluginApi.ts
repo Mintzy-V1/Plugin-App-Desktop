@@ -252,10 +252,16 @@ export const pluginApi = {
     }>(`${getBase()}/session`);
   },
 
+  /** Current live P&L, including per-symbol `data.symbols`. */
   getLivePnl(sessionId: string) {
     return api.get<LivePnlResponse>(`${getBase()}/trading/live-pnl/${sessionId}`);
   },
 
+  /**
+   * Saved snapshots for the session market date.
+   * Each snapshot already includes `data.symbols` (per-ticker P&L) — the chart
+   * filters/combines tickers on the client; there is no separate ticker endpoint.
+   */
   getLivePnlHistory(sessionId: string, date?: string) {
     return api.get<{ success: boolean; snapshots: PnlSnapshot[] }>(
       `${getBase()}/trading/live-pnl/${sessionId}/history`,
