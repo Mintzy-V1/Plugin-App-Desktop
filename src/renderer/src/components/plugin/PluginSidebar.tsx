@@ -38,7 +38,7 @@ export default function PluginSidebar({
 
   if (collapsed) {
     return (
-      <aside className="flex w-12 shrink-0 flex-col items-center gap-1.5 border-r border-slate-200/70 bg-white py-2.5">
+      <aside className="flex h-full w-12 shrink-0 flex-col items-center gap-1.5 border-r border-slate-200/70 bg-white py-2.5">
         <button
           type="button"
           onClick={onToggle}
@@ -76,7 +76,7 @@ export default function PluginSidebar({
   }
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col border-r border-slate-200/70 bg-white">
+    <aside className="flex h-full min-h-0 w-[240px] shrink-0 flex-col border-r border-slate-200/70 bg-white">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-2.5">
         <div className="min-w-0">
           <p className="text-[13px] font-semibold text-slate-900">Sessions</p>
@@ -114,7 +114,7 @@ export default function PluginSidebar({
         </button>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto px-2.5 py-2.5">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-2.5 py-2.5">
         <section>
           <div className="mb-2 flex items-center gap-1.5 px-1">
             <span className={`h-1.5 w-1.5 rounded-full ${liveSessions.length > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden="true" />
