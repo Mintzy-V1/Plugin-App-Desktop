@@ -7,6 +7,7 @@ import Sidebar, { type NavItem } from './components/ui/Sidebar';
 import PluginPage from './pages/PluginPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
+import type { TradingSession } from './lib/pluginApi';
 
 const VIEW_META: Record<NavItem, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Account overview and session history' },
@@ -19,6 +20,7 @@ const SIDEBAR_KEY = 'mintzy.sidebar.pinned';
 function AppContent() {
   const { user, loading } = useAuth();
   const [activeView, setActiveView] = useState<NavItem>('dashboard');
+  const [pluginSession, setPluginSession] = useState<TradingSession | null>(null);
   const [sidebarPinned, setSidebarPinned] = useState(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; }
   });
@@ -53,20 +55,32 @@ function AppContent() {
     <div className="flex h-screen overflow-hidden bg-[#f7f8fa]">
       <Sidebar
         active={activeView}
-        onNavigate={setActiveView}
+        onNavigate={(item) => {
+          if (item === 'plugin' && activeView !== 'plugin') setPluginSession(null);
+          setActiveView(item);
+        }}
         collapsed={!sidebarPinned}
         onToggleCollapse={toggleSidebar}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Navbar title={meta.title} subtitle={meta.subtitle} />
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <div key={activeView} className="animate-fade-in h-full">
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          <div key={activeView} className="h-full min-h-0">
             {activeView === 'plugin' ? (
-              <PluginPage />
+              <PluginPage initialSession={pluginSession} />
             ) : (
-              <div className="page-pad mx-auto w-full max-w-5xl">
-                {activeView === 'dashboard' && <DashboardPage />}
-                {activeView === 'settings' && <SettingsPage />}
+              <div className="h-full overflow-y-auto">
+                <div className="page-pad mx-auto w-full max-w-5xl">
+                  {activeView === 'dashboard' && (
+                    <DashboardPage
+                      onOpenSession={(session) => {
+                        setPluginSession(session);
+                        setActiveView('plugin');
+                      }}
+                    />
+                  )}
+                  {activeView === 'settings' && <SettingsPage />}
+                </div>
               </div>
             )}
           </div>
