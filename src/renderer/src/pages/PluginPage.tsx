@@ -13,16 +13,21 @@ import type { TradingSession } from '../lib/pluginApi';
 import { isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
 import { pluginErrorMessage } from '../lib/pluginErrors';
 import { buildStartPayloadFromConfiguration } from '../lib/pluginTradingConfig';
+import { pickCash, rememberBrokerCash } from '../lib/brokerCash';
 
 type PluginView = 'empty' | 'broker' | '2fa' | 'config' | 'dashboard' | 'saved';
 
 const PANEL_KEY = 'mintzy.plugin.sessionsOpen';
 
-export default function PluginPage() {
+export default function PluginPage({ initialSession = null }: { initialSession?: TradingSession | null }) {
   const toast = useToast();
-  const [view, setView] = useState<PluginView>('empty');
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionStatus, setSessionStatus] = useState<string | undefined>(undefined);
+  const [view, setView] = useState<PluginView>(() => {
+    if (!initialSession?.python_session_id) return 'empty';
+    if (isConfigurableSessionStatus(initialSession.status)) return 'config';
+    return 'dashboard';
+  });
+  const [sessionId, setSessionId] = useState<string | null>(initialSession?.python_session_id ?? null);
+  const [sessionStatus, setSessionStatus] = useState<string | undefined>(initialSession?.status);
   const [freeCash, setFreeCash] = useState<number | null>(null);
   const [sessions, setSessions] = useState<TradingSession[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -69,6 +74,14 @@ export default function PluginPage() {
     setSessionStatus(s.status);
     setFreeCash(null);
 
+    pluginApi.getSessionStatus(s.python_session_id).then(res => {
+      const cash = pickCash(res.data);
+      if (cash != null) {
+        setFreeCash(cash);
+        rememberBrokerCash(cash);
+      }
+    }).catch(() => {});
+
     if (isConfigurableSessionStatus(s.status)) {
       setView('config');
       return;
@@ -78,6 +91,12 @@ export default function PluginPage() {
     // Past sessions render read-only (logs, P&L history, tradebook download).
     setView('dashboard');
   };
+
+  useEffect(() => {
+    if (!initialSession?.python_session_id) return;
+    handleSelectSession(initialSession);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once when arriving from Dashboard
+  }, [initialSession?._id]);
 
   const confirmDeleteSession = async () => {
     if (!pendingDelete) return;
@@ -136,15 +155,16 @@ export default function PluginPage() {
         onToggle={toggleSessions}
       />
 
-      <div className="min-w-0 flex-1 overflow-y-auto">
-        <div key={view} className="page-pad animate-fade-in h-full">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+        <div key={view} className="page-pad animate-fade-in min-h-full">
           {view === 'dashboard' && sessionId && (
             <LiveSessionDashboard
+              key={sessionId}
               sessionId={sessionId}
               initialStatus={sessionStatus}
               initialFreeCash={freeCash}
               readOnly={!isLiveSessionStatus(sessionStatus)}
-              onStop={() => { setView('empty'); setSessionStatus(undefined); setFreeCash(null); fetchSessions(); }}
+              onStop={() => { setView('empty'); setSessionStatus(undefined); fetchSessions(); }}
               onConfigure={() => setView('config')}
             />
           )}
@@ -158,7 +178,10 @@ export default function PluginPage() {
               <TwoFactorAuth
                 sessionId={sessionId}
                 onSuccess={(info) => {
-                  if (info?.freeCash != null) setFreeCash(info.freeCash);
+                  if (info?.freeCash != null) {
+                    setFreeCash(info.freeCash);
+                    rememberBrokerCash(info.freeCash);
+                  }
                   setSessionStatus('authenticated');
                   setView('config');
                 }}
