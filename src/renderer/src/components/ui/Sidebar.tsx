@@ -6,12 +6,13 @@ import {
   IconLogout,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
+  IconBook,
 } from '@tabler/icons-react';
 import { useAuth } from '../../context/AuthContext';
 import { pluginApi } from '../../lib/pluginApi';
 import UserAvatar from './UserAvatar';
 
-export type NavItem = 'plugin' | 'dashboard' | 'settings';
+export type NavItem = 'plugin' | 'dashboard' | 'docs' | 'settings';
 
 interface SidebarProps {
   active: NavItem;
@@ -23,6 +24,7 @@ interface SidebarProps {
 const NAV_ITEMS: { id: NavItem; label: string; icon: typeof IconCpu }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
   { id: 'plugin',    label: 'Launch Terminal', icon: IconCpu },
+  { id: 'docs',      label: 'Documentation', icon: IconBook },
   { id: 'settings',  label: 'Settings',  icon: IconSettings },
 ];
 

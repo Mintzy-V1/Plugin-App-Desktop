@@ -410,7 +410,7 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
     const chartTimeMs = parseTradeTimeMs(r.logged_at ?? r.loggedAt ?? r.Logged_At) ?? timeMs;
     let time = '-';
     if (timeMs != null) {
-      time = new Date(timeMs).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+      time = `${formatLogDate(timeMs)} ${formatLogTime(timeMs)}`;
     } else if (timeRaw != null) {
       time = String(timeRaw);
     }
@@ -443,6 +443,29 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
 
 function formatMoney(n: number) {
   return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatLogDate(ms: number): string {
+  return new Date(ms)
+    .toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+    })
+    .replace(/,/g, '');
+}
+
+function formatLogTime(ms: number): string {
+  return new Date(ms)
+    .toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    })
+    .replace(/\s+(am|pm)/i, '\u00a0$1');
 }
 
 function formatCell(v: string | number, asMoney = false) {
@@ -771,7 +794,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
             <div className="overflow-x-auto">
               {logs.some(l => resolveSimulation(l, { hasLiveCutoff, liveStartedAtMs })) && (
                 <p className="border-b border-slate-100 bg-slate-50/80 px-3.5 py-2 text-[11px] text-slate-500">
-                  Dimmed rows are simulation trades. Clear rows are live trades.
+                  Rows tagged Sim are simulation trades. Untagged rows are live.
                 </p>
               )}
               <table className="w-full text-left text-sm">
@@ -811,22 +834,27 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                           </tr>
                         )}
                         <tr
-                          className={`border-b border-slate-50 text-slate-700 last:border-0 ${
-                            isSimTrade
-                              ? 'bg-slate-50/70 opacity-75 blur-[0.5px]'
-                              : 'hover:bg-slate-50'
+                          className={`border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50 ${
+                            isSimTrade ? 'bg-slate-50/40' : ''
                           }`}
                           title={isSimTrade ? 'Simulation trade' : undefined}
                         >
                           <td className="px-3.5 py-2 text-xs font-mono">
-                            <span className="inline-flex items-center gap-1.5">
-                              {isSimTrade && (
-                                <span className="rounded bg-slate-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                                  Sim
-                                </span>
+                            <div className="flex flex-col gap-0.5">
+                              {log.timeMs != null && (
+                                <span className="whitespace-nowrap">{formatLogDate(log.timeMs)}</span>
                               )}
-                              {log.time}
-                            </span>
+                              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                {isSimTrade && (
+                                  <span className="rounded bg-slate-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                    Sim
+                                  </span>
+                                )}
+                                <span>
+                                  {log.timeMs != null ? formatLogTime(log.timeMs) : log.time}
+                                </span>
+                              </span>
+                            </div>
                           </td>
                           <td className="px-3.5 py-2 font-semibold">{log.symbol}</td>
                           <td className="px-3.5 py-2">

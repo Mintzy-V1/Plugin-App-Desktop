@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Code2, Plus } from 'lucide-react';
-import ConnectBrokerForm from '../components/plugin/ConnectBrokerForm';
+import ConnectBrokerForm, { brokerFromProfile } from '../components/plugin/ConnectBrokerForm';
+import { useAuth } from '../context/AuthContext';
 import TwoFactorAuth from '../components/plugin/TwoFactorAuth';
 import SessionConfigForm from '../components/plugin/SessionConfigForm';
 import LiveSessionDashboard from '../components/plugin/LiveSessionDashboard';
@@ -21,6 +22,8 @@ const PANEL_KEY = 'mintzy.plugin.sessionsOpen';
 
 export default function PluginPage({ initialSession = null }: { initialSession?: TradingSession | null }) {
   const toast = useToast();
+  const { user } = useAuth();
+  const skipTotp = brokerFromProfile(user?.broker) !== 'angel';
   const [view, setView] = useState<PluginView>(() => {
     if (!initialSession?.python_session_id) return 'empty';
     if (isConfigurableSessionStatus(initialSession.status)) return 'config';
@@ -203,7 +206,7 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
                   setView('empty');
                   fetchSessions();
                 }}
-                onBack={() => setView('2fa')}
+                onBack={() => setView(skipTotp ? 'broker' : '2fa')}
               />
             </div>
           )}

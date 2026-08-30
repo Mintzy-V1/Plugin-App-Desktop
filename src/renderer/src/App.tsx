@@ -6,13 +6,22 @@ import Navbar from './components/ui/Navbar';
 import Sidebar, { type NavItem } from './components/ui/Sidebar';
 import PluginPage from './pages/PluginPage';
 import DashboardPage from './pages/DashboardPage';
+import DocsPage from './pages/DocsPage';
 import SettingsPage from './pages/SettingsPage';
 import type { TradingSession } from './lib/pluginApi';
 
 const VIEW_META: Record<NavItem, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Account overview and session history' },
   plugin:    { title: 'Launch Terminal', subtitle: 'Broker sessions and live trading' },
+  docs:      { title: 'Documentation', subtitle: 'User guide for your broker' },
   settings:  { title: 'Settings',  subtitle: 'Desktop preferences' },
+};
+
+const PANE_WIDTH: Record<NavItem, string> = {
+  dashboard: 'max-w-6xl',
+  plugin: 'max-w-5xl',
+  docs: 'max-w-4xl',
+  settings: 'max-w-5xl',
 };
 
 const SIDEBAR_KEY = 'mintzy.sidebar.pinned';
@@ -70,7 +79,7 @@ function AppContent() {
               <PluginPage initialSession={pluginSession} />
             ) : (
               <div className="h-full overflow-y-auto">
-                <div className="page-pad mx-auto w-full max-w-5xl">
+                <div className={`page-pad mx-auto w-full ${PANE_WIDTH[activeView]}`}>
                   {activeView === 'dashboard' && (
                     <DashboardPage
                       onOpenSession={(session) => {
@@ -79,6 +88,7 @@ function AppContent() {
                       }}
                     />
                   )}
+                  {activeView === 'docs' && <DocsPage />}
                   {activeView === 'settings' && <SettingsPage />}
                 </div>
               </div>

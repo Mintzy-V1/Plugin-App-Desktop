@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   createChart,
   createSeriesMarkers,
@@ -15,7 +15,7 @@ import {
   type Time,
   type Logical,
 } from 'lightweight-charts';
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react';
 
 const GREEN = '#10b981';
 const RED = '#ef4444';
@@ -89,6 +89,7 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
   const seriesRef = useRef<ISeriesApi<'Baseline'> | ISeriesApi<'Candlestick'> | null>(null);
   const barCountRef = useRef(0);
   const clampingRef = useRef(false);
+  const [expanded, setExpanded] = useState(false);
 
   const applyData = (
     series: ISeriesApi<'Baseline'> | ISeriesApi<'Candlestick'>,
@@ -198,7 +199,7 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
         minBarSpacing: 3,
         fixLeftEdge: true,
         fixRightEdge: true,
-        lockVisibleTimeRangeOnResize: true,
+        lockVisibleTimeRangeOnResize: false,
         shiftVisibleRangeOnNewBar: false,
         tickMarkMaxCharacterLength: 12,
         tickMarkFormatter: formatIstTick,
@@ -320,45 +321,83 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
 
   const hasData = mode === 'candle' ? candles.length > 1 : line.length > 1;
 
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expanded]);
+
+  useEffect(() => {
+    const el = hostRef.current;
+    const chart = chartRef.current;
+    if (!el || !chart) return;
+    const applySize = () => {
+      const width = el.clientWidth;
+      const height = el.clientHeight;
+      if (width < 2 || height < 2) return;
+      chart.resize(width, height, true);
+      chart.priceScale('right').applyOptions({ autoScale: true });
+      chart.timeScale().fitContent();
+    };
+    const id = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(applySize);
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [expanded]);
+
   return (
-    <div>
-      <div className="mb-2 flex justify-end gap-1">
-        <button
-          type="button"
-          onClick={() => zoom(0.6)}
-          disabled={!hasData}
-          title="Zoom in"
-          aria-label="Zoom in"
-          className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-40"
-        >
-          <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => zoom(1.6)}
-          disabled={!hasData}
-          title="Zoom out"
-          aria-label="Zoom out"
-          className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-40"
-        >
-          <ZoomOut className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => chartRef.current?.timeScale().fitContent()}
-          disabled={!hasData}
-          title="Fit all"
-          aria-label="Fit all"
-          className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-40"
-        >
-          <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-      </div>
+    <div className={expanded ? 'h-[320px]' : undefined}>
       <div
-        ref={hostRef}
-        className="h-[320px] w-full"
-        onWheel={(e) => e.stopPropagation()}
-      />
+        className={
+          expanded
+            ? 'fixed inset-0 z-50 flex flex-col bg-white p-4'
+            : undefined
+        }
+      >
+        <div className="mb-2 flex justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => zoom(0.6)}
+            disabled={!hasData}
+            title="Zoom in"
+            aria-label="Zoom in"
+            className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-40"
+          >
+            <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => zoom(1.6)}
+            disabled={!hasData}
+            title="Zoom out"
+            aria-label="Zoom out"
+            className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-40"
+          >
+            <ZoomOut className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpanded((open) => !open)}
+            disabled={!hasData}
+            title={expanded ? 'Exit full chart' : 'Expand chart'}
+            aria-label={expanded ? 'Exit full chart' : 'Expand chart'}
+            aria-pressed={expanded}
+            className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-40"
+          >
+            {expanded
+              ? <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
+              : <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />}
+          </button>
+        </div>
+        <div
+          ref={hostRef}
+          className={expanded ? 'min-h-0 w-full flex-1' : 'h-[320px] w-full'}
+          onWheel={(e) => e.stopPropagation()}
+        />
+      </div>
     </div>
   );
 }

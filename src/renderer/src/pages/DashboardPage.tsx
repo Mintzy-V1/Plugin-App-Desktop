@@ -8,8 +8,16 @@ import type { TradingSession } from '../lib/pluginApi';
 import { sessionStatusLabel, sessionStatusBadgeClass, isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
 import { downloadSessionCsv } from '../lib/downloadSessionCsv';
 import { pickCash, readRememberedBrokerCash, rememberBrokerCash } from '../lib/brokerCash';
+import {
+  computePerformanceStats,
+  readCachedStats,
+  writeCachedStats,
+  type PerformanceStats,
+} from '../lib/performanceStats';
+import { loadSessionTrades, sessionFingerprint } from '../lib/sessionTrades';
+import PerformanceStatsGrid, { MonthReturnsGrid } from '../components/plugin/PerformanceStatsGrid';
 
-type Tab = 'overview' | 'sessions';
+type Tab = 'overview' | 'sessions' | 'returns';
 
 const SESSION_PAGE_SIZE = 10;
 
@@ -66,6 +74,9 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [sessionPage, setSessionPage] = useState(1);
+  const [perfStats, setPerfStats] = useState<PerformanceStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsGen, setStatsGen] = useState(0);
 
   const activeCount = sessions.filter(s => s.status === 'trading_active').length;
   const readyCount = sessions.filter(s => isConfigurableSessionStatus(s.status)).length;
@@ -135,13 +146,61 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   useEffect(() => {
     fetchData();
     const id = setInterval(() => fetchData(true), 20000);
-    const onFocus = () => fetchData(true);
+    const onFocus = () => {
+      fetchData(true);
+      setStatsGen((n) => n + 1);
+    };
     window.addEventListener('focus', onFocus);
     return () => {
       clearInterval(id);
       window.removeEventListener('focus', onFocus);
     };
   }, [fetchData]);
+
+  const sessionsFp = sessionFingerprint(sessions);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (loading) return;
+    const cached = readCachedStats(user.id);
+    if (cached) setPerfStats(cached.stats);
+    if (sessions.length === 0) {
+      const empty = computePerformanceStats([]);
+      setPerfStats(empty);
+      writeCachedStats(user.id, {
+        asOfDate: empty.asOfDate,
+        fingerprint: sessionsFp,
+        computedAt: Date.now(),
+        stats: empty,
+      });
+      setStatsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setStatsLoading(true);
+    loadSessionTrades(sessions)
+      .then((trades) => {
+        if (cancelled) return;
+        const next = computePerformanceStats(trades);
+        writeCachedStats(user.id, {
+          asOfDate: next.asOfDate,
+          fingerprint: sessionsFp,
+          computedAt: Date.now(),
+          stats: next,
+        });
+        setPerfStats(next);
+      })
+      .catch(() => {
+        if (!cancelled && cached) setPerfStats(cached.stats);
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false);
+      });
+    return () => { cancelled = true; };
+    // sessionsFp stands in for the session list; the 20s poll does not refetch trades.
+    // statsGen forces a full recompute when the window is opened / focused.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionsFp, user?.id, loading, statsGen]);
 
   const handleDownload = async (sessionId?: string, status?: string) => {
     if (!sessionId) return;
@@ -165,6 +224,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   const TABS: { id: Tab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'sessions', label: 'Sessions' },
+    { id: 'returns', label: 'Month over month' },
   ];
 
   const firstName = (user?.name || '').split(' ')[0] || 'there';
@@ -257,6 +317,12 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
               View all
             </button>
           </div>
+
+          <PerformanceStatsGrid
+            stats={perfStats}
+            loading={statsLoading}
+            onOpenMonths={() => setTab('returns')}
+          />
         </div>
       )}
 
@@ -418,6 +484,12 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'returns' && (
+        <div className="animate-fade-in">
+          <MonthReturnsGrid stats={perfStats} loading={statsLoading} />
         </div>
       )}
     </div>
