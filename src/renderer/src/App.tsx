@@ -20,7 +20,7 @@ const VIEW_META: Record<NavItem, { title: string; subtitle: string }> = {
 const PANE_WIDTH: Record<NavItem, string> = {
   dashboard: 'max-w-6xl',
   plugin: 'max-w-5xl',
-  docs: 'max-w-4xl',
+  docs: 'max-w-6xl',
   settings: 'max-w-5xl',
 };
 

@@ -23,9 +23,8 @@ function parseInstantMs(raw: unknown): number | null {
   return Number.isNaN(fallback) ? null : fallback;
 }
 
-/** True when the log timestamp falls on 13:00 IST (the pyramid snapshot minute). */
-export function isOnePmIstLog(timeMs: number | null | undefined): boolean {
-  if (timeMs == null || !Number.isFinite(timeMs)) return false;
+function istHourMinute(timeMs: number): { hour: number; minute: number } | null {
+  if (!Number.isFinite(timeMs)) return null;
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: IST,
     hour: 'numeric',
@@ -34,7 +33,40 @@ export function isOnePmIstLog(timeMs: number | null | undefined): boolean {
   }).formatToParts(new Date(timeMs));
   const hour = Number(parts.find((p) => p.type === 'hour')?.value);
   const minute = Number(parts.find((p) => p.type === 'minute')?.value);
-  return hour === 13 && minute === 0;
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  return { hour, minute };
+}
+
+/** True when the log timestamp falls on 13:00 IST. */
+export function isOnePmIstLog(timeMs: number | null | undefined): boolean {
+  if (timeMs == null) return false;
+  const hm = istHourMinute(timeMs);
+  return hm != null && hm.hour === 13 && hm.minute === 0;
+}
+
+/** True when the log timestamp falls on 12:59 IST (sim close / pyramid snapshot). */
+export function isSimCloseIstLog(timeMs: number | null | undefined): boolean {
+  if (timeMs == null) return false;
+  const hm = istHourMinute(timeMs);
+  return hm != null && hm.hour === 12 && hm.minute === 59;
+}
+
+/** Same IST calendar day as `timeMs`, at hour:minute:second. */
+export function istWallClockMs(timeMs: number, hour: number, minute: number, second = 0): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: IST,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(timeMs));
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value;
+  const y = get('year');
+  const m = get('month');
+  const d = get('day');
+  const hh = String(hour).padStart(2, '0');
+  const mm = String(minute).padStart(2, '0');
+  const ss = String(second).padStart(2, '0');
+  return Date.parse(`${y}-${m}-${d}T${hh}:${mm}:${ss}+05:30`);
 }
 
 function num(v: unknown): number | null {
@@ -101,7 +133,9 @@ export function parsePyramidPnlBySymbol(raw: unknown): Record<string, number> {
     ? payload.pyramid_pnl
     : payload.pyramid) as Record<string, unknown> | undefined;
 
-  ingestSymbolMap(out, payload.symbols ?? root.symbols ?? nested?.symbols);
+  const symbolPayload = payload.symbols ?? root.symbols ?? nested?.symbols;
+  ingestSymbolMap(out, symbolPayload);
+  ingestRowsArray(out, symbolPayload);
   ingestRowsArray(out, payload.rows ?? payload.logs ?? payload.trades ?? payload.entries ?? root.rows);
 
   if (Object.keys(out).length === 0) {
@@ -128,38 +162,19 @@ export function extractOnePmPnlFromHistory(raw: unknown): Record<string, number>
 
   const root = raw as Record<string, unknown>;
   const snapshots = Array.isArray(root.snapshots) ? root.snapshots : [];
-  if (snapshots.length === 0) return out;
-
-  let marketDate = typeof root.market_date === 'string' ? root.market_date : null;
-  if (!marketDate) {
-    const first = snapshots[0] as Record<string, unknown>;
-    if (typeof first.market_date === 'string') marketDate = first.market_date;
-  }
-
-  const targetMs = marketDate ? Date.parse(`${marketDate}T13:00:00+05:30`) : null;
-  let best: { dist: number; map: Record<string, number> } | null = null;
 
   for (const item of snapshots) {
     if (!item || typeof item !== 'object') continue;
     const snap = item as Record<string, unknown>;
     const data = (snap.data && typeof snap.data === 'object' ? snap.data : snap) as Record<string, unknown>;
     const ts = parseInstantMs(data.ts) ?? parseInstantMs(snap.source_ts) ?? parseInstantMs(snap.sampled_at);
-    if (ts == null) continue;
+    if (ts == null || !isOnePmIstLog(ts)) continue;
 
     const map = parsePyramidPnlBySymbol({ symbols: data.symbols ?? data });
-    if (Object.keys(map).length === 0) continue;
-
-    if (isOnePmIstLog(ts)) return map;
-
-    if (targetMs != null) {
-      const dist = Math.abs(ts - targetMs);
-      if (dist <= 15 * 60 * 1000 && (!best || dist < best.dist)) {
-        best = { dist, map };
-      }
-    }
+    if (Object.keys(map).length > 0) return map;
   }
 
-  return best?.map ?? out;
+  return out;
 }
 
 export function mergePyramidMaps(...maps: Array<Record<string, number> | null | undefined>): Record<string, number> {
@@ -173,21 +188,3 @@ export function mergePyramidMaps(...maps: Array<Record<string, number> | null | 
   return out;
 }
 
-export function isZeroDisplayedPnl(pnl: string | number): boolean {
-  if (pnl == null || pnl === '' || pnl === '-' || pnl === '—') return true;
-  const n = Number(pnl);
-  return Number.isFinite(n) && n === 0;
-}
-
-/** Display-only override for 1 PM rows whose stored P&L is zero. */
-export function pyramidPnlForLog(
-  symbol: string,
-  timeMs: number | null,
-  pnl: string | number,
-  pyramidBySymbol: Record<string, number>,
-): string | number {
-  if (!isOnePmIstLog(timeMs) || !isZeroDisplayedPnl(pnl)) return pnl;
-  const key = String(symbol || '').toUpperCase();
-  const override = pyramidBySymbol[key];
-  return override != null && Number.isFinite(override) ? override : pnl;
-}

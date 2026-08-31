@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee } from 'lucide-react';
 import { pluginApi, supportsPyramidPnl } from '../../lib/pluginApi';
 import {
-  pyramidPnlForLog,
   parsePyramidPnlBySymbol,
   extractOnePmPnlFromHistory,
   mergePyramidMaps,
+  isSimCloseIstLog,
+  istWallClockMs,
 } from '../../lib/pyramidPnl';
 import { useToast } from '../ui/Toast';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -502,6 +503,79 @@ function resolveSimulation(log: TradeLogRow, liveCutoff: { hasLiveCutoff: boolea
     && log.timeMs < liveCutoff.liveStartedAtMs;
 }
 
+/**
+ * Display-only 12:59 IST sim-close rows: copy the last sim block (e.g. 11:45)
+ * and set P&L from `/trading/pyramid-pnl`. Live 1pm rows are left unchanged.
+ */
+function withPyramidSimCloseRows(
+  logs: TradeLogRow[],
+  pyramidBySymbol: Record<string, number>,
+  liveStartedAtMs: number | null,
+): TradeLogRow[] {
+  const symbols = Object.keys(pyramidBySymbol).filter((sym) => Number.isFinite(pyramidBySymbol[sym]));
+  if (logs.length === 0 || symbols.length === 0) return logs;
+
+  const cutoff = { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs };
+  const refMs = liveStartedAtMs
+    ?? logs.reduce<number | null>((best, row) => {
+      if (row.timeMs == null) return best;
+      return best == null || row.timeMs > best ? row.timeMs : best;
+    }, null)
+    ?? Date.now();
+  const closeMs = istWallClockMs(refMs, 12, 59, 0);
+  if (!Number.isFinite(closeMs)) return logs;
+
+  const lastSimBySym = new Map<string, TradeLogRow>();
+  let lastSimBlockMs = Number.NEGATIVE_INFINITY;
+  for (const log of logs) {
+    if (isSimCloseIstLog(log.timeMs)) continue;
+    if (!resolveSimulation(log, cutoff)) continue;
+    const key = String(log.symbol || '').toUpperCase();
+    if (!key || key === '-') continue;
+    lastSimBySym.set(key, log);
+    if (log.timeMs != null && log.timeMs > lastSimBlockMs) lastSimBlockMs = log.timeMs;
+  }
+
+  const blockOrder: string[] = [];
+  if (Number.isFinite(lastSimBlockMs) && lastSimBlockMs > 0) {
+    for (const log of logs) {
+      if (log.timeMs !== lastSimBlockMs) continue;
+      const key = String(log.symbol || '').toUpperCase();
+      if (key && key !== '-' && !blockOrder.includes(key)) blockOrder.push(key);
+    }
+  }
+
+  const ordered = [
+    ...blockOrder.filter((sym) => symbols.includes(sym)),
+    ...symbols.filter((sym) => !blockOrder.includes(sym)),
+  ];
+
+  const closeTime = `${formatLogDate(closeMs)} ${formatLogTime(closeMs)}`;
+  const injected: TradeLogRow[] = [];
+  for (const sym of ordered) {
+    const template = lastSimBySym.get(sym);
+    if (!template) continue;
+    injected.push({
+      ...template,
+      time: closeTime,
+      timeMs: closeMs,
+      chartTimeMs: closeMs,
+      symbol: template.symbol,
+      pnl: pyramidBySymbol[sym],
+      simulation: true,
+    });
+  }
+  if (injected.length === 0) return logs;
+
+  const rest = logs.filter((row) => {
+    if (!isSimCloseIstLog(row.timeMs)) return true;
+    return !pyramidBySymbol[String(row.symbol || '').toUpperCase()];
+  });
+  const before = rest.filter((row) => row.timeMs == null || row.timeMs < closeMs);
+  const after = rest.filter((row) => row.timeMs != null && row.timeMs >= closeMs);
+  return [...before, ...injected, ...after];
+}
+
 function extractTradingSession(raw: unknown): TradingSession | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
@@ -547,6 +621,10 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const hasLiveCutoff = liveStartedAtMs != null;
   const simLabel = simulationStatusLabel(simulationStatus);
   const simRunning = isSimulationRunningStatus(simulationStatus);
+  const displayLogs = useMemo(
+    () => withPyramidSimCloseRows(logs, pyramidPnlBySymbol, liveStartedAtMs),
+    [logs, pyramidPnlBySymbol, liveStartedAtMs],
+  );
 
   const fetchDashboard = async () => {
     const forSession = sessionId;
@@ -582,7 +660,9 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       const fromApi = pyramidRes.status === 'fulfilled' && pyramidRes.value != null
         ? parsePyramidPnlBySymbol(pyramidRes.value.data)
         : {};
-      const fromHistory = extractOnePmPnlFromHistory(historyRaw);
+      const fromHistory = Object.keys(fromApi).length === 0
+        ? extractOnePmPnlFromHistory(historyRaw)
+        : {};
       const mergedPyramid = mergePyramidMaps(fromHistory, fromApi);
       if (Object.keys(mergedPyramid).length > 0) setPyramidPnlBySymbol(mergedPyramid);
     }
@@ -809,7 +889,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
             </div>
           ) : (
             <div className="overflow-x-auto">
-              {logs.some(l => resolveSimulation(l, { hasLiveCutoff, liveStartedAtMs })) && (
+              {displayLogs.some(l => resolveSimulation(l, { hasLiveCutoff, liveStartedAtMs })) && (
                 <p className="border-b border-slate-100 bg-slate-50/80 px-3.5 py-2 text-[11px] text-slate-500">
                   Rows tagged Sim are simulation trades. Untagged rows are live.
                 </p>
@@ -826,19 +906,17 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                     <th scope="col" className="px-3.5 py-2.5 text-right">Change</th>
                     <th scope="col" className="px-3.5 py-2.5 text-right">P&L</th>
                     <th scope="col" className="px-3.5 py-2.5 text-right">Capital</th>
-                    <th scope="col" className="px-3.5 py-2.5 text-right">Return</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.map((log, i) => {
-                    const displayPnl = pyramidPnlForLog(log.symbol, log.timeMs, log.pnl, pyramidPnlBySymbol);
-                    const pnlNum = Number(displayPnl);
+                  {displayLogs.map((log, i) => {
+                    const pnlNum = Number(log.pnl);
                     const changeNum = Number(log.change);
                     const pnlColor = Number.isFinite(pnlNum) ? (pnlNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
                     const changeColor = Number.isFinite(changeNum) ? (changeNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
                     const cutoff = { hasLiveCutoff, liveStartedAtMs };
                     const isSimTrade = resolveSimulation(log, cutoff);
-                    const prev = i > 0 ? logs[i - 1] : null;
+                    const prev = i > 0 ? displayLogs[i - 1] : null;
                     const prevWasSim = prev != null && resolveSimulation(prev, cutoff);
                     const showLiveDivider = !isSimTrade && (i === 0 || prevWasSim);
 
@@ -846,7 +924,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                       <Fragment key={`${log.time}-${log.symbol}-${i}`}>
                         {showLiveDivider && (
                           <tr className="bg-emerald-50/70">
-                            <td colSpan={10} className="px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                            <td colSpan={9} className="px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
                               Live trading
                             </td>
                           </tr>
@@ -886,11 +964,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                           <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
                             {isPlaceholderValue(log.change) ? '—' : `${Number.isFinite(changeNum) && changeNum > 0 ? '+' : ''}${formatCell(log.change)}${Number.isFinite(changeNum) ? '%' : ''}`}
                           </td>
-                          <td className={`px-3.5 py-2 text-right font-mono ${pnlColor}`}>{formatCell(displayPnl, true)}</td>
+                          <td className={`px-3.5 py-2 text-right font-mono ${pnlColor}`}>{formatCell(log.pnl, true)}</td>
                           <td className="px-3.5 py-2 text-right font-mono">{formatCell(log.capital, true)}</td>
-                          <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
-                            {isPlaceholderValue(log.return_pct) ? '—' : `${formatCell(log.return_pct)}${Number.isFinite(Number(log.return_pct)) ? '%' : ''}`}
-                          </td>
                         </tr>
                       </Fragment>
                     );
