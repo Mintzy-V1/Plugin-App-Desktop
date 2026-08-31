@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mintzy Plugin — Complete User Guide</title>
+<style>
+  :root {
+    --ink: #1e293b;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --brand: #059669;
+    --brand-dark: #047857;
+    --accent: #2563eb;
+    --danger: #dc2626;
+    --amber: #d97706;
+    --bg: #ffffff;
+    --code-bg: #f8fafc;
+  }
+  * { box-sizing: border-box; }
+  @page {
+    size: A4;
+    margin: 16mm 15mm 18mm 15mm;
+  }
+  body {
+    font-family: "SF Pro Text", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    font-size: 10.5pt;
+    line-height: 1.55;
+    margin: 0;
+    background: #fff;
+  }
+  h1, h2, h3, h4 { font-family: "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif; color: #0f172a; line-height: 1.25; }
+  h1 { font-size: 20pt; margin: 0 0 6px 0; }
+  h2 { font-size: 15pt; margin: 26px 0 8px 0; padding-bottom: 5px; border-bottom: 2px solid var(--brand); }
+  h3 { font-size: 12pt; margin: 18px 0 6px 0; }
+  h4 { font-size: 10.5pt; margin: 12px 0 4px 0; }
+  p { margin: 0 0 8px 0; }
+  a { color: var(--accent); text-decoration: none; }
+  ul, ol { margin: 4px 0 10px 0; padding-left: 22px; }
+  li { margin-bottom: 3px; }
+  section { page-break-before: always; }
+  section.first { page-break-before: avoid; }
+
+  .cover { page-break-after: always; }
+  .cover-inner { padding-top: 120pt; text-align: center; }
+  .cover h1 { font-size: 30pt; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 16pt; color: var(--muted); }
+  .cover .meta { margin-top: 26pt; color: var(--muted); font-size: 11pt; }
+  .cover .rule { width: 60mm; height: 3px; background: var(--brand); margin: 22px auto; }
+
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 5px 0; }
+  .toc a { color: var(--ink); }
+  .toc .sub { padding-left: 18px; color: var(--muted); font-size: 9.5pt; }
+  .toc .sub a { color: var(--muted); }
+
+  figure { margin: 12px 0 14px 0; page-break-inside: avoid; }
+  figure img {
+    width: 100%;
+    max-width: 172mm;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(15,23,42,.08);
+  }
+  figure img.wide { max-width: 178mm; }
+  figcaption {
+    font-size: 9pt;
+    color: var(--muted);
+    margin-top: 4px;
+    text-align: center;
+    font-style: italic;
+  }
+
+  .step { counter-increment: step; margin: 7px 0; }
+  ol.steps { counter-reset: step; padding-left: 0; list-style: none; }
+  ol.steps > li { position: relative; padding-left: 30px; margin-bottom: 7px; }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 1px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--brand); color: #fff;
+    font-size: 9.5pt; font-weight: 700; text-align: center; line-height: 20px;
+  }
+  ol.plain { padding-left: 22px; }
+  ol.plain > li { margin-bottom: 5px; }
+
+  .callout { border-radius: 8px; padding: 9px 12px; margin: 10px 0; font-size: 9.8pt; page-break-inside: avoid; }
+  .callout p { margin: 0 0 4px 0; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout b { display: block; margin-bottom: 2px; }
+  .tip    { background: #ecfdf5; border-left: 4px solid var(--brand); }
+  .note   { background: #eff6ff; border-left: 4px solid var(--accent); }
+  .warning{ background: #fffbeb; border-left: 4px solid var(--amber); }
+  .danger { background: #fef2f2; border-left: 4px solid var(--danger); }
+
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 12px 0; font-size: 9.5pt; page-break-inside: auto; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; font-weight: 700; }
+  tr { page-break-inside: avoid; }
+
+  kbd { background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font-size: 9pt; }
+  code { background: var(--code-bg); border-radius: 4px; padding: 1px 4px; font-size: 9pt; }
+
+  .pagefooter { display: none; }
+  .nobreak { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<!-- ======================= COVER ======================= -->
+<section class="cover first">
+  <div class="cover-inner">
+    <div style="color:var(--brand);font-size:13pt;letter-spacing:2px;text-transform:uppercase;">Mintzy Plugin</div>
+    <h1>Complete User Guide</h1>
+    <p class="subtitle">The automated trading terminal for your desktop</p>
+    <div class="rule"></div>
+    <p class="meta">Version 1.1.9 &nbsp;·&nbsp; September 2026<br>
+    Covers the Windows desktop application for Angel One, TradeX, and Bear Street brokers</p>
+  </div>
+</section>
+
+<!-- ======================= TOC ======================= -->
+<section class="toc">
+  <h2>Table of Contents</h2>
+  <ul>
+    <li><a href="#s1">1. Introduction</a></li>
+    <li><a href="#s2">2. Getting Started</a></li>
+    <li class="sub"><a href="#s2">2.1 What you need · 2.2 First launch · 2.3 Sign in · 2.4 If your key is not accepted</a></li>
+    <li><a href="#s3">3. Understanding the Interface</a></li>
+    <li><a href="#s4">4. Navigation Guide</a></li>
+    <li><a href="#s5">5. Feature Guide</a></li>
+    <li class="sub"><a href="#s5">5.1 Dashboard Overview · 5.2 Sessions · 5.3 Month over month · 5.4 Launch Terminal · 5.5 Saved Strategies · 5.6 Settings · 5.7 Documentation</a></li>
+    <li><a href="#s6">6. Workflow Walkthroughs</a></li>
+    <li class="sub"><a href="#s6">6.1 Sign in · 6.2 Browse the dashboard · 6.3 Create a saved strategy · 6.4 Delete a saved strategy · 6.5 Connect a broker and start a session · 6.6 Delete a session · 6.7 Log out</a></li>
+    <li><a href="#s7">7. Troubleshooting</a></li>
+    <li><a href="#s8">8. Frequently Asked Questions</a></li>
+    <li><a href="#s9">9. Glossary</a></li>
+    <li><a href="#s10">10. Quick Start Guide</a></li>
+  </ul>
+</section>
+
+<!-- ======================= 1. INTRODUCTION ======================= -->
+<section id="s1">
+  <h2>1. Introduction</h2>
+  <p><strong>Mintzy Plugin</strong> is a desktop trading application that automates equity trading through your broker account. You sign in with an API key from your Mintzy account, connect one of the supported brokers, and the app runs your chosen trading strategies for you — showing live profit and loss (P&amp;L), a chart of the day's performance, and a full log of every trade the bot places.</p>
+
+  <h3>What the app does</h3>
+  <ul>
+    <li><strong>Automated trading.</strong> You set the trading parameters (which stocks, how much capital, the stop-loss, the candle interval, and the strategy), and Mintzy executes the strategy through your broker while you watch.</li>
+    <li><strong>Live dashboard.</strong> See your broker cash, equity, and this month's P&amp;L at a glance.</li>
+    <li><strong>Session history.</strong> Every session you run is recorded. You can reopen any past session to read its trade log and P&amp;L, and download the data as a CSV file.</li>
+    <li><strong>Performance statistics.</strong> The app computes figures like win rate, best and worst days, drawdown, and month-by-month returns from your trading history.</li>
+    <li><strong>Saved strategies.</strong> Save a trading setup once and reuse it for future sessions — or start it with one click.</li>
+  </ul>
+
+  <h3>Who should use it</h3>
+  <p>Anyone with a Mintzy account and a supported Indian broker account who wants hands-free, rules-based trading. This guide assumes you already have your Mintzy API key and a broker account (Angel One, TradeX, or Bear Street).</p>
+
+  <h3>What this guide covers</h3>
+  <p>This guide explains every screen and every major action in the app: signing in, reading the dashboard, navigating, running a trading session, saving strategies, changing settings, and logging out. Each section uses real screenshots from the application so you can compare what you see on your screen with this guide. Features that could not be verified with a live broker connection are clearly marked.</p>
+</section>
+
+<!-- ======================= 2. GETTING STARTED ======================= -->
+<section id="s2">
+  <h2>2. Getting Started</h2>
+
+  <h3>2.1 What you need</h3>
+  <ul>
+    <li>The <strong>Mintzy Plugin</strong> desktop app, installed on Windows.</li>
+    <li>A <strong>Mintzy API key</strong>. You get this from your Mintzy account at <code>mintzy.in</code>. The key decides which broker your sessions will use.</li>
+    <li>An <strong>internet connection</strong>. The app must reach the Mintzy servers and your broker.</li>
+    <li>Your <strong>broker credentials</strong> — the API key, client code, and password/PIN (or the equivalent for your broker) — to connect for trading sessions.</li>
+  </ul>
+
+  <div class="callout warning"><b>WARNING</b><p>Your API key and broker credentials are sensitive. Do not share them. The API key is shown as dots while you type it, and logging out removes the saved session from this computer.</p></div>
+
+  <h3>2.2 First launch</h3>
+  <p>When you open the app for the first time, you see the <strong>sign-in screen</strong>. This is the only screen you need before you can use the app.</p>
+  <figure>
+    <img src="screenshots/01-login.png" alt="Sign-in screen">
+    <figcaption>Figure 1 — The sign-in screen shown when you first open the app</figcaption>
+  </figure>
+
+  <h3>2.3 Sign in</h3>
+  <ol class="steps">
+    <li>Find the field labelled <strong>API Key</strong> in the middle of the window.</li>
+    <li>Click inside the field and <strong>paste your Mintzy API key</strong>. The characters are hidden as dots for security.</li>
+    <li>Click the eye icon on the right of the field if you want to see what you typed. Click it again to hide the key.</li>
+    <li>Click the <strong>Continue</strong> button below the field.</li>
+    <li>The button briefly shows <em>Verifying…</em> while the app checks your key.</li>
+    <li>When your key is accepted, the app opens your <strong>Dashboard</strong>.</li>
+  </ol>
+  <figure>
+    <img src="screenshots/03-login-filled.png" alt="Sign-in with key entered">
+    <figcaption>Figure 2 — Signing in with your API key entered (the key itself is hidden)</figcaption>
+  </figure>
+
+  <div class="callout tip"><b>TIP</b><p>If you don't have an API key, click the link <em>Get one from your Mintzy account</em> under the sign-in button to open the Mintzy website.</p></div>
+
+  <h3>2.4 If your key is not accepted</h3>
+  <p>If the key is wrong or belongs to a different account, a red message appears in a box under the field. With the example account used in this guide the message reads:</p>
+  <p><em>"Invalid Angel One API key. Check the key in the Angel SmartAPI portal and try again."</em></p>
+  <p>(The wording may be different for TradeX or Bear Street keys.) Check that you copied the whole key, then try again.</p>
+  <figure>
+    <img src="screenshots/02-login-error.png" alt="Invalid key error">
+    <figcaption>Figure 3 — The error shown when an API key is not accepted</figcaption>
+  </figure>
+
+  <div class="callout note"><b>NOTE</b><p>If the app cannot reach Mintzy's servers (for example you are offline), the message instead says the app could not reach Mintzy. Check your internet connection and try again.</p></div>
+</section>
+
+<!-- ======================= 3. UNDERSTANDING THE INTERFACE ======================= -->
+<section id="s3">
+  <h2>3. Understanding the Interface</h2>
+  <p>After you sign in, you land on the <strong>Dashboard</strong>. The whole app shares the same shell: a sidebar on the left, a title bar at the top, and the main content area in the middle.</p>
+
+  <figure>
+    <img src="screenshots/04-annotated.png" alt="Annotated dashboard overview">
+    <figcaption>Figure 4 — The Dashboard with the main interface areas numbered</figcaption>
+  </figure>
+
+  <ol class="plain">
+    <li><strong>Sidebar (navigation).</strong> The vertical panel on the far left. It contains the Mintzy logo at the top, the main navigation (Dashboard, Launch Terminal, Documentation, Settings), and your name, email, and a <strong>Log out</strong> button at the bottom.</li>
+    <li><strong>Page title bar.</strong> The strip at the top of the content area. It always shows the name of the page you are on and a short description.</li>
+    <li><strong>Your account card.</strong> Shows a greeting ("Good morning / afternoon / evening"), your first name, your email, and your broker (for example <em>ANGLE_ONE</em>).</li>
+    <li><strong>Account metrics.</strong> Three summary cards: <strong>Cash in broker</strong>, <strong>Equity</strong>, and <strong>This month</strong> (the month's profit or loss).</li>
+    <li><strong>Live session status.</strong> A row that tells you how many sessions are live or ready, with a <em>View all</em> link to the full session list.</li>
+    <li><strong>Refresh.</strong> The <em>Updated …</em> text in the account card is also a button — click it to refresh the numbers right away. The app also refreshes automatically.</li>
+  </ol>
+
+  <h3>Collapsing the sidebar</h3>
+  <p>The sidebar can be collapsed to a narrow strip of icons to give the content more room. Click the collapse icon (two arrows pointing left) at the top of the sidebar to collapse it, and the expand icon (two arrows pointing right) to bring the labels back. When it is collapsed, hovering over the strip temporarily shows the labels.</p>
+</section>
+
+<!-- ======================= 4. NAVIGATION GUIDE ======================= -->
+<section id="s4">
+  <h2>4. Navigation Guide</h2>
+  <p>All navigation happens from the <strong>sidebar</strong> on the left. There are four destinations:</p>
+  <table>
+    <tr><th>Sidebar item</th><th>What it opens</th></tr>
+    <tr><td><strong>Dashboard</strong></td><td>Your account overview, session list, and performance figures.</td></tr>
+    <tr><td><strong>Launch Terminal</strong></td><td>The trading workspace: sessions sidebar, broker connection, and live charts.</td></tr>
+    <tr><td><strong>Documentation</strong></td><td>A short in-app guide to the whole application.</td></tr>
+    <tr><td><strong>Settings</strong></td><td>Desktop preferences (startup, tray, notifications) and app updates.</td></tr>
+  </table>
+  <figure>
+    <img src="screenshots/11-terminal-home.png" alt="Launch Terminal with sidebar">
+    <figcaption>Figure 5 — The sidebar (left) and the Launch Terminal page (right). Note the green "17 LIVE" badge showing how many sessions are active.</figcaption>
+  </figure>
+
+  <h3>How to move around</h3>
+  <ol class="steps">
+    <li>Click any item in the sidebar once. The page opens in the main content area.</li>
+    <li>Click <strong>Dashboard</strong> at any time to return to the account overview.</li>
+    <li>The currently open page is highlighted in green in the sidebar, with a green indicator bar on its left.</li>
+  </ol>
+
+  <h3>How to log out</h3>
+  <ol class="steps">
+    <li>Look at the bottom of the sidebar. You will see your avatar, your name, and your email.</li>
+    <li>Click the <strong>log out icon</strong> (the arrow-out-of-door symbol) on the right of your name.</li>
+    <li>The app returns to the sign-in screen. Your session is removed from this computer.</li>
+  </ol>
+  <figure>
+    <img src="screenshots/21-logout-login.png" alt="Login screen after logging out">
+    <figcaption>Figure 6 — After logging out you are returned to the sign-in screen</figcaption>
+  </figure>
+
+  <div class="callout note"><b>NOTE</b><p>If a trading session is live, a green <em>Live</em> badge appears on the <strong>Launch Terminal</strong> item in the sidebar so you always know trading is running, even from other pages.</p></div>
+</section>
+
+<!-- ======================= 5. FEATURE GUIDE ======================= -->
+<section id="s5">
+  <h2>5. Feature-by-Feature Guide</h2>
+
+  <!-- 5.1 Dashboard Overview -->
+  <h3>5.1 Dashboard — Overview</h3>
+  <p><strong>What it does:</strong> The Overview tab is the first thing you see after signing in. It summarises your account and recent performance.</p>
+  <p><strong>When to use it:</strong> Any time you want a quick answer to "how is my trading doing?"</p>
+  <figure>
+    <img src="screenshots/04-dashboard-overview.png" alt="Dashboard overview">
+    <figcaption>Figure 7 — Dashboard Overview: greeting card, three metrics, and live session status</figcaption>
+  </figure>
+  <h4>What each part means</h4>
+  <ul>
+    <li><strong>Cash in broker</strong> — the cash available in your broker account.</li>
+    <li><strong>Equity</strong> — your total account value including open positions.</li>
+    <li><strong>This month</strong> — the net profit (green) or loss (red) so far this month.</li>
+    <li><strong>Live session status</strong> — for example "1 live trading session" or "No live sessions".</li>
+    <li><strong>Performance</strong> (below, scroll down) — statistics computed from your session trades: best and worst scripts and days, average win rate, max drawdown, average risk:reward, overall returns, and winning/losing streaks.</li>
+  </ul>
+  <figure>
+    <img src="screenshots/04b-dashboard-performance.png" alt="Performance grid">
+    <figcaption>Figure 8 — The Performance section, computed from your session trades</figcaption>
+  </figure>
+
+  <!-- 5.2 Sessions -->
+  <h3>5.2 Dashboard — Sessions</h3>
+  <p><strong>What it does:</strong> The Sessions tab lists every trading session on your account, newest first. Sessions are shown 10 per page.</p>
+  <p><strong>When to use it:</strong> To find a past session, check a status, or download session data.</p>
+  <figure>
+    <img src="screenshots/05-dashboard-sessions.png" alt="Sessions table">
+    <figcaption>Figure 9 — The Sessions tab, listing every session with its status and a CSV download button</figcaption>
+  </figure>
+  <ol class="steps">
+    <li>Click the <strong>Sessions</strong> tab at the top of the Dashboard.</li>
+    <li>Each row shows a short session ID, the date, the status (Trading, Ready, Stopped, Completed, Abandoned, and so on), and a download button.</li>
+    <li>Click a row to open that session in <strong>Launch Terminal</strong> and read its logs and P&amp;L.</li>
+    <li>Click the <strong>download icon</strong> in a row to download that session's tradebook or logs as a CSV file.</li>
+    <li>Use the <strong>page controls</strong> at the bottom (previous, next, and page numbers) to move through many sessions.</li>
+  </ol>
+  <div class="callout tip"><b>TIP</b><p>The <em>Download latest</em> button at the top of the list downloads the most recent session's data in one click.</p></div>
+
+  <!-- 5.3 Month over month -->
+  <h3>5.3 Dashboard — Month over month</h3>
+  <p><strong>What it does:</strong> Shows your net profit or loss for each of the last 12 months as tiles.</p>
+  <p><strong>When to use it:</strong> To see your progress over time at a glance.</p>
+  <figure>
+    <img src="screenshots/06-dashboard-returns.png" alt="Month over month tiles">
+    <figcaption>Figure 10 — Month over month returns. Months with no trading show a dash.</figcaption>
+  </figure>
+  <p>Click the <strong>Month over month</strong> tab (or the link in the Performance section) to open it. Green numbers are profitable months; red numbers are losing months; a dash means no trading happened that month.</p>
+
+  <!-- 5.4 Launch Terminal -->
+  <h3>5.4 Launch Terminal</h3>
+  <p><strong>What it does:</strong> Launch Terminal is the trading workspace. The left panel lists your sessions; the main area is where you connect a broker, set up a session, and watch it trade.</p>
+  <p><strong>When to use it:</strong> To start a new trading session, resume a connected one, or review an old session.</p>
+  <figure>
+    <img src="screenshots/11-terminal-home.png" alt="Launch Terminal home">
+    <figcaption>Figure 11 — Launch Terminal with the sessions panel open. "Ready to trade" is shown when no session is selected.</figcaption>
+  </figure>
+  <h4>The sessions panel</h4>
+  <ul>
+    <li><strong>New session</strong> — starts the broker connection flow.</li>
+    <li><strong>Saved strategies</strong> — opens your saved trading setups.</li>
+    <li><strong>Live</strong> — sessions that are trading or simulating right now, with a green "Live" or amber "Sim" label.</li>
+    <li><strong>History</strong> — all finished sessions. Click one to view it read-only; hover and click the trash icon to delete it.</li>
+    <li>The panel can be collapsed with the panel icon at its top.</li>
+  </ul>
+  <div class="callout warning"><b>WARNING</b><p>A session that is <strong>Live</strong> is trading with real (or simulated) money right now. Deleting it, or stopping it from the live dashboard, stops that trading. Only delete sessions you no longer need.</p></div>
+
+  <!-- 5.5 Connect Broker -->
+  <h3>5.5 Connect Broker</h3>
+  <p><strong>What it does:</strong> Before a session can trade, the app connects to your broker with your broker credentials. The fields change depending on your broker:</p>
+  <ul>
+    <li><strong>Angel One</strong> — API Key, Client Code, Password / PIN.</li>
+    <li><strong>TradeX</strong> — Access Key / App Key, Client ID / User ID, Access Secret / Secret Key.</li>
+    <li><strong>Bear Street</strong> — API Key, User ID, Password, and Registered Mobile Number (one-step login, no separate code screen).</li>
+  </ul>
+  <figure>
+    <img src="screenshots/12-connect-broker.png" alt="Connect Broker form for Angel One">
+    <figcaption>Figure 12 — The Connect Broker form (this account uses Angel One). The broker is shown in the grey pill above the fields.</figcaption>
+  </figure>
+  <ol class="steps">
+    <li>In Launch Terminal, click <strong>New session</strong>.</li>
+    <li>Enter your broker's <strong>API key</strong>, <strong>client code</strong>, and <strong>password/PIN</strong> in the fields. Use the eye icon to reveal each password field.</li>
+    <li>Click <strong>Continue</strong>.</li>
+    <li>If your broker needs a second factor, the <strong>Two-Factor Auth</strong> screen appears next (see 5.6). Otherwise the app moves straight to the session configuration.</li>
+  </ol>
+  <div class="callout note"><b>NOTE</b><p>Submitting the credentials creates a session record on your account. If the login cannot be completed, that session stays in your History and can be deleted (see section 6.6).</p></div>
+
+  <!-- 5.6 Two-Factor Auth -->
+  <h3>5.6 Two-Factor Auth (2FA)</h3>
+  <p><strong>What it does:</strong> Some brokers require a 6-digit code (a TOTP) from an authenticator app to approve the login.</p>
+  <figure>
+    <img src="screenshots/13-two-factor-auth.png" alt="Two-Factor Auth screen">
+    <figcaption>Figure 13 — The Two-Factor Auth screen, where you enter the 6-digit code from your authenticator app</figcaption>
+  </figure>
+  <ol class="steps">
+    <li>Open your authenticator app (for example Google Authenticator) and find the code for your broker.</li>
+    <li>Type the 6-digit code into the large centred field.</li>
+    <li>Click <strong>Verify</strong>.</li>
+    <li>When accepted, the app moves to the session configuration screen.</li>
+  </ol>
+  <div class="callout danger"><b>WARNING</b><p>Codes expire every ~30 seconds. If the code is wrong or expired, a red message appears — in this example: <em>"Invalid or expired TOTP. Wait for a new code in your authenticator and try again."</em> Wait for the next code and try again. The field clears itself so you can't accidentally submit a used code.</p></div>
+  <figure>
+    <img src="screenshots/14-two-factor-error.png" alt="Two-Factor Auth error">
+    <figcaption>Figure 14 — The error shown when the 6-digit code is invalid or expired</figcaption>
+  </figure>
+  <p>Click <strong>Back</strong> if you entered the wrong broker credentials and want to reconnect.</p>
+
+  <h3>5.7 Configure Session (not fully verified)</h3>
+  <p><strong>What it does:</strong> After the broker accepts your login, the app shows the <strong>Configure Session</strong> screen where you set your trading parameters before starting.</p>
+  <p>This screen could <strong>not be fully captured for this guide</strong>, because reaching it requires a successful live broker login. Based on the application's design it contains the same fields shown in the Saved Strategies editor (section 5.8):</p>
+  <ul>
+    <li><strong>Saved strategy</strong> — pick a saved setup to fill the form automatically.</li>
+    <li><strong>Candle interval</strong> — 1m, 5m, 15m, or 75m.</li>
+    <li><strong>Strategy</strong> — Stoppage Reversal or Exposure Expansion.</li>
+    <li><strong>Use available broker cash</strong> — let trades draw from your broker balance.</li>
+    <li><strong>Manual allocation</strong> — add one or more stocks, each with a capital amount and stop-loss percentage.</li>
+    <li><strong>Leverage</strong> — 1×–5× position scaling for a saved strategy.</li>
+    <li><strong>Start Trading</strong> — starts the session; <strong>Abandon session</strong> closes it without trading.</li>
+  </ul>
+  <div class="callout note"><b>NOTE</b><p>For Angel One and Bear Street, trading begins in <strong>simulation</strong> and can switch to live; TradeX starts live. See the in-app Documentation page for more detail.</p></div>
+
+  <!-- 5.8 Saved Strategies -->
+  <h3>5.8 Saved Strategies</h3>
+  <p><strong>What it does:</strong> Saved Strategies stores reusable trading setups so you don't have to re-enter them every session.</p>
+  <p><strong>When to use it:</strong> When you have a setup you like, save it once and reuse it — or <em>Quick Start</em> it on an existing session.</p>
+  <figure>
+    <img src="screenshots/15-saved-strategies.png" alt="Saved strategies list">
+    <figcaption>Figure 15 — The Saved Strategies page. Each card shows the strategy's summary; the editor opens on the right.</figcaption>
+  </figure>
+  <h4>What each card shows</h4>
+  <ul>
+    <li><strong>Name and description</strong> of the strategy.</li>
+    <li>Badges such as <em>4 manual</em>, <em>4 auto</em>, the strategy name, the candle interval, and leverage (for example <em>3× leverage</em>).</li>
+    <li><strong>View / Edit</strong> — open the setup in the editor.</li>
+    <li><strong>Quick Start</strong> — start this strategy on the currently connected session (only appears when a session is connected).</li>
+    <li><strong>Delete</strong> — remove the strategy (you are asked to confirm).</li>
+  </ul>
+  <div class="callout note"><b>NOTE</b><p>Your account allows a limited number of saved strategies (5 on the test account used for this guide). If you reach the limit, delete one before saving another.</p></div>
+
+  <!-- 5.9 Settings -->
+  <h3>5.9 Settings</h3>
+  <p><strong>What it does:</strong> The Settings page controls how the desktop app behaves on your computer.</p>
+  <figure>
+    <img src="screenshots/09-settings.png" alt="Settings page">
+    <figcaption>Figure 16 — The Settings page</figcaption>
+  </figure>
+  <ul>
+    <li><strong>Auto-launch on startup</strong> — open Mintzy automatically when you log into Windows.</li>
+    <li><strong>Minimize to tray</strong> — when on, closing the window (X) hides Mintzy in the system tray instead of quitting; click the tray icon to reopen. When off, X quits the app completely.</li>
+    <li><strong>Desktop notifications</strong> — show system alerts for updates and important events.</li>
+    <li><strong>App updates</strong> — click <em>Check for updates</em> to look for a newer version. If one is ready, an <em>Install now</em> button appears.</li>
+    <li><strong>About</strong> — shows the app version and a link to manage billing on mintzy.in.</li>
+  </ul>
+  <ol class="steps">
+    <li>Click a toggle switch to turn a setting on or off. The switch slides and changes colour.</li>
+    <li>A confirmation message appears in the bottom-right corner of the window for a few seconds.</li>
+  </ol>
+  <figure>
+    <img src="screenshots/10-settings-toast.png" alt="Settings with confirmation toast">
+    <figcaption>Figure 17 — A confirmation toast appears in the bottom-right after changing a setting</figcaption>
+  </figure>
+  <div class="callout note"><b>NOTE</b><p>These desktop settings are only available in the installed desktop app. In a web preview they show a notice saying so.</p></div>
+
+  <!-- 5.10 Documentation -->
+  <h3>5.10 Documentation (in-app)</h3>
+  <p><strong>What it does:</strong> The Documentation page is a built-in guide covering sign-in, the dashboard, how the performance figures are calculated, the terminal, trade logs, live P&amp;L, settings, and the sidebar.</p>
+  <figure>
+    <img src="screenshots/20-docs.png" alt="In-app Documentation page">
+    <figcaption>Figure 18 — The built-in Documentation page. Click the pill buttons to jump to a section.</figcaption>
+  </figure>
+</section>
+
+<!-- ======================= 6. WORKFLOWS ======================= -->
+<section id="s6">
+  <h2>6. Workflow Walkthroughs</h2>
+  <p>These walkthroughs take you through the app's most common tasks end to end.</p>
+
+  <!-- 6.1 Sign in -->
+  <h3>6.1 Sign in to the app</h3>
+  <p><strong>Goal:</strong> Open the app and reach your Dashboard.</p>
+  <p><strong>Starting point:</strong> The app is installed and you have your Mintzy API key.</p>
+  <ol class="steps">
+    <li>Double-click the <strong>Mintzy Plugin</strong> icon to open the app.</li>
+    <li>On the sign-in screen, click the <strong>API Key</strong> field.</li>
+    <li>Paste your API key (the dots hide it).</li>
+    <li>Click <strong>Continue</strong>.</li>
+    <li>Wait a moment for <em>Verifying…</em> to finish. The Dashboard opens.</li>
+  </ol>
+  <p><strong>Expected result:</strong> You see the Dashboard with your name, metrics, and session status. If you see a red error instead, go to section 7.</p>
+
+  <!-- 6.2 Browse the dashboard -->
+  <h3>6.2 Browse the dashboard</h3>
+  <p><strong>Goal:</strong> Understand your current trading position.</p>
+  <p><strong>Starting point:</strong> You are signed in on the Dashboard.</p>
+  <ol class="steps">
+    <li>Read the three metric cards: <strong>Cash in broker</strong>, <strong>Equity</strong>, and <strong>This month</strong>.</li>
+    <li>Check the <strong>live session status</strong> row to see if anything is trading.</li>
+    <li>Click <strong>Sessions</strong> to browse the full list; click a row to open a session.</li>
+    <li>Click <strong>Month over month</strong> to see the last 12 months.</li>
+    <li>Scroll the Overview tab to see the <strong>Performance</strong> statistics.</li>
+  </ol>
+  <p><strong>Expected result:</strong> You can see your cash, equity, monthly P&amp;L, sessions, and performance figures.</p>
+
+  <!-- 6.3 Create a saved strategy -->
+  <h3>6.3 Create a saved strategy</h3>
+  <p><strong>Goal:</strong> Save a trading setup you can reuse later.</p>
+  <p><strong>Starting point:</strong> You are signed in.</p>
+  <ol class="steps">
+    <li>In the sidebar, click <strong>Launch Terminal</strong>.</li>
+    <li>In the sessions panel on the left, click <strong>Saved strategies</strong>.</li>
+    <li>Click <strong>New strategy</strong> at the top.</li>
+    <li>Enter a <strong>Strategy name</strong> (for example "Morning momentum") and an optional <strong>Description</strong>.</li>
+    <li>Choose a <strong>Candle interval</strong> and a <strong>Strategy</strong>.</li>
+    <li>Optionally tick <strong>Use available broker cash</strong>.</li>
+    <li>Under <strong>Manual allocation</strong>, click <strong>Add</strong> to add a stock.</li>
+    <li>Click the <strong>Select symbol</strong> box, type the stock name in the search box (for example <code>HCLTECH</code>), and click the matching result.</li>
+    <li>Enter the <strong>Capital</strong> in rupees and the <strong>Stop loss</strong> percentage.</li>
+    <li>Click <strong>Save strategy</strong>.</li>
+    <li>A confirmation toast appears: <em>"Strategy saved"</em>. The editor stays open so you can now set leverage (1×–5×) with the <strong>Set leverage</strong> control.</li>
+  </ol>
+  <figure>
+    <img src="screenshots/16-strategy-form.png" alt="New strategy form">
+    <figcaption>Figure 19 — The strategy editor with a manual allocation added</figcaption>
+  </figure>
+  <figure>
+    <img src="screenshots/17-strategy-saved.png" alt="Strategy saved">
+    <figcaption>Figure 20 — After saving, the editor remains open and the leverage control becomes available</figcaption>
+  </figure>
+  <p><strong>Expected result:</strong> Your new strategy appears as a card in the list with its badges.</p>
+
+  <!-- 6.4 Delete a saved strategy -->
+  <h3>6.4 Delete a saved strategy</h3>
+  <p><strong>Goal:</strong> Remove a strategy you no longer need.</p>
+  <p><strong>Starting point:</strong> You are on the Saved Strategies page.</p>
+  <ol class="steps">
+    <li>Find the strategy's card and click <strong>Delete</strong>.</li>
+    <li>A confirmation dialog appears: <em>"Delete strategy?"</em> with the strategy's name.</li>
+    <li>Click <strong>Delete</strong> to remove it, or <strong>Cancel</strong> to keep it.</li>
+    <li>After deleting, a toast confirms the deletion and the card disappears.</li>
+  </ol>
+  <figure>
+    <img src="screenshots/18-delete-strategy-confirm.png" alt="Delete strategy confirmation">
+    <figcaption>Figure 21 — The confirmation dialog before deleting a strategy</figcaption>
+  </figure>
+  <div class="callout danger"><b>WARNING</b><p>Deleting a strategy is permanent and cannot be undone. If you might want it again, keep it.</p></div>
+
+  <!-- 6.5 Connect a broker and start a session -->
+  <h3>6.5 Connect a broker and start a session</h3>
+  <p><strong>Goal:</strong> Start a trading session connected to your broker.</p>
+  <p><strong>Starting point:</strong> You are signed in, and you have your broker credentials ready.</p>
+  <ol class="steps">
+    <li>In the sidebar, click <strong>Launch Terminal</strong>.</li>
+    <li>Click <strong>New session</strong> (in the main area, or in the sessions panel).</li>
+    <li>On the <strong>Connect Broker</strong> screen, enter your broker's API key, client code, and password/PIN (fields vary by broker — see section 5.5).</li>
+    <li>Click <strong>Continue</strong>.</li>
+    <li>If asked, enter the <strong>6-digit code</strong> from your authenticator app on the <strong>Two-Factor Auth</strong> screen and click <strong>Verify</strong>.</li>
+    <li>On the <strong>Configure Session</strong> screen, set your strategy and allocation (section 5.7), then click <strong>Start Trading</strong>.</li>
+    <li>You are taken to the live session dashboard where the chart, P&amp;L, and trade logs appear.</li>
+  </ol>
+  <p><strong>Expected result:</strong> A live dashboard with the session's P&amp;L chart, logs, and status.</p>
+  <div class="callout warning"><b>WARNING</b><p>Steps 4–7 require a real, valid broker account. This guide could only verify up to the Two-Factor Auth step (sections 5.5–5.6). The configuration and live-trading screens were not captured because they need a live broker connection. Follow the on-screen steps carefully — trading involves real financial risk.</p></div>
+
+  <!-- 6.6 Delete a session -->
+  <h3>6.6 Delete a session</h3>
+  <p><strong>Goal:</strong> Remove an old session from the list.</p>
+  <p><strong>Starting point:</strong> You are in Launch Terminal.</p>
+  <ol class="steps">
+    <li>In the sessions panel, go to the <strong>History</strong> section.</li>
+    <li>Hover over a session row to reveal the <strong>trash icon</strong> on its right, and click it.</li>
+    <li>A confirmation dialog appears: <em>"Delete session?"</em> — it warns that the session and its history will be permanently removed and the tradebook CSV will no longer be downloadable.</li>
+    <li>Click <strong>Delete</strong> to remove it, or <strong>Cancel</strong> to keep it.</li>
+  </ol>
+  <figure>
+    <img src="screenshots/19-session-delete-confirm.png" alt="Delete session confirmation">
+    <figcaption>Figure 22 — The confirmation dialog before deleting a session</figcaption>
+  </figure>
+  <div class="callout danger"><b>WARNING</b><p>Never delete a session that is currently <strong>Live</strong> unless you intend to stop that trading. Deleting removes its tradebook downloads too.</p></div>
+
+  <!-- 6.7 Log out -->
+  <h3>6.7 Log out</h3>
+  <p><strong>Goal:</strong> Sign out and return to the login screen.</p>
+  <p><strong>Starting point:</strong> You are signed in.</p>
+  <ol class="steps">
+    <li>At the bottom of the sidebar, click the <strong>log out icon</strong> next to your name.</li>
+    <li>The app returns to the sign-in screen. Your session is cleared from this computer.</li>
+  </ol>
+  <p><strong>Expected result:</strong> The sign-in screen appears (Figure 6).</p>
+</section>
+
+<!-- ======================= 7. TROUBLESHOOTING ======================= -->
+<section id="s7">
+  <h2>7. Troubleshooting</h2>
+  <p>For each problem below, the possible cause and the solution are based on behaviour observed while testing the app.</p>
+
+  <h3>I can't log in</h3>
+  <table>
+    <tr><th>Problem</th><th>Possible cause</th><th>Solution</th></tr>
+    <tr><td>"Invalid … API key" red message</td><td>The key is mistyped, incomplete, or not for this account</td><td>Copy the whole key again from your Mintzy account and re-paste it. Check for stray spaces.</td></tr>
+    <tr><td>"Could not reach Mintzy…" message</td><td>No internet connection, or the servers are unreachable</td><td>Check your internet connection and try again. If it persists, try again later.</td></tr>
+    <tr><td>Nothing happens after clicking Continue</td><td>The app is still verifying</td><td>Wait a few seconds. If it stays stuck, close and reopen the app and try again.</td></tr>
+  </table>
+
+  <h3>I can't find a button or page</h3>
+  <table>
+    <tr><th>Problem</th><th>Possible cause</th><th>Solution</th></tr>
+    <tr><td>I don't see the navigation labels</td><td>The sidebar is collapsed to icons</td><td>Click the expand icon (two arrows pointing right) at the top of the sidebar, or hover over it to peek.</td></tr>
+    <tr><td>No "Saved strategies" text</td><td>The sessions panel is collapsed to icons</td><td>In Launch Terminal, click the panel icon (bars) at the top-left of the sessions rail.</td></tr>
+    <tr><td>I can't find "New session"</td><td>There are two: one in the main area, one in the sessions panel</td><td>Click either — the one in the main area appears when no session is selected.</td></tr>
+  </table>
+
+  <h3>A button appears disabled or won't submit</h3>
+  <table>
+    <tr><th>Problem</th><th>Possible cause</th><th>Solution</th></tr>
+    <tr><td>Continue / Verify button is greyed out</td><td>A required field is empty, or the app is busy</td><td>Fill every field. On the 2FA screen, enter all 6 digits before the Verify button enables.</td></tr>
+    <tr><td>Form won't submit</td><td>Required fields are missing (e.g. "Fill in all fields")</td><td>Complete all fields and try again. For Bear Street, the registered mobile number is required.</td></tr>
+    <tr><td>Quick Start button is missing</td><td>No session is connected</td><td>Connect a broker session first (section 6.5); Quick Start appears only with a connected session.</td></tr>
+  </table>
+
+  <h3>The 2FA code fails</h3>
+  <table>
+    <tr><th>Problem</th><th>Possible cause</th><th>Solution</th></tr>
+    <tr><td>"Invalid or expired TOTP…"</td><td>The code was mistyped or rotated (codes change every ~30 s)</td><td>Wait for the next code in your authenticator and type it immediately. The field clears itself after an error.</td></tr>
+  </table>
+
+  <h3>Data looks wrong or missing</h3>
+  <table>
+    <tr><th>Problem</th><th>Possible cause</th><th>Solution</th></tr>
+    <tr><td>Dashboard shows dashes for performance</td><td>No live trades yet, or statistics are still being calculated</td><td>Wait for the app to finish (the header says "Recalculating…"). Figures settle once a day at 4:30 pm IST.</td></tr>
+    <tr><td>"No trading sessions yet"</td><td>No sessions on this account yet</td><td>Start one from Launch Terminal. Past sessions appear here.</td></tr>
+    <tr><td>Search produces no results (symbol picker)</td><td>The symbol isn't in the supported list, or the spelling differs</td><td>Only the supported symbols list is searchable. Try the full name as shown in existing strategies (e.g. HCLTECH, not "HCL").</td></tr>
+    <tr><td>Numbers are from an old time</td><td>The dashboard refreshes on a timer and on focus</td><td>Click <em>Updated …</em> in the account card to refresh immediately.</td></tr>
+    <tr><td>Session shows "Connecting" and never advances</td><td>The broker login was not completed</td><td>Go Back and reconnect your credentials, or delete that session from History.</td></tr>
+  </table>
+
+  <h3>Session / account problems</h3>
+  <table>
+    <tr><th>Problem</th><th>Possible cause</th><th>Solution</th></tr>
+    <tr><td>You're sent back to the login screen suddenly</td><td>Your session expired (the app signs you out)</td><td>Sign in again with your API key. A fresh session lasts up to 24 hours.</td></tr>
+    <tr><td>You deleted something by accident</td><td>—</td><td>Deletion is permanent and cannot be undone. Keep backups of any CSVs you need.</td></tr>
+    <tr><td>"You've reached the maximum number of saved strategies"</td><td>Your plan limits how many strategies can be saved</td><td>Delete an unneeded strategy, then save the new one.</td></tr>
+    <tr><td>"Couldn't load trading data"</td><td>Network issue while loading the dashboard</td><td>Click <strong>Retry</strong>, or check your connection.</td></tr>
+  </table>
+</section>
+
+<!-- ======================= 8. FAQ ======================= -->
+<section id="s8">
+  <h2>8. Frequently Asked Questions</h2>
+
+  <h4>Where do I start?</h4>
+  <p>Open the app, sign in with your Mintzy API key (section 2.3), and you land on the Dashboard. From there use the sidebar to move around.</p>
+
+  <h4>How do I get an API key?</h4>
+  <p>API keys come from your Mintzy account at <code>mintzy.in</code>. The app's sign-in screen links to it. The key also determines which broker your sessions use.</p>
+
+  <h4>How do I create a saved strategy?</h4>
+  <p>Go to <strong>Launch Terminal → Saved strategies → New strategy</strong>, fill in the setup, and click <strong>Save strategy</strong>. See section 6.3.</p>
+
+  <h4>Where can I find my trading sessions?</h4>
+  <p>Two places: the <strong>Sessions</strong> tab on the Dashboard (all sessions, paginated), and the <strong>sessions panel</strong> inside Launch Terminal (Live and History).</p>
+
+  <h4>How do I open an old session?</h4>
+  <p>Click its row in the Dashboard's Sessions tab, or click it in the Launch Terminal sessions panel. It opens read-only with its trade log and P&amp;L.</p>
+
+  <h4>How do I download my session data?</h4>
+  <p>In the Sessions tab, click the download icon in a row (or <em>Download latest</em> at the top). You get a CSV of the tradebook or logs.</p>
+
+  <h4>How do I edit a saved strategy?</h4>
+  <p>On the Saved Strategies page, click <strong>View / Edit</strong> on the strategy's card, change the fields, then click <strong>Update strategy</strong>.</p>
+
+  <h4>How do I delete a saved strategy or a session?</h4>
+  <p>Strategy: click <strong>Delete</strong> on its card and confirm. Session: in Launch Terminal, hover the session in History and click the trash icon, then confirm. See sections 6.4 and 6.6.</p>
+
+  <h4>How do I change my settings?</h4>
+  <p>Click <strong>Settings</strong> in the sidebar. Toggle auto-launch, minimize-to-tray, and notifications, and check for app updates. See section 5.9.</p>
+
+  <h4>How do I log out?</h4>
+  <p>Click the log out icon at the bottom of the sidebar (section 6.7).</p>
+
+  <h4>Why do I see a green "Live" mark on Launch Terminal?</h4>
+  <p>It means a session is trading right now. Open Launch Terminal to see it.</p>
+
+  <h4>Why is my performance shown as dashes?</h4>
+  <p>Performance is computed from your live session trades and settles once a day at 4:30 pm IST. If you have no qualifying trades yet, or the calculation hasn't finished, dashes are shown.</p>
+</section>
+
+<!-- ======================= 9. GLOSSARY ======================= -->
+<section id="s9">
+  <h2>9. Glossary</h2>
+  <table>
+    <tr><th>Term</th><th>Meaning</th></tr>
+    <tr><td><strong>API key</strong></td><td>The secret key from your Mintzy account that signs you in to the app. It also decides which broker the app trades through.</td></tr>
+    <tr><td><strong>Broker</strong></td><td>The company that holds your trading account (for example Angel One, TradeX, or Bear Street). The app trades through your broker.</td></tr>
+    <tr><td><strong>Session</strong></td><td>One run of the trading bot. A session connects to your broker, runs a strategy, and records its trades and P&amp;L.</td></tr>
+    <tr><td><strong>Live session</strong></td><td>A session that is trading right now.</td></tr>
+    <tr><td><strong>Simulation</strong></td><td>Practice trading with no real money, used before going live (Angel One and Bear Street). Sim rows are tagged "Sim" in the logs.</td></tr>
+    <tr><td><strong>TOTP</strong></td><td>A 6-digit time-based code from an authenticator app, used as the second step of broker login.</td></tr>
+    <tr><td><strong>P&amp;L</strong></td><td>Profit and loss — the money made or lost.</td></tr>
+    <tr><td><strong>Equity</strong></td><td>The total value of your account including open positions.</td></tr>
+    <tr><td><strong>Free cash / Cash in broker</strong></td><td>The cash available in your broker account for trading.</td></tr>
+    <tr><td><strong>Saved strategy</strong></td><td>A saved trading setup (symbols, capital, stop-loss, candle, strategy) you can reuse.</td></tr>
+    <tr><td><strong>Leverage</strong></td><td>A 1×–5× multiplier that scales the position size of a saved strategy.</td></tr>
+    <tr><td><strong>Candle interval</strong></td><td>The timeframe of the price candles the strategy trades on (1m, 5m, 15m, 75m).</td></tr>
+    <tr><td><strong>Stop loss</strong></td><td>The percentage price drop that closes a trade to limit a loss.</td></tr>
+    <tr><td><strong>Tradebook</strong></td><td>The record of all trades placed in a session.</td></tr>
+    <tr><td><strong>CSV</strong></td><td>A spreadsheet-style file you can open in Excel; used to download session logs and tradebooks.</td></tr>
+    <tr><td><strong>Drawdown</strong></td><td>The largest drop from a peak in your performance — a measure of risk.</td></tr>
+    <tr><td><strong>Win rate</strong></td><td>The share of trading days that ended with a profit.</td></tr>
+  </table>
+</section>
+
+<!-- ======================= 10. QUICK START ======================= -->
+<section id="s10">
+  <h2>10. Quick Start Guide</h2>
+  <p>The fastest path to using the app's main purpose — automated trading — in seven steps.</p>
+  <ol class="steps">
+    <li><strong>Sign in.</strong> Open the app, paste your Mintzy API key, click <strong>Continue</strong>.</li>
+    <li><strong>Check the Dashboard.</strong> Look at your cash, equity, and this month's P&amp;L.</li>
+    <li><strong>Open Launch Terminal</strong> from the sidebar.</li>
+    <li><strong>Save a strategy</strong> (optional): Saved strategies → New strategy → Save strategy. Or use a strategy you already saved.</li>
+    <li><strong>Start a session:</strong> click <strong>New session</strong>, enter your broker credentials, and continue (enter the 6-digit code if asked).</li>
+    <li><strong>Configure and start:</strong> choose your strategy and allocation, then click <strong>Start Trading</strong>.</li>
+    <li><strong>Watch:</strong> the live dashboard shows the P&amp;L chart and trade log. Find it again any time from the sessions panel.</li>
+  </ol>
+  <figure>
+    <img src="screenshots/11-terminal-home.png" alt="Launch Terminal quick start">
+    <figcaption>Figure 23 — Launch Terminal, where sessions are started and watched</figcaption>
+  </figure>
+  <div class="callout tip"><b>TIP</b><p>Still unsure? The built-in <strong>Documentation</strong> page (sidebar → Documentation) summarises everything, and sections 5–6 of this guide cover each feature and workflow in detail.</p></div>
+  <p style="margin-top:18px;color:var(--muted);font-size:9pt;">End of guide — Mintzy Plugin v1.1.9. Screenshots captured from the live application on a test account. Verify against your own screen; broker names and error wording may vary by account.</p>
+</section>
+
+</body>
+</html>
