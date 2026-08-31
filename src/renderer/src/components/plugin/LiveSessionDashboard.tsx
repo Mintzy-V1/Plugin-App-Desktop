@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee } from 'lucide-react';
-import { pluginApi } from '../../lib/pluginApi';
+import { pluginApi, supportsPyramidPnl } from '../../lib/pluginApi';
+import {
+  pyramidPnlForLog,
+  parsePyramidPnlBySymbol,
+  extractOnePmPnlFromHistory,
+  mergePyramidMaps,
+} from '../../lib/pyramidPnl';
 import { useToast } from '../ui/Toast';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import {
@@ -519,6 +525,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const [confirming, setConfirming] = useState<'stop' | 'force' | null>(null);
   const [stopping, setStopping] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [pyramidPnlBySymbol, setPyramidPnlBySymbol] = useState<Record<string, number>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const seenLiveRef = useRef(!readOnly && isLiveSessionStatus(initialStatus));
   const logsRef = useRef<TradeLogRow[]>([]);
@@ -545,7 +552,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     const forSession = sessionId;
     // Pull from several endpoints in parallel — same strategy as the web plugin UI.
     // A failure in one source must not blank out status / cash / logs.
-    const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes] = await Promise.allSettled([
+    const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes, pyramidRes] = await Promise.allSettled([
       pluginApi.getDashboard(sessionId),
       pluginApi.getSessionStatus(sessionId),
       pluginApi.getSessionTrades(sessionId),
@@ -554,6 +561,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       pluginApi.getFullSessionState(),
       pluginApi.getLivePnl(sessionId),
       pluginApi.getLivePnlHistory(sessionId),
+      supportsPyramidPnl() ? pluginApi.getPyramidPnl(sessionId) : Promise.resolve(null),
     ]);
     if (fetchForSessionRef.current !== forSession) return;
 
@@ -570,7 +578,15 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
     const livePnl = livePnlRes.status === 'fulfilled' ? livePnlRes.value.data : null;
     const historyRaw = historyRes.status === 'fulfilled' ? historyRes.value.data : null;
-    const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes].some(r => r.status === 'fulfilled');
+    if (supportsPyramidPnl()) {
+      const fromApi = pyramidRes.status === 'fulfilled' && pyramidRes.value != null
+        ? parsePyramidPnlBySymbol(pyramidRes.value.data)
+        : {};
+      const fromHistory = extractOnePmPnlFromHistory(historyRaw);
+      const mergedPyramid = mergePyramidMaps(fromHistory, fromApi);
+      if (Object.keys(mergedPyramid).length > 0) setPyramidPnlBySymbol(mergedPyramid);
+    }
+    const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes, pyramidRes].some(r => r.status === 'fulfilled');
     setConnected(anyOk);
 
     const snapshot = (fullMatches?.snapshot as any)?.data
@@ -644,6 +660,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     setConnected(true);
     setSimulationStatus(null);
     setLiveStartedAtMs(null);
+    setPyramidPnlBySymbol({});
     seenLiveRef.current = !readOnly && isLiveSessionStatus(initialStatus);
     if (initialStatus) setSessionStatus(initialStatus);
     else setSessionStatus('');
@@ -814,7 +831,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                 </thead>
                 <tbody>
                   {logs.map((log, i) => {
-                    const pnlNum = Number(log.pnl);
+                    const displayPnl = pyramidPnlForLog(log.symbol, log.timeMs, log.pnl, pyramidPnlBySymbol);
+                    const pnlNum = Number(displayPnl);
                     const changeNum = Number(log.change);
                     const pnlColor = Number.isFinite(pnlNum) ? (pnlNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
                     const changeColor = Number.isFinite(changeNum) ? (changeNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
@@ -868,7 +886,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                           <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
                             {isPlaceholderValue(log.change) ? '—' : `${Number.isFinite(changeNum) && changeNum > 0 ? '+' : ''}${formatCell(log.change)}${Number.isFinite(changeNum) ? '%' : ''}`}
                           </td>
-                          <td className={`px-3.5 py-2 text-right font-mono ${pnlColor}`}>{formatCell(log.pnl, true)}</td>
+                          <td className={`px-3.5 py-2 text-right font-mono ${pnlColor}`}>{formatCell(displayPnl, true)}</td>
                           <td className="px-3.5 py-2 text-right font-mono">{formatCell(log.capital, true)}</td>
                           <td className={`px-3.5 py-2 text-right font-mono ${changeColor}`}>
                             {isPlaceholderValue(log.return_pct) ? '—' : `${formatCell(log.return_pct)}${Number.isFinite(Number(log.return_pct)) ? '%' : ''}`}

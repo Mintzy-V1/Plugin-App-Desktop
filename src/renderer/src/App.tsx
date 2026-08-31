@@ -26,10 +26,63 @@ const PANE_WIDTH: Record<NavItem, string> = {
 
 const SIDEBAR_KEY = 'mintzy.sidebar.pinned';
 
-function AppContent() {
-  const { user, loading } = useAuth();
+interface AuthenticatedAppProps {
+  sidebarPinned: boolean;
+  onToggleSidebar: () => void;
+}
+
+/** Per-account shell — remounts on login so navigation state cannot leak across API keys. */
+function AuthenticatedApp({ sidebarPinned, onToggleSidebar }: AuthenticatedAppProps) {
+  const { user } = useAuth();
   const [activeView, setActiveView] = useState<NavItem>('dashboard');
   const [pluginSession, setPluginSession] = useState<TradingSession | null>(null);
+
+  if (!user) return null;
+
+  const meta = VIEW_META[activeView];
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#f7f8fa]">
+      <Sidebar
+        active={activeView}
+        onNavigate={(item) => {
+          if (item === 'plugin' && activeView !== 'plugin') setPluginSession(null);
+          setActiveView(item);
+        }}
+        collapsed={!sidebarPinned}
+        onToggleCollapse={onToggleSidebar}
+      />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Navbar title={meta.title} subtitle={meta.subtitle} />
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          <div key={activeView} className="h-full min-h-0">
+            {activeView === 'plugin' ? (
+              <PluginPage initialSession={pluginSession} />
+            ) : (
+              <div className="h-full overflow-y-auto">
+                <div className={`page-pad mx-auto w-full ${PANE_WIDTH[activeView]}`}>
+                  {activeView === 'dashboard' && (
+                    <DashboardPage
+                      onOpenSession={(session) => {
+                        setPluginSession(session);
+                        setActiveView('plugin');
+                      }}
+                    />
+                  )}
+                  {activeView === 'docs' && <DocsPage />}
+                  {activeView === 'settings' && <SettingsPage />}
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function AppContent() {
+  const { user, loading } = useAuth();
   const [sidebarPinned, setSidebarPinned] = useState(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; }
   });
@@ -58,45 +111,12 @@ function AppContent() {
   }
   if (!user) return <LoginPage />;
 
-  const meta = VIEW_META[activeView];
-
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f7f8fa]">
-      <Sidebar
-        active={activeView}
-        onNavigate={(item) => {
-          if (item === 'plugin' && activeView !== 'plugin') setPluginSession(null);
-          setActiveView(item);
-        }}
-        collapsed={!sidebarPinned}
-        onToggleCollapse={toggleSidebar}
-      />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Navbar title={meta.title} subtitle={meta.subtitle} />
-        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          <div key={activeView} className="h-full min-h-0">
-            {activeView === 'plugin' ? (
-              <PluginPage initialSession={pluginSession} />
-            ) : (
-              <div className="h-full overflow-y-auto">
-                <div className={`page-pad mx-auto w-full ${PANE_WIDTH[activeView]}`}>
-                  {activeView === 'dashboard' && (
-                    <DashboardPage
-                      onOpenSession={(session) => {
-                        setPluginSession(session);
-                        setActiveView('plugin');
-                      }}
-                    />
-                  )}
-                  {activeView === 'docs' && <DocsPage />}
-                  {activeView === 'settings' && <SettingsPage />}
-                </div>
-              </div>
-            )}
-          </div>
-        </main>
-      </div>
-    </div>
+    <AuthenticatedApp
+      key={user.id}
+      sidebarPinned={sidebarPinned}
+      onToggleSidebar={toggleSidebar}
+    />
   );
 }
 

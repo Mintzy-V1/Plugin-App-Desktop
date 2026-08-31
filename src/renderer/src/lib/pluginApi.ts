@@ -20,6 +20,12 @@ export const getBrokerKey = (): BrokerKey => {
 /** All supported brokers expose the saved-configuration leverage endpoint. */
 export const supportsLeverageMultiplier = () => true;
 
+/** Angel One and Bear Street run the sim → live pyramid flow and expose pyramid P&L. */
+export function supportsPyramidPnl(): boolean {
+  const key = getBrokerKey();
+  return key === 'bear_street' || key === 'angle_one';
+}
+
 const getBase = () => {
   const key = getBrokerKey();
   if (key === 'tradex') return '/api/v1/tradex';
@@ -267,6 +273,11 @@ export const pluginApi = {
       `${getBase()}/trading/live-pnl/${sessionId}/history`,
       { params: { date } }
     );
+  },
+
+  /** Unrealized P&L at the 1 PM pyramid snapshot (Angel One + Bear Street). */
+  getPyramidPnl(sessionId: string) {
+    return api.get<Record<string, unknown>>(`${getBase()}/trading/pyramid-pnl/${sessionId}`);
   },
 
   downloadTradebook(sessionId: string) {

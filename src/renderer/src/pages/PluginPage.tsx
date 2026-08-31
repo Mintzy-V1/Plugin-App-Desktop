@@ -54,7 +54,7 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
     });
   };
 
-  useEffect(() => { fetchSessions(); }, []);
+  useEffect(() => { fetchSessions(); }, [user?.id]);
 
   // Auto-collapse session panel when entering live dashboard to free space for charts
   useEffect(() => {

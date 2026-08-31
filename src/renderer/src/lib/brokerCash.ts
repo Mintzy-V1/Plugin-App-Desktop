@@ -55,6 +55,12 @@ export function readRememberedBrokerCash(): number | null {
   }
 }
 
+export function clearRememberedBrokerCash(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
 /** NSE cash session is 09:15–15:30 IST. */
 export function isAfterMarketCloseIST(now = new Date()): boolean {
   const parts = new Intl.DateTimeFormat('en-GB', {

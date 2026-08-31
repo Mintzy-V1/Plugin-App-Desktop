@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { onboard } from '../lib/gateway';
 import { pluginErrorMessage } from '../lib/pluginErrors';
+import { clearAccountClientState } from '../lib/accountReset';
 
 interface User {
   id: string;
@@ -23,6 +24,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const accountIdRef = useRef<string | null>(null);
+
+  const resetAccountState = useCallback(() => {
+    clearAccountClientState();
+    accountIdRef.current = null;
+  }, []);
+
+  const adoptUser = useCallback((next: User) => {
+    if (accountIdRef.current && accountIdRef.current !== next.id) {
+      clearAccountClientState();
+    }
+    accountIdRef.current = next.id;
+    setUser(next);
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('mintzy_token');
@@ -40,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const payload = JSON.parse(atob(parts[1]));
         if (payload.userId && payload.email) {
-          setUser({
+          adoptUser({
             id: payload.userId,
             name: payload.name,
             email: payload.email,
@@ -54,7 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // showing the login page with a stale token in storage.
     localStorage.removeItem('mintzy_token');
     setToken(null);
-  }, [token, user]);
+    setUser(null);
+  }, [token, user, adoptUser]);
 
   const login = useCallback(async (apiKey: string) => {
     try {
@@ -63,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('mintzy_token', res.jwt);
         setToken(res.jwt);
         if (res.user) {
-          setUser({
+          adoptUser({
             id: res.user.id,
             name: res.user.name,
             email: res.user.email,
@@ -76,13 +92,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err: any) {
       return { success: false, error: pluginErrorMessage(err, 'Could not reach Mintzy. Check your internet connection and try again.') };
     }
-  }, []);
+  }, [adoptUser]);
 
   const logout = useCallback(() => {
+    resetAccountState();
     localStorage.removeItem('mintzy_token');
     setToken(null);
     setUser(null);
-  }, []);
+    void window.mintzy?.auth?.logout?.();
+  }, [resetAccountState]);
 
   useEffect(() => {
     const onExpired = () => logout();
