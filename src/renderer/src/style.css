@@ -30,6 +30,47 @@ h1, h2, h3, h4, h5, h6 {
   gap: 1rem;
 }
 
+/* User guide: even rhythm so lists, callouts, and tables share one left edge. */
+.docs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: rgb(71 85 105);
+}
+
+.docs-body > p,
+.docs-body > ul,
+.docs-body > ol {
+  margin: 0;
+}
+
+.docs-body p {
+  margin: 0;
+}
+
+.docs-body ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.docs-body ul ul {
+  margin-top: 0.35rem;
+}
+
+.docs-body li::marker {
+  color: rgb(148 163 184);
+}
+
+.docs-body strong {
+  font-weight: 600;
+  color: rgb(30 41 59);
+}
+
 .form-card {
   border-radius: 1rem;
   border: 1px solid rgb(226 232 240);
