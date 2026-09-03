@@ -762,7 +762,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs }: Pr
               onClick={() => setSelectedTickers(null)}
               className="text-[12px] font-semibold text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 rounded-md px-1"
             >
-              Show all
+              Select all
             </button>
           )}
         </div>

@@ -108,12 +108,19 @@ export default function TickerScopeDropdown({ tickers, selected, onChange }: Pro
               role="option"
               aria-selected={isAll}
               onClick={setAll}
-              className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                isAll ? 'bg-blue-50 font-semibold text-blue-700' : 'text-slate-700 hover:bg-slate-50'
+              className={`sticky top-0 z-10 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                isAll ? 'bg-blue-50 font-semibold text-blue-700' : 'bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <span>All tickers</span>
-              {isAll && <Check className="h-4 w-4 text-blue-600" aria-hidden="true" />}
+              <span
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                  isAll ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'
+                }`}
+                aria-hidden="true"
+              >
+                {isAll && <Check className="h-3 w-3" />}
+              </span>
+              <span>Select all</span>
             </button>
             {filtered.length === 0 ? (
               <p className="px-3 py-4 text-center text-xs text-slate-400">No tickers match “{query}”</p>
