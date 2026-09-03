@@ -66,6 +66,8 @@ export function formatTradeLabel(raw: string | number | null | undefined): { lab
   if (/close short|cover short|exit short/.test(n)) return { label: 'Close Short', tone: 'close' };
   if (/^close|^exit|^cover/.test(n)) return { label: 'Closed', tone: 'close' };
 
+  if (/rms/.test(n)) return { label: 'Hit RMS', tone: 'sell' };
+
   if (n === 'filled' || n === 'complete' || n === 'executed') {
     return { label: 'Filled', tone: 'filled' };
   }

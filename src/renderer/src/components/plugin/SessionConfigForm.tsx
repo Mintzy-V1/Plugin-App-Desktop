@@ -14,11 +14,12 @@ import TradingConfigurationFields from './TradingConfigurationFields';
 import { clampLeverage } from './LeverageMultiplierControl';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
+import { shouldDelaySimulationStart, saveScheduledStart, clearScheduledStart } from '../../lib/scheduledStart';
 
 interface Props {
   sessionId: string;
   freeCash?: number | null;
-  onSuccess: () => void;
+  onSuccess: (result?: { scheduled?: boolean }) => void;
   onAbandon: () => void;
   onBack: () => void;
 }
@@ -119,13 +120,18 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
     }
     setLoading(true);
     setError(null);
+    const startPayload = {
+      session_id: sessionId,
+      ...(selectedSavedId ? { saved_configuration_id: selectedSavedId } : {}),
+      ...payload,
+    };
     try {
-      // Always send the earlier body shape; include saved id when applicable.
-      await pluginApi.startTrading({
-        session_id: sessionId,
-        ...(selectedSavedId ? { saved_configuration_id: selectedSavedId } : {}),
-        ...payload,
-      });
+      if (shouldDelaySimulationStart()) {
+        saveScheduledStart(sessionId, startPayload);
+        onSuccess({ scheduled: true });
+        return;
+      }
+      await pluginApi.startTrading(startPayload);
       onSuccess();
     } catch (err: any) {
       setError(pluginErrorMessage(err, 'Could not start trading. Please check your settings and try again.'));
@@ -139,6 +145,7 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
     setError(null);
     try {
       await pluginApi.abandonSession(sessionId);
+      clearScheduledStart(sessionId);
       setConfirmAbandon(false);
       onAbandon();
     } catch (err: any) {
@@ -237,6 +244,12 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
             <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">{error}</div>
           )}
 
+          {shouldDelaySimulationStart() && (
+            <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-center text-xs text-amber-800">
+              Before 10:30 AM IST the engine is held. Start now and trading will auto-start at 10:30 AM.
+            </div>
+          )}
+
           {startPreview.symbols.length > 0 && (
             <div className="rounded-xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
               Starting <span className="font-semibold text-slate-700">{startPreview.symbols.length} symbol{startPreview.symbols.length > 1 ? 's' : ''}</span>
@@ -255,7 +268,7 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
 
           <button type="submit" disabled={busy}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50">
-            {loading ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Starting…</> : <>Start Trading <ArrowRight className="h-5 w-5" aria-hidden="true" /></>}
+            {loading ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Starting…</> : shouldDelaySimulationStart() ? <>Schedule 10:30 AM start <ArrowRight className="h-5 w-5" aria-hidden="true" /></> : <>Start Trading <ArrowRight className="h-5 w-5" aria-hidden="true" /></>}
           </button>
 
           <button

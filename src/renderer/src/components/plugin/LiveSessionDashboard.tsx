@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
-import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee } from 'lucide-react';
-import { pluginApi, supportsPyramidPnl } from '../../lib/pluginApi';
+import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Clock } from 'lucide-react';
+import { pluginApi, supportsPyramidPnl, supportsExitedSymbols } from '../../lib/pluginApi';
 import {
   parsePyramidPnlBySymbol,
   extractOnePmPnlFromHistory,
@@ -26,6 +26,20 @@ import LivePnlPanel from './LivePnlPanel';
 import TradeActionPill from './TradeActionPill';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import type { TradingSession } from '../../lib/pluginApi';
+import { formatCountdown } from '../../lib/istClock';
+import {
+  readScheduledStart,
+  clearScheduledStart,
+  claimScheduledStartFire,
+  releaseScheduledStartFire,
+} from '../../lib/scheduledStart';
+import {
+  parseExitedSymbols,
+  rmsHitInWindow,
+  exitedSymbolPnl,
+  exitedSymbolTimeRaw,
+  type ExitedSymbol,
+} from '../../lib/exitedSymbols';
 
 interface Props {
   sessionId: string;
@@ -37,6 +51,8 @@ interface Props {
   readOnly?: boolean;
   onStop: () => void;
   onConfigure: () => void;
+  /** Fired after a scheduled 10:30 AM start-simulation call succeeds. */
+  onTradingStarted?: () => void;
 }
 
 type Tab = 'logs' | 'pnl';
@@ -58,6 +74,9 @@ interface TradeLogRow {
   return_pct: string | number;
   /** `simulation_logs` from the trading-logs record; null when the field is absent (pre-field logs). */
   simulation: boolean | null;
+  /** Engine RMS / risk exit — often missing from the native trade log. */
+  rmsHit?: boolean;
+  rmsReason?: string;
 }
 
 /** Engine logs often use naive IST wall times (`YYYY-MM-DD HH:mm:ss`). */
@@ -475,6 +494,53 @@ function formatLogTime(ms: number): string {
     .replace(/\s+(am|pm)/i, '\u00a0$1');
 }
 
+function rmsRowFromExit(
+  ex: ExitedSymbol,
+  timeMs: number | null,
+  extras?: Pick<TradeLogRow, 'capital' | 'simulation'>,
+): TradeLogRow {
+  const time = timeMs != null
+    ? `${formatLogDate(timeMs)} ${formatLogTime(timeMs)}`
+    : (ex.exit_time || '-');
+  const pnl = exitedSymbolPnl(ex);
+  return {
+    time,
+    timeMs,
+    chartTimeMs: timeMs,
+    symbol: ex.symbol,
+    signal: ex.entry_side || '-',
+    action: 'Hit RMS',
+    quantity: ex.qty ?? '-',
+    price: ex.exit_price ?? ex.entry_price ?? '-',
+    change: '-',
+    pnl: pnl ?? '-',
+    capital: extras?.capital ?? '-',
+    return_pct: '-',
+    simulation: extras?.simulation ?? null,
+    rmsHit: true,
+    rmsReason: ex.exit_reason,
+  };
+}
+
+function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow[] {
+  if (exits.length === 0) return logs;
+  const extra: TradeLogRow[] = [];
+  for (const ex of exits) {
+    const ms = parseTradeTimeMs(exitedSymbolTimeRaw(ex));
+    const key = ex.symbol.toUpperCase();
+    const already = logs.some((l) => {
+      if (String(l.symbol || '').toUpperCase() !== key) return false;
+      if (l.rmsHit) return true;
+      if (l.timeMs != null && ms != null && Math.abs(l.timeMs - ms) < 2000) return true;
+      return false;
+    });
+    if (already) continue;
+    extra.push(rmsRowFromExit(ex, ms));
+  }
+  if (extra.length === 0) return logs;
+  return [...logs, ...extra].sort((a, b) => (a.timeMs ?? 0) - (b.timeMs ?? 0));
+}
+
 function formatCell(v: string | number, asMoney = false) {
   if (isPlaceholderValue(v)) return '—';
   const n = Number(v);
@@ -511,9 +577,10 @@ function withPyramidSimCloseRows(
   logs: TradeLogRow[],
   pyramidBySymbol: Record<string, number>,
   liveStartedAtMs: number | null,
+  exited: ExitedSymbol[] = [],
 ): TradeLogRow[] {
   const symbols = Object.keys(pyramidBySymbol).filter((sym) => Number.isFinite(pyramidBySymbol[sym]));
-  if (logs.length === 0 || symbols.length === 0) return logs;
+  if (logs.length === 0 || (symbols.length === 0 && exited.length === 0)) return logs;
 
   const cutoff = { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs };
   const refMs = liveStartedAtMs
@@ -529,6 +596,7 @@ function withPyramidSimCloseRows(
   let lastSimBlockMs = Number.NEGATIVE_INFINITY;
   for (const log of logs) {
     if (isSimCloseIstLog(log.timeMs)) continue;
+    if (log.rmsHit) continue;
     if (!resolveSimulation(log, cutoff)) continue;
     const key = String(log.symbol || '').toUpperCase();
     if (!key || key === '-') continue;
@@ -554,6 +622,16 @@ function withPyramidSimCloseRows(
   const injected: TradeLogRow[] = [];
   for (const sym of ordered) {
     const template = lastSimBySym.get(sym);
+    const fromMs = template?.timeMs
+      ?? (Number.isFinite(lastSimBlockMs) && lastSimBlockMs > 0 ? lastSimBlockMs : Number.NEGATIVE_INFINITY);
+    const rms = rmsHitInWindow(exited, sym, fromMs, closeMs, parseTradeTimeMs);
+    if (rms) {
+      injected.push(rmsRowFromExit(rms, closeMs, {
+        capital: template?.capital ?? '-',
+        simulation: true,
+      }));
+      continue;
+    }
     if (!template) continue;
     injected.push({
       ...template,
@@ -563,13 +641,16 @@ function withPyramidSimCloseRows(
       symbol: template.symbol,
       pnl: pyramidBySymbol[sym],
       simulation: true,
+      rmsHit: false,
+      rmsReason: undefined,
     });
   }
   if (injected.length === 0) return logs;
 
   const rest = logs.filter((row) => {
     if (!isSimCloseIstLog(row.timeMs)) return true;
-    return !pyramidBySymbol[String(row.symbol || '').toUpperCase()];
+    const key = String(row.symbol || '').toUpperCase();
+    return !pyramidBySymbol[key] && !injected.some((r) => String(r.symbol).toUpperCase() === key);
   });
   const before = rest.filter((row) => row.timeMs == null || row.timeMs < closeMs);
   const after = rest.filter((row) => row.timeMs != null && row.timeMs >= closeMs);
@@ -583,7 +664,7 @@ function extractTradingSession(raw: unknown): TradingSession | null {
   return session?.python_session_id || session?.status != null ? session : null;
 }
 
-export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop }: Props) {
+export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop, onTradingStarted }: Props) {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('logs');
   const [logs, setLogs] = useState<TradeLogRow[]>([]);
@@ -600,6 +681,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const [stopping, setStopping] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [pyramidPnlBySymbol, setPyramidPnlBySymbol] = useState<Record<string, number>>({});
+  const [exitedSymbols, setExitedSymbols] = useState<ExitedSymbol[]>([]);
+  const [awaitingStart, setAwaitingStart] = useState(() => readScheduledStart(sessionId) != null);
+  const [scheduledStartAtMs, setScheduledStartAtMs] = useState<number | null>(
+    () => readScheduledStart(sessionId)?.startAtMs ?? null,
+  );
+  const [startingScheduled, setStartingScheduled] = useState(false);
+  const [scheduledStartError, setScheduledStartError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const seenLiveRef = useRef(!readOnly && isLiveSessionStatus(initialStatus));
   const logsRef = useRef<TradeLogRow[]>([]);
@@ -614,6 +703,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   // Keep Stop/Force visible for live sessions even if a poll briefly returns a
   // non-active status (e.g. authenticated / unknown). Only hide on terminal.
   const showStopControls =
+    !awaitingStart &&
     !isTerminalSessionStatus(effectiveStatus) &&
     (seenLiveRef.current || isLiveSessionStatus(effectiveStatus) || !readOnly);
 
@@ -621,16 +711,16 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const hasLiveCutoff = liveStartedAtMs != null;
   const simLabel = simulationStatusLabel(simulationStatus);
   const simRunning = isSimulationRunningStatus(simulationStatus);
-  const displayLogs = useMemo(
-    () => withPyramidSimCloseRows(logs, pyramidPnlBySymbol, liveStartedAtMs),
-    [logs, pyramidPnlBySymbol, liveStartedAtMs],
-  );
+  const displayLogs = useMemo(() => {
+    const withRms = withRmsLogRows(logs, exitedSymbols);
+    return withPyramidSimCloseRows(withRms, pyramidPnlBySymbol, liveStartedAtMs, exitedSymbols);
+  }, [logs, pyramidPnlBySymbol, liveStartedAtMs, exitedSymbols]);
 
   const fetchDashboard = async () => {
     const forSession = sessionId;
     // Pull from several endpoints in parallel — same strategy as the web plugin UI.
     // A failure in one source must not blank out status / cash / logs.
-    const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes, pyramidRes] = await Promise.allSettled([
+    const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes, pyramidRes, exitedRes] = await Promise.allSettled([
       pluginApi.getDashboard(sessionId),
       pluginApi.getSessionStatus(sessionId),
       pluginApi.getSessionTrades(sessionId),
@@ -640,6 +730,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       pluginApi.getLivePnl(sessionId),
       pluginApi.getLivePnlHistory(sessionId),
       supportsPyramidPnl() ? pluginApi.getPyramidPnl(sessionId) : Promise.resolve(null),
+      supportsExitedSymbols() ? pluginApi.getExitedSymbols(sessionId) : Promise.resolve(null),
     ]);
     if (fetchForSessionRef.current !== forSession) return;
 
@@ -666,7 +757,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       const mergedPyramid = mergePyramidMaps(fromHistory, fromApi);
       if (Object.keys(mergedPyramid).length > 0) setPyramidPnlBySymbol(mergedPyramid);
     }
-    const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes, pyramidRes].some(r => r.status === 'fulfilled');
+    if (supportsExitedSymbols() && exitedRes.status === 'fulfilled' && exitedRes.value != null) {
+      const parsed = parseExitedSymbols(exitedRes.value.data);
+      setExitedSymbols(parsed);
+    }
+    const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes, pyramidRes, exitedRes].some(r => r.status === 'fulfilled');
     setConnected(anyOk);
 
     const snapshot = (fullMatches?.snapshot as any)?.data
@@ -741,6 +836,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     setSimulationStatus(null);
     setLiveStartedAtMs(null);
     setPyramidPnlBySymbol({});
+    setExitedSymbols([]);
+    setScheduledStartError(null);
+    const pending = readScheduledStart(sessionId);
+    setAwaitingStart(pending != null && !isLiveSessionStatus(initialStatus));
+    setScheduledStartAtMs(pending?.startAtMs ?? null);
     seenLiveRef.current = !readOnly && isLiveSessionStatus(initialStatus);
     if (initialStatus) setSessionStatus(initialStatus);
     else setSessionStatus('');
@@ -754,6 +854,69 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     intervalRef.current = setInterval(fetchDashboard, ms);
     return () => clearInterval(intervalRef.current);
   }, [sessionId, readOnly]);
+
+  const fireScheduledStartRef = useRef<() => Promise<void>>(async () => {});
+  const isLiveNow = isLiveSessionStatus(sessionStatus) || isLiveSessionStatus(initialStatus);
+
+  useEffect(() => {
+    if (isLiveNow) {
+      if (readScheduledStart(sessionId)) clearScheduledStart(sessionId);
+      setAwaitingStart(false);
+      fireScheduledStartRef.current = async () => {};
+      return;
+    }
+
+    const rec = readScheduledStart(sessionId);
+    if (!rec) {
+      setAwaitingStart(false);
+      fireScheduledStartRef.current = async () => {};
+      return;
+    }
+
+    setAwaitingStart(true);
+    setScheduledStartAtMs(rec.startAtMs);
+
+    const fire = async () => {
+      if (!claimScheduledStartFire(sessionId)) return;
+      setStartingScheduled(true);
+      setScheduledStartError(null);
+      try {
+        await pluginApi.startTrading(rec.payload);
+        clearScheduledStart(sessionId);
+        setAwaitingStart(false);
+        setSessionStatus('trading_active');
+        seenLiveRef.current = true;
+        toast.success('Trading started at 10:30 AM');
+        onTradingStarted?.();
+        await fetchDashboard();
+      } catch (err: any) {
+        releaseScheduledStartFire(sessionId);
+        setScheduledStartError(pluginErrorMessage(err, 'Could not start trading at 10:30 AM. Retry to try again.'));
+      } finally {
+        setStartingScheduled(false);
+      }
+    };
+
+    fireScheduledStartRef.current = fire;
+
+    const delay = rec.startAtMs - Date.now();
+    if (delay <= 0) {
+      void fire();
+      return;
+    }
+
+    const timer = window.setTimeout(() => { void fire(); }, delay);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [sessionId, isLiveNow]);
+
+  useEffect(() => {
+    if (!awaitingStart || startingScheduled) return;
+    setNowMs(Date.now());
+    const tick = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, [awaitingStart, startingScheduled]);
 
   const handleStop = async (force: boolean) => {
     setStopping(true);
@@ -790,7 +953,10 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     }
   };
 
+  const remainingStartMs = scheduledStartAtMs != null ? scheduledStartAtMs - nowMs : 0;
+
   const statusColor = (() => {
+    if (awaitingStart) return 'text-amber-700';
     if (simRunning && !hasLiveCutoff) return 'text-amber-600';
     const s = (sessionStatus || '').toLowerCase();
     if (['trading_active', 'active', 'running', 'started'].includes(s)) return 'text-emerald-600';
@@ -801,6 +967,42 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
   return (
     <div className="page-stack">
+      {awaitingStart && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm">
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              {startingScheduled
+                ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                : <Clock className="h-4 w-4" aria-hidden="true" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-amber-950">
+                {startingScheduled ? 'Starting trading…' : 'Trade will auto-start at 10:30 AM'}
+              </p>
+              <p className="mt-0.5 text-xs leading-relaxed text-amber-800">
+                {startingScheduled
+                  ? 'Calling the engine now. Logs will appear as soon as simulation begins.'
+                  : remainingStartMs > 0
+                    ? `Your session is ready. The start endpoint is held until 10:30 AM IST — ${formatCountdown(remainingStartMs)} remaining.`
+                    : 'Your session is ready. Trading starts at 10:30 AM IST.'}
+              </p>
+              {scheduledStartError && (
+                <p className="mt-2 text-xs font-medium text-red-700">{scheduledStartError}</p>
+              )}
+            </div>
+            {scheduledStartError && !startingScheduled && (
+              <button
+                type="button"
+                onClick={() => { void fireScheduledStartRef.current(); }}
+                className="rounded-lg bg-amber-700 px-2.5 py-1.5 text-[12px] font-semibold text-white hover:bg-amber-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              >
+                Retry now
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
         <div className="min-w-0">
           <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Free cash</p>
@@ -827,9 +1029,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
             )}
           </div>
           <p className={`mt-0.5 text-[15px] font-semibold capitalize ${statusColor}`}>
-            {simRunning && !hasLiveCutoff
-              ? 'Simulating'
-              : (sessionStatusLabel(sessionStatus) || 'Loading…')}
+            {awaitingStart
+              ? (startingScheduled ? 'Starting…' : 'Starts at 10:30 AM')
+              : simRunning && !hasLiveCutoff
+                ? 'Simulating'
+                : (sessionStatusLabel(sessionStatus) || 'Loading…')}
           </p>
           {lastUpdated && (
             <p className="text-[11px] text-slate-400">
@@ -877,21 +1081,32 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
       <div hidden={tab !== 'logs'}>
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          {loading && logs.length === 0 ? (
+          {loading && logs.length === 0 && displayLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-slate-400">
               <RefreshCw className="h-5 w-5 animate-spin" aria-hidden="true" />
               <p className="text-sm">Loading trades…</p>
             </div>
-          ) : logs.length === 0 ? (
+          ) : displayLogs.length === 0 ? (
             <div className="px-4 py-8 text-center">
-              <p className="text-sm font-medium text-slate-500">No trades yet</p>
-              <p className="mt-1 text-xs text-slate-400">Executed trades will appear here as the engine runs.</p>
+              <p className="text-sm font-medium text-slate-500">
+                {awaitingStart ? 'Waiting for 10:30 AM' : 'No trades yet'}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                {awaitingStart
+                  ? 'The engine has not started. Trade logs will appear after 10:30 AM IST.'
+                  : 'Executed trades will appear here as the engine runs.'}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               {displayLogs.some(l => resolveSimulation(l, { hasLiveCutoff, liveStartedAtMs })) && (
                 <p className="border-b border-slate-100 bg-slate-50/80 px-3.5 py-2 text-[11px] text-slate-500">
                   Rows tagged Sim are simulation trades. Untagged rows are live.
+                </p>
+              )}
+              {displayLogs.some(l => l.rmsHit) && (
+                <p className="border-b border-red-100 bg-red-50/70 px-3.5 py-2 text-[11px] text-red-800">
+                  Rows tagged RMS were exited by risk management and may not appear in the engine log.
                 </p>
               )}
               <table className="w-full text-left text-sm">
@@ -918,10 +1133,10 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                     const isSimTrade = resolveSimulation(log, cutoff);
                     const prev = i > 0 ? displayLogs[i - 1] : null;
                     const prevWasSim = prev != null && resolveSimulation(prev, cutoff);
-                    const showLiveDivider = !isSimTrade && (i === 0 || prevWasSim);
+                    const showLiveDivider = !log.rmsHit && !isSimTrade && (i === 0 || prevWasSim);
 
                     return (
-                      <Fragment key={`${log.time}-${log.symbol}-${i}`}>
+                      <Fragment key={`${log.time}-${log.symbol}-${log.rmsHit ? 'rms' : 'row'}-${i}`}>
                         {showLiveDivider && (
                           <tr className="bg-emerald-50/70">
                             <td colSpan={9} className="px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
@@ -930,10 +1145,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                           </tr>
                         )}
                         <tr
-                          className={`border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50 ${
-                            isSimTrade ? 'bg-slate-50/40' : ''
+                          className={`border-b border-slate-50 text-slate-700 last:border-0 ${
+                            log.rmsHit
+                              ? 'bg-red-50/80 hover:bg-red-50'
+                              : isSimTrade
+                                ? 'bg-slate-50/40 hover:bg-slate-50'
+                                : 'hover:bg-slate-50'
                           }`}
-                          title={isSimTrade ? 'Simulation trade' : undefined}
+                          title={log.rmsHit ? (log.rmsReason ? `Hit RMS · ${log.rmsReason}` : 'Hit RMS') : isSimTrade ? 'Simulation trade' : undefined}
                         >
                           <td className="px-3.5 py-2 text-xs font-mono">
                             <div className="flex flex-col gap-0.5">
@@ -941,7 +1160,12 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                                 <span className="whitespace-nowrap">{formatLogDate(log.timeMs)}</span>
                               )}
                               <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                                {isSimTrade && (
+                                {log.rmsHit && (
+                                  <span className="rounded bg-red-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-red-800">
+                                    RMS
+                                  </span>
+                                )}
+                                {isSimTrade && !log.rmsHit && (
                                   <span className="rounded bg-slate-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-slate-500">
                                     Sim
                                   </span>

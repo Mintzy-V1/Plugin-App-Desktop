@@ -26,6 +26,11 @@ export function supportsPyramidPnl(): boolean {
   return key === 'bear_street' || key === 'angle_one';
 }
 
+/** RMS / risk-exited symbols that never appear in the engine trade log. */
+export function supportsExitedSymbols(): boolean {
+  return supportsPyramidPnl();
+}
+
 const getBase = () => {
   const key = getBrokerKey();
   if (key === 'tradex') return '/api/v1/tradex';
@@ -278,6 +283,17 @@ export const pluginApi = {
   /** Unrealized P&L at the 1 PM pyramid snapshot (Angel One + Bear Street). */
   getPyramidPnl(sessionId: string) {
     return api.get<Record<string, unknown>>(`${getBase()}/trading/pyramid-pnl/${sessionId}`);
+  },
+
+  /** Symbols the engine exited for RMS / risk — often missing from the trade log. */
+  getExitedSymbols(sessionId: string) {
+    return api.get<{
+      success: boolean;
+      session_id?: string;
+      count?: number;
+      symbols?: Record<string, unknown>[];
+      message?: string;
+    }>(`${getBase()}/trading/exited-symbols/${sessionId}`);
   },
 
   downloadTradebook(sessionId: string) {
