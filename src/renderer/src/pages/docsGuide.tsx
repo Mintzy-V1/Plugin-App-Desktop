@@ -16,26 +16,26 @@ const BROKER_NAME: Record<BrokerType, string> = {
 
 const CALLOUT = {
   tip: {
-    wrap: 'border-emerald-200/90 bg-emerald-50/80',
-    bar: 'bg-emerald-600',
+    wrap: 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/95 to-white',
+    well: 'bg-emerald-600 text-white',
     title: 'text-emerald-800',
     Icon: Lightbulb,
   },
   note: {
-    wrap: 'border-sky-200/90 bg-sky-50/80',
-    bar: 'bg-sky-600',
+    wrap: 'border-sky-200/80 bg-gradient-to-br from-sky-50/95 to-white',
+    well: 'bg-sky-600 text-white',
     title: 'text-sky-800',
     Icon: Info,
   },
   warn: {
-    wrap: 'border-amber-200/90 bg-amber-50/85',
-    bar: 'bg-amber-500',
+    wrap: 'border-amber-200/80 bg-gradient-to-br from-amber-50/95 to-white',
+    well: 'bg-amber-500 text-white',
     title: 'text-amber-900',
     Icon: AlertTriangle,
   },
   danger: {
-    wrap: 'border-red-200/90 bg-red-50/85',
-    bar: 'bg-red-500',
+    wrap: 'border-red-200/80 bg-gradient-to-br from-red-50/95 to-white',
+    well: 'bg-red-600 text-white',
     title: 'text-red-800',
     Icon: OctagonAlert,
   },
@@ -50,16 +50,17 @@ function Callout({
   title: string;
   children: ReactNode;
 }) {
-  const { wrap, bar, title: titleClass, Icon } = CALLOUT[tone];
+  const { wrap, well, title: titleClass, Icon } = CALLOUT[tone];
   return (
-    <aside className={`flex w-full gap-3.5 rounded-xl border ${wrap} px-5 py-[18px] sm:px-6 sm:py-5`}>
-      <span className={`mt-0.5 h-5 w-[3px] shrink-0 rounded-full ${bar}`} aria-hidden="true" />
-      <div className="min-w-0 flex-1">
-        <p className={`flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${titleClass}`}>
-          <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} aria-hidden="true" />
+    <aside className={`flex w-full gap-3.5 rounded-2xl border ${wrap} px-4 py-4 sm:px-5 sm:py-[18px]`}>
+      <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-sm ${well}`} aria-hidden="true">
+        <Icon className="h-4 w-4" strokeWidth={2.25} />
+      </span>
+      <div className="min-w-0 flex-1 pt-0.5">
+        <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${titleClass}`}>
           {title}
         </p>
-        <div className="mt-3 space-y-2.5 text-[13.5px] leading-[1.65] text-slate-700 [&_p]:m-0">
+        <div className="mt-2 space-y-2.5 text-[13.5px] leading-[1.7] text-slate-700 [&_p]:m-0">
           {children}
         </div>
       </div>
@@ -69,7 +70,8 @@ function Callout({
 
 function Quote({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-lg border border-black/5 bg-white/80 px-3.5 py-2.5 font-medium leading-relaxed text-slate-800">
+    <p className="relative rounded-xl border border-slate-200/80 bg-slate-50/80 py-2.5 pl-4 pr-3.5 font-medium leading-relaxed text-slate-800">
+      <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-emerald-500/80" aria-hidden="true" />
       {children}
     </p>
   );
@@ -102,10 +104,12 @@ function Steps({ items }: { items: ReactNode[] }) {
               aria-hidden="true"
             />
           ) : null}
-          <span className="relative z-[1] mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold tabular-nums text-white">
+          <span className="relative z-[1] mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold tabular-nums text-white shadow-[0_1px_2px_rgba(15,23,42,0.2)]">
             {i + 1}
           </span>
-          <div className="min-w-0 flex-1 pt-0.5 text-[13.5px] leading-[1.65] text-slate-600">{item}</div>
+          <div className="min-w-0 flex-1 rounded-xl bg-slate-50/70 px-3.5 py-2.5 text-[13.5px] leading-[1.7] text-slate-600">
+            {item}
+          </div>
         </li>
       ))}
     </ol>
@@ -115,7 +119,7 @@ function Steps({ items }: { items: ReactNode[] }) {
 function Grid({ headers, rows }: { headers: string[]; rows: string[][] }) {
   const twoCol = headers.length === 2;
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <table className={`w-full border-collapse text-left text-[13.5px] ${twoCol ? 'table-fixed' : ''}`}>
         {twoCol ? (
           <colgroup>
@@ -124,11 +128,11 @@ function Grid({ headers, rows }: { headers: string[]; rows: string[][] }) {
           </colgroup>
         ) : null}
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
+          <tr className="border-b border-slate-200 bg-[#f8fafb]">
             {headers.map((h) => (
               <th
                 key={h}
-                className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 sm:px-6"
+                className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:px-6"
               >
                 {h}
               </th>
@@ -137,12 +141,12 @@ function Grid({ headers, rows }: { headers: string[]; rows: string[][] }) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-slate-100 last:border-0 even:bg-slate-50/60">
+            <tr key={i} className="border-b border-slate-100 last:border-0 even:bg-slate-50/50">
               {row.map((cell, j) => (
                 <td
                   key={j}
-                  className={`px-5 py-4 align-top leading-[1.6] break-words sm:px-6 ${
-                    j === 0 ? 'font-medium text-slate-800' : 'text-slate-600'
+                  className={`px-5 py-3.5 align-top leading-[1.65] break-words sm:px-6 ${
+                    j === 0 ? 'font-semibold text-slate-800' : 'text-slate-600'
                   }`}
                 >
                   {cell}
@@ -159,8 +163,11 @@ function Grid({ headers, rows }: { headers: string[]; rows: string[][] }) {
 function Sub({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-3.5">
-      <h4 className="text-[14px] font-semibold tracking-tight text-slate-900">{title}</h4>
-      <div className="flex flex-col gap-3.5 text-[13.5px] leading-[1.65] text-slate-600">{children}</div>
+      <h4 className="flex items-center gap-2 text-[14px] font-semibold tracking-tight text-slate-900">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+        {title}
+      </h4>
+      <div className="flex flex-col gap-3.5 text-[13.5px] leading-[1.7] text-slate-600">{children}</div>
     </div>
   );
 }

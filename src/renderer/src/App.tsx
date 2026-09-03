@@ -13,7 +13,7 @@ import type { TradingSession } from './lib/pluginApi';
 const VIEW_META: Record<NavItem, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Account overview and session history' },
   plugin:    { title: 'Launch Terminal', subtitle: 'Broker sessions and live trading' },
-  docs:      { title: 'Documentation', subtitle: 'User guide for your broker' },
+  docs:      { title: 'Documentation', subtitle: 'Desk guide for your broker' },
   settings:  { title: 'Settings',  subtitle: 'Desktop preferences' },
 };
 
