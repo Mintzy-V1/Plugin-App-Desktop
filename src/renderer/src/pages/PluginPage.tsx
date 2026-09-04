@@ -15,12 +15,6 @@ import { isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/session
 import { pluginErrorMessage } from '../lib/pluginErrors';
 import { buildStartPayloadFromConfiguration } from '../lib/pluginTradingConfig';
 import { pickCash, rememberBrokerCash } from '../lib/brokerCash';
-import {
-  shouldDelaySimulationStart,
-  saveScheduledStart,
-  hasPendingScheduledStart,
-  clearScheduledStart,
-} from '../lib/scheduledStart';
 
 type PluginView = 'empty' | 'broker' | '2fa' | 'config' | 'dashboard' | 'saved';
 
@@ -32,10 +26,7 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
   const skipTotp = brokerFromProfile(user?.broker) !== 'angel';
   const [view, setView] = useState<PluginView>(() => {
     if (!initialSession?.python_session_id) return 'empty';
-    if (
-      isConfigurableSessionStatus(initialSession.status)
-      && !hasPendingScheduledStart(initialSession.python_session_id)
-    ) return 'config';
+    if (isConfigurableSessionStatus(initialSession.status)) return 'config';
     return 'dashboard';
   });
   const [sessionId, setSessionId] = useState<string | null>(initialSession?.python_session_id ?? null);
@@ -94,7 +85,7 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
       }
     }).catch(() => {});
 
-    if (isConfigurableSessionStatus(s.status) && !hasPendingScheduledStart(s.python_session_id)) {
+    if (isConfigurableSessionStatus(s.status)) {
       setView('config');
       return;
     }
@@ -116,7 +107,6 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
     setDeletingId(target._id);
     try {
       await pluginApi.deleteSession(target._id);
-      clearScheduledStart(target.python_session_id);
       toast.success('Session deleted');
       fetchSessions();
     } catch {
@@ -139,20 +129,14 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
       saved_configuration_id: configId,
       ...payload,
     };
-    const finish = (scheduled: boolean) => {
-      toast.success(scheduled ? 'Trading will auto-start at 10:30 AM' : 'Trading started from saved strategy');
-      setSessionStatus(scheduled ? 'authenticated' : 'trading_active');
-      setView('dashboard');
-      fetchSessions();
-    };
-    if (shouldDelaySimulationStart()) {
-      saveScheduledStart(sessionId, startPayload);
-      finish(true);
-      setQuickStarting(false);
-      return;
-    }
     pluginApi.startTrading(startPayload)
-      .then(() => finish(false))
+      .then((res) => {
+        const scheduled = !!(res.data as { scheduled?: boolean } | undefined)?.scheduled;
+        toast.success(scheduled ? 'Trading will auto-start at 10:30 AM' : 'Trading started from saved strategy');
+        setSessionStatus(scheduled ? 'authenticated' : 'trading_active');
+        setView('dashboard');
+        fetchSessions();
+      })
       .catch((err: any) => {
         toast.error(pluginErrorMessage(err, 'Could not start trading from this strategy. Please try again.'));
       })
@@ -187,7 +171,6 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
               readOnly={!isLiveSessionStatus(sessionStatus)}
               onStop={() => { setView('empty'); setSessionStatus(undefined); fetchSessions(); }}
               onConfigure={() => setView('config')}
-              onTradingStarted={() => { setSessionStatus('trading_active'); fetchSessions(); }}
             />
           )}
           {view === 'broker' && (
@@ -223,7 +206,6 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
                 }}
                 onAbandon={() => {
                   toast.success('Session abandoned');
-                  clearScheduledStart(sessionId);
                   setSessionId(null);
                   setSessionStatus(undefined);
                   setFreeCash(null);

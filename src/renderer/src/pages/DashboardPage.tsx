@@ -4,17 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import UserAvatar from '../components/ui/UserAvatar';
 import { useToast } from '../components/ui/Toast';
 import { pluginApi } from '../lib/pluginApi';
-import type { TradingSession } from '../lib/pluginApi';
+import type { TradingSession, PerformanceStats } from '../lib/pluginApi';
 import { sessionStatusLabel, sessionStatusBadgeClass, isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
 import { downloadSessionCsv } from '../lib/downloadSessionCsv';
 import { pickCash, readRememberedBrokerCash, rememberBrokerCash } from '../lib/brokerCash';
-import {
-  computePerformanceStats,
-  readCachedStats,
-  writeCachedStats,
-  type PerformanceStats,
-} from '../lib/performanceStats';
-import { loadSessionTrades, sessionFingerprint } from '../lib/sessionTrades';
 import PerformanceStatsGrid, { MonthReturnsGrid } from '../components/plugin/PerformanceStatsGrid';
 
 type Tab = 'overview' | 'sessions' | 'returns';
@@ -74,9 +67,6 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [sessionPage, setSessionPage] = useState(1);
-  const [perfStats, setPerfStats] = useState<PerformanceStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
-  const [statsGen, setStatsGen] = useState(0);
 
   const activeCount = sessions.filter(s => s.status === 'trading_active').length;
   const readyCount = sessions.filter(s => isConfigurableSessionStatus(s.status)).length;
@@ -157,50 +147,26 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
     };
   }, [fetchData]);
 
-  const sessionsFp = sessionFingerprint(sessions);
+  const [perfStats, setPerfStats] = useState<PerformanceStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsGen, setStatsGen] = useState(0);
 
   useEffect(() => {
     if (!user?.id) return;
-    if (loading) return;
-    const cached = readCachedStats(user.id);
-    if (cached) setPerfStats(cached.stats);
-    if (sessions.length === 0) {
-      const empty = computePerformanceStats([]);
-      setPerfStats(empty);
-      writeCachedStats(user.id, {
-        asOfDate: empty.asOfDate,
-        fingerprint: sessionsFp,
-        computedAt: Date.now(),
-        stats: empty,
-      });
-      setStatsLoading(false);
-      return;
-    }
     let cancelled = false;
     setStatsLoading(true);
-    loadSessionTrades(sessions)
-      .then((trades) => {
-        if (cancelled) return;
-        const next = computePerformanceStats(trades);
-        writeCachedStats(user.id, {
-          asOfDate: next.asOfDate,
-          fingerprint: sessionsFp,
-          computedAt: Date.now(),
-          stats: next,
-        });
-        setPerfStats(next);
+    pluginApi.getPerformanceStats()
+      .then((res) => {
+        if (!cancelled) setPerfStats(res.data.stats ?? null);
       })
-      .catch(() => {
-        if (!cancelled && cached) setPerfStats(cached.stats);
-      })
+      .catch(() => { /* keep previous stats */ })
       .finally(() => {
         if (!cancelled) setStatsLoading(false);
       });
     return () => { cancelled = true; };
-    // sessionsFp stands in for the session list; the 20s poll does not refetch trades.
-    // statsGen forces a full recompute when the window is opened / focused.
+    // statsGen forces a refetch when the window is opened / focused.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionsFp, user?.id, loading, statsGen]);
+  }, [user?.id, statsGen]);
 
   const handleDownload = async (sessionId?: string, status?: string) => {
     if (!sessionId) return;
