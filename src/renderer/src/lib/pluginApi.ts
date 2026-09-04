@@ -307,13 +307,15 @@ export const pluginApi = {
 
   /**
    * Saved snapshots for the session market date.
-   * Each snapshot already includes `data.symbols` (per-ticker P&L) — the chart
-   * filters/combines tickers on the client; there is no separate ticker endpoint.
+   * `step` = decimation bucket in seconds (last snapshot per bucket); omit for
+   * the server default (~480 points). Each snapshot already includes
+   * `data.symbols` (per-ticker P&L) — the chart filters/combines tickers on the
+   * client; there is no separate ticker endpoint.
    */
-  getLivePnlHistory(sessionId: string, date?: string) {
+  getLivePnlHistory(sessionId: string, date?: string, step?: number) {
     return api.get<{ success: boolean; snapshots: PnlSnapshot[] }>(
       `${getBase()}/trading/live-pnl/${sessionId}/history`,
-      { params: { date } }
+      { params: { date, step } }
     );
   },
 
