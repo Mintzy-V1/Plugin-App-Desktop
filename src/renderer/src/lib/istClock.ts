@@ -28,31 +28,6 @@ export function istDateKey(ms: number | Date = Date.now()): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-export function istNowParts(now = new Date()) {
-  return istParts(now);
-}
-
-export function formatIstDayLabel(dateKey: string): string {
-  const [y, m, d] = dateKey.split('-').map(Number);
-  if (!y || !m || !d) return dateKey;
-  const utc = Date.UTC(y, m - 1, d, 6, 30);
-  return new Date(utc).toLocaleDateString('en-IN', {
-    timeZone: IST,
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-export function formatIstMonthLabel(year: number, month: number): string {
-  const utc = Date.UTC(year, month - 1, 15, 6, 30);
-  return new Date(utc).toLocaleDateString('en-IN', {
-    timeZone: IST,
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -73,21 +48,6 @@ export function isBeforeIstWallClock(hour: number, minute: number, now = Date.no
 export const SIMULATION_START_HOUR = 10;
 export const SIMULATION_START_MINUTE = 30;
 
-export function simulationStartMs(now = Date.now()): number {
-  return istTodayAtMs(SIMULATION_START_HOUR, SIMULATION_START_MINUTE, 0, now);
-}
-
 export function isBeforeSimulationStart(now = Date.now()): boolean {
   return isBeforeIstWallClock(SIMULATION_START_HOUR, SIMULATION_START_MINUTE, now);
-}
-
-export function formatCountdown(ms: number): string {
-  if (ms <= 0) return '0s';
-  const total = Math.ceil(ms / 1000);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
 }

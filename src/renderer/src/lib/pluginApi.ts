@@ -165,6 +165,38 @@ export interface TradingSession {
   configuration_name?: string | null;
 }
 
+export interface NamedAmount {
+  label: string;
+  value: number;
+}
+
+export interface MonthReturn {
+  year: number;
+  month: number;
+  key: string;
+  label: string;
+  pnl: number | null;
+}
+
+/** Performance metrics computed on the backend and refreshed daily at 4:30 PM IST. */
+export interface PerformanceStats {
+  maxProfitScript: NamedAmount | null;
+  maxLosingScript: NamedAmount | null;
+  maxProfitDay: NamedAmount | null;
+  maxLosingDay: NamedAmount | null;
+  avgWinRate: number | null;
+  maxDrawdownPct: number | null;
+  avgRiskReward: number | null;
+  overallReturnPct: number | null;
+  totalPnl: number;
+  startCapital: number | null;
+  maxWinStreak: number;
+  maxLoseStreak: number;
+  months: MonthReturn[];
+  tradingDays: number;
+  asOfDate: string;
+}
+
 export const pluginApi = {
   submitCredentials(payload: CredentialsPayload) {
     return api.post<CredentialsResponse>(`${getBase()}/credentials`, payload);
@@ -227,6 +259,11 @@ export const pluginApi = {
 
   getPnlAggregate(year?: number, month?: number) {
     return api.get<Record<string, unknown>>(`${getBase()}/dashboard/pnl/aggregate`, { params: { year, month } });
+  },
+
+  /** Cached backend performance metrics (dashboard + month-over-month). */
+  getPerformanceStats() {
+    return api.get<{ success: boolean; stats: PerformanceStats }>(`${getBase()}/dashboard/performance-stats`);
   },
 
   getPnlSummary(sessionId: string, year?: number, month?: number) {
