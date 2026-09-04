@@ -63,6 +63,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   const [equity, setEquity] = useState<number>(0);
   const [cash, setCash] = useState<number>(() => readRememberedBrokerCash() ?? 0);
   const [loading, setLoading] = useState(true);
+  const [figuresLoading, setFiguresLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
@@ -83,54 +84,66 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   const fetchData = useCallback((silent = false) => {
     if (!silent) {
       setLoading(true);
+      setFiguresLoading(true);
       setLoadError(false);
     }
-    Promise.all([
-      pluginApi.getSessions(),
-      pluginApi.getPnlAggregate(new Date().getFullYear(), new Date().getMonth() + 1),
-    ]).then(async ([sRes, pnlRes]) => {
-      const list = sRes.data.sessions || [];
-      setSessions(list);
-      const pnl = pnlRes.data as Record<string, unknown>;
-      setMonthlyPnl(Number(pnl?.monthly_total ?? 0));
-      const current = pnl?.current as Record<string, unknown> | undefined;
-      setEquity(Number(current?.total_equity ?? 0));
+    pluginApi.getSessions()
+      .then((sRes) => {
+        const list = sRes.data.sessions || [];
+        setSessions(list);
+        setRefreshedAt(new Date());
+        // Render the session list / overview now; figures and cash resolve in
+        // the background so a slow pnl-aggregate / live-VM call never blocks it.
+        setLoading(false);
 
-      const remembered = readRememberedBrokerCash();
-      const fromAggregate = pickCash(current, pnl);
+        pluginApi.getPnlAggregate(new Date().getFullYear(), new Date().getMonth() + 1)
+          .then(async (pnlRes) => {
+            const pnl = pnlRes.data as Record<string, unknown>;
+            setMonthlyPnl(Number(pnl?.monthly_total ?? 0));
+            const current = pnl?.current as Record<string, unknown> | undefined;
+            setEquity(Number(current?.total_equity ?? 0));
 
-      const liveOrAuth = list.find(s =>
-        isLiveSessionStatus(s.status) || isConfigurableSessionStatus(s.status),
-      ) || list[0];
-      const sessionIsOpen = !!(liveOrAuth && (
-        isLiveSessionStatus(liveOrAuth.status) || isConfigurableSessionStatus(liveOrAuth.status)
-      ));
+            const remembered = readRememberedBrokerCash();
+            const fromAggregate = pickCash(current, pnl);
 
-      let fromSession: number | null = null;
-      if (liveOrAuth?.python_session_id) {
-        const [statusRes, summaryRes, fullRes] = await Promise.allSettled([
-          pluginApi.getSessionStatus(liveOrAuth.python_session_id),
-          pluginApi.getPnlSummary(liveOrAuth.python_session_id),
-          pluginApi.getFullSessionState(),
-        ]);
-        const status = statusRes.status === 'fulfilled' ? statusRes.value.data : null;
-        const summary = summaryRes.status === 'fulfilled' ? summaryRes.value.data : null;
-        const full = fullRes.status === 'fulfilled' ? fullRes.value.data : null;
-        const fullMatches = full?.python_session_id === liveOrAuth.python_session_id ? full : null;
-        fromSession = pickCash(status, summary, fullMatches, fullMatches?.status, fullMatches?.snapshot);
-      }
+            const liveOrAuth = list.find(s =>
+              isLiveSessionStatus(s.status) || isConfigurableSessionStatus(s.status),
+            ) || list[0];
+            const sessionIsOpen = !!(liveOrAuth && (
+              isLiveSessionStatus(liveOrAuth.status) || isConfigurableSessionStatus(liveOrAuth.status)
+            ));
 
-      // Connected/live: broker cash from the session. After stop: latest log snapshot.
-      const resolved = sessionIsOpen
-        ? (fromSession ?? remembered ?? fromAggregate ?? 0)
-        : ((fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null) ?? fromSession ?? remembered ?? 0);
-      setCash(resolved);
-      const toRemember = fromSession ?? (fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null);
-      if (toRemember != null) rememberBrokerCash(toRemember);
-      setRefreshedAt(new Date());
-    }).catch(() => {
-      if (!silent) setLoadError(true);
-    }).finally(() => setLoading(false));
+            let fromSession: number | null = null;
+            if (liveOrAuth?.python_session_id) {
+              const [statusRes, summaryRes, fullRes] = await Promise.allSettled([
+                pluginApi.getSessionStatus(liveOrAuth.python_session_id),
+                pluginApi.getPnlSummary(liveOrAuth.python_session_id),
+                pluginApi.getFullSessionState(),
+              ]);
+              const status = statusRes.status === 'fulfilled' ? statusRes.value.data : null;
+              const summary = summaryRes.status === 'fulfilled' ? summaryRes.value.data : null;
+              const full = fullRes.status === 'fulfilled' ? fullRes.value.data : null;
+              const fullMatches = full?.python_session_id === liveOrAuth.python_session_id ? full : null;
+              fromSession = pickCash(status, summary, fullMatches, fullMatches?.status, fullMatches?.snapshot);
+            }
+
+            // Connected/live: broker cash from the session. After stop: latest log snapshot.
+            const resolved = sessionIsOpen
+              ? (fromSession ?? remembered ?? fromAggregate ?? 0)
+              : ((fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null) ?? fromSession ?? remembered ?? 0);
+            setCash(resolved);
+            const toRemember = fromSession ?? (fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null);
+            if (toRemember != null) rememberBrokerCash(toRemember);
+            setFiguresLoading(false);
+          })
+          .catch(() => {
+            setFiguresLoading(false);
+          });
+      })
+      .catch(() => {
+        if (!silent) setLoadError(true);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -245,21 +258,21 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
             <MetricCard
               label="Cash in broker"
               value={currencyFormat(cash)}
-              loading={loading}
+              loading={figuresLoading}
               icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
               accent="emerald"
             />
             <MetricCard
               label="Equity"
               value={currencyFormat(equity)}
-              loading={loading}
+              loading={figuresLoading}
               icon={<IndianRupee className="h-4 w-4" aria-hidden="true" />}
             />
             <MetricCard
               label="This month"
               value={currencyFormat(monthlyPnl)}
               valueClass={monthlyPnl >= 0 ? 'text-emerald-600' : 'text-red-600'}
-              loading={loading}
+              loading={figuresLoading}
               icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
             />
           </div>
