@@ -701,50 +701,40 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
   const fetchDashboard = async () => {
     const forSession = sessionId;
-    // Pull from several endpoints in parallel — same strategy as the web plugin UI.
-    // A failure in one source must not blank out status / cash / logs.
-    const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes, pyramidRes, exitedRes] = await Promise.allSettled([
-      pluginApi.getDashboard(sessionId),
-      pluginApi.getSessionStatus(sessionId),
-      pluginApi.getSessionTrades(sessionId),
-      pluginApi.getSessionById(sessionId),
-      pluginApi.getPnlSummary(sessionId),
-      pluginApi.getFullSessionState(),
-      pluginApi.getLivePnl(sessionId),
-      pluginApi.getLivePnlHistory(sessionId),
-      supportsPyramidPnl() ? pluginApi.getPyramidPnl(sessionId) : Promise.resolve(null),
-      supportsExitedSymbols() ? pluginApi.getExitedSymbols(sessionId) : Promise.resolve(null),
-    ]);
+    // Critical calls render logs/status fast. Past (read-only) sessions skip the
+    // live-VM calls — the VM is usually gone and they hang on timeout. Live
+    // sessions still fetch everything on the same cadence.
+    const calls: Array<Promise<unknown>> = [];
+    if (!readOnly) calls.push(pluginApi.getDashboard(sessionId));
+    calls.push(pluginApi.getSessionStatus(sessionId));
+    calls.push(pluginApi.getSessionTrades(sessionId));
+    calls.push(pluginApi.getSessionById(sessionId));
+    calls.push(pluginApi.getPnlSummary(sessionId));
+    if (!readOnly) {
+      calls.push(pluginApi.getFullSessionState());
+      calls.push(pluginApi.getLivePnl(sessionId));
+    }
+    const results = await Promise.allSettled(calls);
     if (fetchForSessionRef.current !== forSession) return;
+    const [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes] = (readOnly
+      ? [undefined, ...results, undefined, undefined]
+      : results) as Array<PromiseSettledResult<unknown> | undefined>;
 
-    const dash = dashRes.status === 'fulfilled' ? dashRes.value.data : null;
-    const pluginStatus = statusRes.status === 'fulfilled' ? statusRes.value.data : null;
-    const tradesRaw = tradesRes.status === 'fulfilled' ? tradesRes.value.data : null;
-    const tradingSession = tsRes.status === 'fulfilled'
-      ? extractTradingSession(tsRes.value.data)
+    const got = (r?: PromiseSettledResult<unknown>) => (r?.status === 'fulfilled' ? (r.value as { data?: unknown })?.data ?? null : null);
+
+    const dash = got(dashRes) as Record<string, any> | null;
+    const pluginStatus = got(statusRes);
+    const tradesRaw = got(tradesRes);
+    const tradingSession = (got(tsRes) as { session?: unknown } | Record<string, unknown> | null)
+      ? extractTradingSession(got(tsRes))
       : null;
-    const pnlSummary = pnlRes.status === 'fulfilled' ? pnlRes.value.data as Record<string, any> : null;
-    const fullState = fullRes.status === 'fulfilled' ? fullRes.value.data : null;
+    const pnlSummary = got(pnlRes) as Record<string, any> | null;
+    const fullState = got(fullRes) as { python_session_id?: string; status?: unknown; snapshot?: unknown; logs?: unknown } | null;
     // /session always returns the user's latest session — only trust it for this id
     const fullMatches = fullState?.python_session_id === sessionId ? fullState : null;
 
-    const livePnl = livePnlRes.status === 'fulfilled' ? livePnlRes.value.data : null;
-    const historyRaw = historyRes.status === 'fulfilled' ? historyRes.value.data : null;
-    if (supportsPyramidPnl()) {
-      const fromApi = pyramidRes.status === 'fulfilled' && pyramidRes.value != null
-        ? parsePyramidPnlBySymbol(pyramidRes.value.data)
-        : {};
-      const fromHistory = Object.keys(fromApi).length === 0
-        ? extractOnePmPnlFromHistory(historyRaw)
-        : {};
-      const mergedPyramid = mergePyramidMaps(fromHistory, fromApi);
-      if (Object.keys(mergedPyramid).length > 0) setPyramidPnlBySymbol(mergedPyramid);
-    }
-    if (supportsExitedSymbols() && exitedRes.status === 'fulfilled' && exitedRes.value != null) {
-      const parsed = parseExitedSymbols(exitedRes.value.data);
-      setExitedSymbols(parsed);
-    }
-    const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes, historyRes, pyramidRes, exitedRes].some(r => r.status === 'fulfilled');
+    const livePnl = got(livePnlRes) as { data?: unknown } | null;
+    const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes].some(r => r?.status === 'fulfilled');
     setConnected(anyOk);
 
     const snapshot = (fullMatches?.snapshot as any)?.data
@@ -796,7 +786,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       normalizeLogs(tradesRaw),
       normalizeLogs(dash?.logs),
       logsRef.current,
-      buildQtyTimeline(historyRaw),
+      [],
       pickLivePnlSymbols(snapshot),
       pickLivePnlSymbols(livePnl),
     );
@@ -806,7 +796,45 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     }
 
     if (anyOk) setLastUpdated(new Date());
+    // Logs/status are in — never keep the UI waiting on the slow chart history.
     setLoading(false);
+
+    // Enrichment (background): chart history + pyramid / RMS-exit overlays.
+    const historyRaw = await pluginApi.getLivePnlHistory(sessionId, undefined, 10)
+      .then(r => r.data).catch(() => null);
+    const pyramidRaw = supportsPyramidPnl()
+      ? await pluginApi.getPyramidPnl(sessionId).then(r => r.data).catch(() => null)
+      : null;
+    const exitedRaw = supportsExitedSymbols()
+      ? await pluginApi.getExitedSymbols(sessionId).then(r => r.data).catch(() => null)
+      : null;
+    if (fetchForSessionRef.current !== forSession) return;
+
+    if (supportsPyramidPnl()) {
+      const fromApi = pyramidRaw ? parsePyramidPnlBySymbol(pyramidRaw) : {};
+      const fromHistory = Object.keys(fromApi).length === 0
+        ? extractOnePmPnlFromHistory(historyRaw)
+        : {};
+      const mergedPyramid = mergePyramidMaps(fromHistory, fromApi);
+      if (Object.keys(mergedPyramid).length > 0) setPyramidPnlBySymbol(mergedPyramid);
+    }
+    if (supportsExitedSymbols() && exitedRaw != null) {
+      setExitedSymbols(parseExitedSymbols(exitedRaw));
+    }
+    // Re-merge logs now that the qty timeline from history is available.
+    const reMerged = mergeIncomingLogs(
+      normalizeLogs(fullMatches?.logs),
+      normalizeLogs(tradesRaw),
+      normalizeLogs(dash?.logs),
+      logsRef.current,
+      buildQtyTimeline(historyRaw),
+      pickLivePnlSymbols(snapshot),
+      pickLivePnlSymbols(livePnl),
+    );
+    if (reMerged.length > 0) {
+      logsRef.current = reMerged;
+      setLogs(reMerged);
+    }
   };
 
   useEffect(() => {

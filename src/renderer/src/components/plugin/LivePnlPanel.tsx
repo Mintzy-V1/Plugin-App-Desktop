@@ -339,6 +339,11 @@ function buildSyncedSeries(
 
   if (liveAt != null) {
     const simLogs = logSeries.filter((p) => p.ts < liveAt);
+    const simSnaps = goodSnaps.filter((p) => p.ts < liveAt);
+    // Simulation segment: prefer the simulation-phase snapshots (they cover the
+    // whole morning even when trade logs are sparse); fall back to logs for
+    // old sessions that predate sim-phase snapshots.
+    const sim = simSnaps.length > 0 ? mergeBySecond(simLogs, simSnaps) : simLogs;
     let livePts = remap(goodSnaps.filter((p) => p.ts >= liveAt - 60_000));
     if (live && live.ts >= liveAt - 60_000) {
       livePts = mergeBySecond(livePts, remap([live]));
@@ -346,7 +351,7 @@ function buildSyncedSeries(
     if (livePts.length === 0) {
       livePts = logSeries.filter((p) => p.ts >= liveAt);
     }
-    return ensureDrawable(downsamplePoints(mergeBySecond(simLogs, livePts), 220, liveAt));
+    return ensureDrawable(downsamplePoints(mergeBySecond(sim, livePts), 220, liveAt));
   }
 
   let pts = remap(goodSnaps);
@@ -433,6 +438,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs }: Pr
   const [chartType, setChartType] = useState<ChartType>('area');
   const [sessionLiveAt, setSessionLiveAt] = useState<number | null>(null);
   const [selectedTickers, setSelectedTickers] = useState<string[] | null>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const lastSampledRef = useRef(0);
   const seededRef = useRef(false);
@@ -453,6 +459,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs }: Pr
     setReady(false);
     setLastUpdated(null);
     setConnected(true);
+    setHistoryLoaded(false);
 
     const applySnapshot = (point: PnlPoint, markReady = true) => {
       setTotalPnl(point.total);
@@ -468,7 +475,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs }: Pr
     };
 
     const loadHistory = () => {
-      pluginApi.getLivePnlHistory(sessionId).then(res => {
+      pluginApi.getLivePnlHistory(sessionId, undefined, 10).then(res => {
         if (cancelled || !res.data?.snapshots?.length) return;
         const points = res.data.snapshots
           .map(snapshotPoint)
@@ -488,7 +495,9 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs }: Pr
             return last.symbols && Object.keys(last.symbols).length > 0 ? last.symbols : prev;
           });
         }
-      }).catch(() => {});
+      }).catch(() => {}).finally(() => {
+        if (!cancelled) setHistoryLoaded(true);
+      });
     };
 
     loadHistory();
@@ -563,10 +572,14 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs }: Pr
   }, [selectedTickers, tickerNames]);
   const scopeLabel = formatTickerScopeLabel(selectedSet ? [...selectedSet] : null, tickerNames.length);
 
-  const chartHistory = useMemo(
-    () => buildSyncedSeries(logRows, snapshots, livePoint, liveAt, selectedSet),
-    [logRows, snapshots, livePoint, liveAt, selectedSet],
-  );
+  const chartHistory = useMemo(() => {
+    // While chart history is still loading and no live point exists yet, hold
+    // the graph instead of falling back to trade logs (sparse rows would draw
+    // a wrong curve). The log fallback still works once history has genuinely
+    // returned empty (pre-snapshot sessions).
+    if (!historyLoaded && !livePoint && snapshots.length === 0) return [];
+    return buildSyncedSeries(logRows, snapshots, livePoint, liveAt, selectedSet);
+  }, [historyLoaded, logRows, snapshots, livePoint, liveAt, selectedSet]);
   const spanMs = chartHistory.length > 1
     ? chartHistory[chartHistory.length - 1].ts - chartHistory[0].ts
     : 0;
