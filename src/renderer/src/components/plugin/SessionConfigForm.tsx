@@ -14,7 +14,7 @@ import TradingConfigurationFields from './TradingConfigurationFields';
 import { clampLeverage } from './LeverageMultiplierControl';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
-import { shouldDelaySimulationStart, saveScheduledStart, clearScheduledStart } from '../../lib/scheduledStart';
+import { isBeforeSimulationStart } from '../../lib/istClock';
 
 interface Props {
   sessionId: string;
@@ -126,13 +126,9 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
       ...payload,
     };
     try {
-      if (shouldDelaySimulationStart()) {
-        saveScheduledStart(sessionId, startPayload);
-        onSuccess({ scheduled: true });
-        return;
-      }
-      await pluginApi.startTrading(startPayload);
-      onSuccess();
+      const res = await pluginApi.startTrading(startPayload);
+      const scheduled = !!(res.data as { scheduled?: boolean } | undefined)?.scheduled;
+      onSuccess({ scheduled });
     } catch (err: any) {
       setError(pluginErrorMessage(err, 'Could not start trading. Please check your settings and try again.'));
     } finally {
@@ -145,7 +141,6 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
     setError(null);
     try {
       await pluginApi.abandonSession(sessionId);
-      clearScheduledStart(sessionId);
       setConfirmAbandon(false);
       onAbandon();
     } catch (err: any) {
@@ -244,7 +239,7 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
             <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">{error}</div>
           )}
 
-          {shouldDelaySimulationStart() && (
+          {isBeforeSimulationStart() && (
             <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-center text-xs text-amber-800">
               Before 10:30 AM IST the engine is held. Start now and trading will auto-start at 10:30 AM.
             </div>
@@ -268,7 +263,7 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
 
           <button type="submit" disabled={busy}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50">
-            {loading ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Starting…</> : shouldDelaySimulationStart() ? <>Schedule 10:30 AM start <ArrowRight className="h-5 w-5" aria-hidden="true" /></> : <>Start Trading <ArrowRight className="h-5 w-5" aria-hidden="true" /></>}
+            {loading ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Starting…</> : isBeforeSimulationStart() ? <>Schedule 10:30 AM start <ArrowRight className="h-5 w-5" aria-hidden="true" /></> : <>Start Trading <ArrowRight className="h-5 w-5" aria-hidden="true" /></>}
           </button>
 
           <button

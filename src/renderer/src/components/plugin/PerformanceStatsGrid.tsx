@@ -1,4 +1,4 @@
-import type { PerformanceStats } from '../../lib/performanceStats';
+import type { PerformanceStats } from '../../lib/pluginApi';
 
 const money = (n: number) => {
   const sign = n > 0 ? '+' : n < 0 ? '−' : '';
@@ -62,10 +62,10 @@ export default function PerformanceStatsGrid({
           <h3 className="text-[13px] font-semibold text-slate-900">Performance</h3>
           <p className="mt-0.5 text-[11px] text-slate-400">
             {loading
-              ? 'Recalculating from session trades…'
+              ? 'Loading performance…'
               : s
-                ? `Recalculated on open · through ${s.asOfDate}`
-                : 'Computed from session trades on this computer'}
+                ? `Updated daily at 4:30 PM IST · through ${s.asOfDate}`
+                : 'Performance will appear after your first trading day'}
           </p>
         </div>
         <button

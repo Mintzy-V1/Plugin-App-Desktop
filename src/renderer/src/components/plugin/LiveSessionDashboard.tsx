@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
-import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Clock } from 'lucide-react';
+import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee } from 'lucide-react';
 import { pluginApi, supportsPyramidPnl, supportsExitedSymbols } from '../../lib/pluginApi';
 import {
   parsePyramidPnlBySymbol,
@@ -26,13 +26,6 @@ import LivePnlPanel from './LivePnlPanel';
 import TradeActionPill from './TradeActionPill';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import type { TradingSession } from '../../lib/pluginApi';
-import { formatCountdown } from '../../lib/istClock';
-import {
-  readScheduledStart,
-  clearScheduledStart,
-  claimScheduledStartFire,
-  releaseScheduledStartFire,
-} from '../../lib/scheduledStart';
 import {
   parseExitedSymbols,
   rmsHitInWindow,
@@ -51,8 +44,6 @@ interface Props {
   readOnly?: boolean;
   onStop: () => void;
   onConfigure: () => void;
-  /** Fired after a scheduled 10:30 AM start-simulation call succeeds. */
-  onTradingStarted?: () => void;
 }
 
 type Tab = 'logs' | 'pnl';
@@ -664,7 +655,7 @@ function extractTradingSession(raw: unknown): TradingSession | null {
   return session?.python_session_id || session?.status != null ? session : null;
 }
 
-export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop, onTradingStarted }: Props) {
+export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop }: Props) {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('logs');
   const [logs, setLogs] = useState<TradeLogRow[]>([]);
@@ -682,13 +673,6 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const [downloading, setDownloading] = useState(false);
   const [pyramidPnlBySymbol, setPyramidPnlBySymbol] = useState<Record<string, number>>({});
   const [exitedSymbols, setExitedSymbols] = useState<ExitedSymbol[]>([]);
-  const [awaitingStart, setAwaitingStart] = useState(() => readScheduledStart(sessionId) != null);
-  const [scheduledStartAtMs, setScheduledStartAtMs] = useState<number | null>(
-    () => readScheduledStart(sessionId)?.startAtMs ?? null,
-  );
-  const [startingScheduled, setStartingScheduled] = useState(false);
-  const [scheduledStartError, setScheduledStartError] = useState<string | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const seenLiveRef = useRef(!readOnly && isLiveSessionStatus(initialStatus));
   const logsRef = useRef<TradeLogRow[]>([]);
@@ -703,7 +687,6 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   // Keep Stop/Force visible for live sessions even if a poll briefly returns a
   // non-active status (e.g. authenticated / unknown). Only hide on terminal.
   const showStopControls =
-    !awaitingStart &&
     !isTerminalSessionStatus(effectiveStatus) &&
     (seenLiveRef.current || isLiveSessionStatus(effectiveStatus) || !readOnly);
 
@@ -837,10 +820,6 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     setLiveStartedAtMs(null);
     setPyramidPnlBySymbol({});
     setExitedSymbols([]);
-    setScheduledStartError(null);
-    const pending = readScheduledStart(sessionId);
-    setAwaitingStart(pending != null && !isLiveSessionStatus(initialStatus));
-    setScheduledStartAtMs(pending?.startAtMs ?? null);
     seenLiveRef.current = !readOnly && isLiveSessionStatus(initialStatus);
     if (initialStatus) setSessionStatus(initialStatus);
     else setSessionStatus('');
@@ -854,69 +833,6 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     intervalRef.current = setInterval(fetchDashboard, ms);
     return () => clearInterval(intervalRef.current);
   }, [sessionId, readOnly]);
-
-  const fireScheduledStartRef = useRef<() => Promise<void>>(async () => {});
-  const isLiveNow = isLiveSessionStatus(sessionStatus) || isLiveSessionStatus(initialStatus);
-
-  useEffect(() => {
-    if (isLiveNow) {
-      if (readScheduledStart(sessionId)) clearScheduledStart(sessionId);
-      setAwaitingStart(false);
-      fireScheduledStartRef.current = async () => {};
-      return;
-    }
-
-    const rec = readScheduledStart(sessionId);
-    if (!rec) {
-      setAwaitingStart(false);
-      fireScheduledStartRef.current = async () => {};
-      return;
-    }
-
-    setAwaitingStart(true);
-    setScheduledStartAtMs(rec.startAtMs);
-
-    const fire = async () => {
-      if (!claimScheduledStartFire(sessionId)) return;
-      setStartingScheduled(true);
-      setScheduledStartError(null);
-      try {
-        await pluginApi.startTrading(rec.payload);
-        clearScheduledStart(sessionId);
-        setAwaitingStart(false);
-        setSessionStatus('trading_active');
-        seenLiveRef.current = true;
-        toast.success('Trading started at 10:30 AM');
-        onTradingStarted?.();
-        await fetchDashboard();
-      } catch (err: any) {
-        releaseScheduledStartFire(sessionId);
-        setScheduledStartError(pluginErrorMessage(err, 'Could not start trading at 10:30 AM. Retry to try again.'));
-      } finally {
-        setStartingScheduled(false);
-      }
-    };
-
-    fireScheduledStartRef.current = fire;
-
-    const delay = rec.startAtMs - Date.now();
-    if (delay <= 0) {
-      void fire();
-      return;
-    }
-
-    const timer = window.setTimeout(() => { void fire(); }, delay);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [sessionId, isLiveNow]);
-
-  useEffect(() => {
-    if (!awaitingStart || startingScheduled) return;
-    setNowMs(Date.now());
-    const tick = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(tick);
-  }, [awaitingStart, startingScheduled]);
 
   const handleStop = async (force: boolean) => {
     setStopping(true);
@@ -953,10 +869,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     }
   };
 
-  const remainingStartMs = scheduledStartAtMs != null ? scheduledStartAtMs - nowMs : 0;
-
   const statusColor = (() => {
-    if (awaitingStart) return 'text-amber-700';
     if (simRunning && !hasLiveCutoff) return 'text-amber-600';
     const s = (sessionStatus || '').toLowerCase();
     if (['trading_active', 'active', 'running', 'started'].includes(s)) return 'text-emerald-600';
@@ -967,42 +880,6 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
   return (
     <div className="page-stack">
-      {awaitingStart && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm">
-          <div className="flex flex-wrap items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-              {startingScheduled
-                ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                : <Clock className="h-4 w-4" aria-hidden="true" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-amber-950">
-                {startingScheduled ? 'Starting trading…' : 'Trade will auto-start at 10:30 AM'}
-              </p>
-              <p className="mt-0.5 text-xs leading-relaxed text-amber-800">
-                {startingScheduled
-                  ? 'Calling the engine now. Logs will appear as soon as simulation begins.'
-                  : remainingStartMs > 0
-                    ? `Your session is ready. The start endpoint is held until 10:30 AM IST — ${formatCountdown(remainingStartMs)} remaining.`
-                    : 'Your session is ready. Trading starts at 10:30 AM IST.'}
-              </p>
-              {scheduledStartError && (
-                <p className="mt-2 text-xs font-medium text-red-700">{scheduledStartError}</p>
-              )}
-            </div>
-            {scheduledStartError && !startingScheduled && (
-              <button
-                type="button"
-                onClick={() => { void fireScheduledStartRef.current(); }}
-                className="rounded-lg bg-amber-700 px-2.5 py-1.5 text-[12px] font-semibold text-white hover:bg-amber-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
-              >
-                Retry now
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
         <div className="min-w-0">
           <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Free cash</p>
@@ -1029,11 +906,9 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
             )}
           </div>
           <p className={`mt-0.5 text-[15px] font-semibold capitalize ${statusColor}`}>
-            {awaitingStart
-              ? (startingScheduled ? 'Starting…' : 'Starts at 10:30 AM')
-              : simRunning && !hasLiveCutoff
-                ? 'Simulating'
-                : (sessionStatusLabel(sessionStatus) || 'Loading…')}
+            {simRunning && !hasLiveCutoff
+              ? 'Simulating'
+              : (sessionStatusLabel(sessionStatus) || 'Loading…')}
           </p>
           {lastUpdated && (
             <p className="text-[11px] text-slate-400">
@@ -1088,13 +963,9 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
             </div>
           ) : displayLogs.length === 0 ? (
             <div className="px-4 py-8 text-center">
-              <p className="text-sm font-medium text-slate-500">
-                {awaitingStart ? 'Waiting for 10:30 AM' : 'No trades yet'}
-              </p>
+              <p className="text-sm font-medium text-slate-500">No trades yet</p>
               <p className="mt-1 text-xs text-slate-400">
-                {awaitingStart
-                  ? 'The engine has not started. Trade logs will appear after 10:30 AM IST.'
-                  : 'Executed trades will appear here as the engine runs.'}
+                Executed trades will appear here as the engine runs.
               </p>
             </div>
           ) : (
