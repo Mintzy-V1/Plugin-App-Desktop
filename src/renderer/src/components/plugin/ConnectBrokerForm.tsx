@@ -32,9 +32,9 @@ export function brokerFromProfile(broker?: string | null): BrokerType {
   return 'angel';
 }
 
-function brokerLabel(broker: BrokerType): string {
+export function brokerLabel(broker: BrokerType): string {
   if (broker === 'tradex') return 'TradeX';
-  if (broker === 'bear_street') return 'Bear Street';
+  if (broker === 'bear_street') return 'GLOBE CAPITALS';
   return 'Angel One';
 }
 
@@ -91,7 +91,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
       return;
     }
     if (isBearStreet && !secondAuth) {
-      setError('Registered mobile number is required for Bear Street');
+      setError('Registered mobile number is required for GLOBE CAPITALS');
       return;
     }
 
@@ -253,7 +253,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
                 </button>
               </div>
               <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-5 text-blue-800">
-                Bear Street authenticates in one step — enter your registered mobile number here. No separate TOTP screen is required.
+                GLOBE CAPITALS authenticates in one step — enter your registered mobile number here. No separate TOTP screen is required.
               </p>
             </>
           )}

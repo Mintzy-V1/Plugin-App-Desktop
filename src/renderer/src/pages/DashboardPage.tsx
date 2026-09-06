@@ -9,6 +9,7 @@ import { sessionStatusLabel, sessionStatusBadgeClass, isLiveSessionStatus, isCon
 import { downloadSessionCsv } from '../lib/downloadSessionCsv';
 import { pickCash, readRememberedBrokerCash, rememberBrokerCash } from '../lib/brokerCash';
 import PerformanceStatsGrid, { MonthReturnsGrid } from '../components/plugin/PerformanceStatsGrid';
+import { brokerFromProfile, brokerLabel } from '../components/plugin/ConnectBrokerForm';
 
 type Tab = 'overview' | 'sessions' | 'returns';
 
@@ -238,7 +239,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
             <div className="flex shrink-0 flex-col items-end gap-1.5">
               {user?.broker && (
                 <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                  {user.broker}
+                  {brokerLabel(brokerFromProfile(user.broker))}
                 </span>
               )}
               <button

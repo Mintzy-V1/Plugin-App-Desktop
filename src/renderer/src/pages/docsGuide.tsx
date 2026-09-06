@@ -11,7 +11,7 @@ export interface GuideSection {
 const BROKER_NAME: Record<BrokerType, string> = {
   angel: 'Angel One',
   tradex: 'TradeX',
-  bear_street: 'Bear Street',
+  bear_street: 'GLOBE CAPITALS',
 };
 
 const CALLOUT = {
@@ -180,10 +180,10 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
 
   const connectFields = isBear
     ? [
-        ['API Key', 'Bear Street / ODIN API key. Not your Mintzy key.'],
-        ['User ID', 'Bear Street login user id.'],
-        ['Password', 'Bear Street password. Use the eye icon to check it.'],
-        ['Registered mobile number', 'The number on the Bear Street account. Required. This is the number itself, not an SMS OTP.'],
+        ['API Key', 'GLOBE CAPITALS / ODIN API key. Not your Mintzy key.'],
+        ['User ID', 'GLOBE CAPITALS login user id.'],
+        ['Password', 'GLOBE CAPITALS password. Use the eye icon to check it.'],
+        ['Registered mobile number', 'The number on the GLOBE CAPITALS account. Required. This is the number itself, not an SMS OTP.'],
       ]
     : isTradex
       ? [
@@ -209,7 +209,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
         <>
           <p>
             <strong>Mintzy Plugin</strong> is the Windows desktop terminal for automated equity trading through <strong>{name}</strong>.
-            You sign in with a Mintzy API key. The key already knows your broker — you never pick Angel One, TradeX, or Bear Street in a dropdown.
+            You sign in with a Mintzy API key. The key already knows your broker — you never pick Angel One, TradeX, or GLOBE CAPITALS in a dropdown.
           </p>
           <p>Once connected, the app can:</p>
           <ul>
@@ -476,7 +476,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
           </p>
           {isBear && (
             <p>
-              Bear Street authenticates in <strong>one step</strong>. Fill all four fields and Continue. You go straight to Configure Session — there is no TOTP page.
+              GLOBE CAPITALS authenticates in <strong>one step</strong>. Fill all four fields and Continue. You go straight to Configure Session — there is no TOTP page.
             </p>
           )}
           {isTradex && (
@@ -508,7 +508,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
                 ['No broker is linked to your Mintzy account…', `The Mintzy key has no broker claim. Sign out, get a key onboarded for ${name}, sign in again.`],
                 ['Fill in all fields', 'Every field on this form is required.'],
                 ...(isBear
-                  ? [['Registered mobile number is required for Bear Street', 'Enter the mobile number registered on the Bear Street account.']]
+                  ? [['Registered mobile number is required for GLOBE CAPITALS', 'Enter the mobile number registered on the GLOBE CAPITALS account.']]
                   : []),
                 [`Broker rejected the credentials…`, `Recheck every ${name} field. Caps, extra spaces, and an old password are the usual causes.`],
                 ['Could not verify your credentials. Please try again.', `Mintzy could not complete the ${name} login. Retry. If it keeps failing, ${name} or the plugin engine may be down.`],
