@@ -8,6 +8,7 @@ import {
   isSimCloseIstLog,
   istWallClockMs,
 } from '../../lib/pyramidPnl';
+import { shouldFetchPyramidPnl } from '../../lib/istClock';
 import { useToast } from '../ui/Toast';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import {
@@ -802,7 +803,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     // Enrichment (background): chart history + pyramid / RMS-exit overlays.
     const historyRaw = await pluginApi.getLivePnlHistory(sessionId, undefined, 10)
       .then(r => r.data).catch(() => null);
-    const pyramidRaw = supportsPyramidPnl()
+    const fetchPyramid = supportsPyramidPnl() && shouldFetchPyramidPnl(readOnly);
+    const pyramidRaw = fetchPyramid
       ? await pluginApi.getPyramidPnl(sessionId).then(r => r.data).catch(() => null)
       : null;
     const exitedRaw = supportsExitedSymbols()
@@ -810,7 +812,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       : null;
     if (fetchForSessionRef.current !== forSession) return;
 
-    if (supportsPyramidPnl()) {
+    if (fetchPyramid) {
       const fromApi = pyramidRaw ? parsePyramidPnlBySymbol(pyramidRaw) : {};
       const fromHistory = Object.keys(fromApi).length === 0
         ? extractOnePmPnlFromHistory(historyRaw)

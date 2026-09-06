@@ -44,10 +44,26 @@ export function isBeforeIstWallClock(hour: number, minute: number, now = Date.no
   return now < istTodayAtMs(hour, minute, 0, now);
 }
 
+export function isAtOrAfterIstWallClock(hour: number, minute: number, now = Date.now()): boolean {
+  return now >= istTodayAtMs(hour, minute, 0, now);
+}
+
 /** Simulation / live start is held until 10:30 AM IST the same calendar day. */
 export const SIMULATION_START_HOUR = 10;
 export const SIMULATION_START_MINUTE = 30;
 
 export function isBeforeSimulationStart(now = Date.now()): boolean {
   return isBeforeIstWallClock(SIMULATION_START_HOUR, SIMULATION_START_MINUTE, now);
+}
+
+/**
+ * Live pyramid-pnl is empty until ~12:50 IST. Closed sessions still fetch anytime
+ * so reopened logs can show the 12:59 overlay.
+ */
+export const PYRAMID_PNL_HOUR = 12;
+export const PYRAMID_PNL_MINUTE = 50;
+
+export function shouldFetchPyramidPnl(readOnly: boolean, now = Date.now()): boolean {
+  if (readOnly) return true;
+  return isAtOrAfterIstWallClock(PYRAMID_PNL_HOUR, PYRAMID_PNL_MINUTE, now);
 }
