@@ -1,4 +1,4 @@
-import { Plus, History, Trash2, Loader2, Bookmark, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Plus, History, Trash2, Loader2, Bookmark, PanelLeftClose, PanelLeft, Clock } from 'lucide-react';
 import type { TradingSession } from '../../lib/pluginApi';
 import { sessionStatusLabel, isSimulationRunningStatus, simulationStatusLabel } from '../../lib/sessionStatus';
 
@@ -17,9 +17,12 @@ interface Props {
 function isSidebarLiveSession(s: TradingSession) {
   return (
     s.status === 'trading_active' ||
-    s.status === 'authenticated' ||
     isSimulationRunningStatus(s.simulation_status)
   );
+}
+
+function isScheduledSession(s: TradingSession) {
+  return s.status === 'authenticated';
 }
 
 export default function PluginSidebar({
@@ -27,8 +30,9 @@ export default function PluginSidebar({
   onSavedStrategies, onDeleteSession, deletingId,
   collapsed, onToggle,
 }: Props) {
-  const liveSessions = sessions.filter(isSidebarLiveSession);
-  const pastSessions = sessions.filter(s => !isSidebarLiveSession(s));
+  const scheduledSessions = sessions.filter(isScheduledSession);
+  const liveSessions = sessions.filter(s => isSidebarLiveSession(s) && !isScheduledSession(s));
+  const pastSessions = sessions.filter(s => !isSidebarLiveSession(s) && !isScheduledSession(s));
   const activeCount = sessions.filter(s => s.status === 'trading_active' || isSimulationRunningStatus(s.simulation_status)).length;
 
   const formatDate = (ds: string) => {
@@ -145,6 +149,39 @@ export default function PluginSidebar({
                         : 'bg-emerald-100 text-emerald-700'
                     }`}>
                       {simulating ? (simulationStatusLabel(s.simulation_status) || 'Sim') : 'Live'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <div className="mb-2 flex items-center gap-1.5 px-1">
+            <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Scheduled Session</h3>
+          </div>
+          {scheduledSessions.length === 0 ? (
+            <p className="px-1 text-[12px] text-slate-400">No scheduled sessions</p>
+          ) : (
+            <div className="space-y-0.5">
+              {scheduledSessions.map(s => {
+                const isActive = activeSessionId === s.python_session_id;
+                return (
+                  <button
+                    key={s._id}
+                    type="button"
+                    onClick={() => onSelectSession(s)}
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/30 ${
+                      isActive
+                        ? 'bg-amber-50 text-amber-900'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="truncate text-[12px] font-medium">{formatDate(s.created_at)}</span>
+                    <span className="ml-2 shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700">
+                      Scheduled
                     </span>
                   </button>
                 );

@@ -58,6 +58,12 @@ export function resolveSessionStatus(...candidates: Array<string | null | undefi
   const normalized = candidates
     .map(v => (typeof v === 'string' ? v.trim().toLowerCase() : ''))
     .filter(Boolean);
+  // A terminal status (stopped/abandoned/completed/...) from ANY source is
+  // authoritative — the plugin session doc can lag behind the TradingSession
+  // doc (e.g. abandons before the plugin doc was updated) and would otherwise
+  // keep showing a stale "authenticated"/"ready" state.
+  const terminal = TERMINAL_STATUSES.find(t => normalized.includes(t));
+  if (terminal) return terminal;
   const active = ACTIVE_STATUSES.find(s => normalized.includes(s));
   if (active) return active;
   const first = candidates.find(v => typeof v === 'string' && v.trim() && v.trim().toLowerCase() !== 'unknown');

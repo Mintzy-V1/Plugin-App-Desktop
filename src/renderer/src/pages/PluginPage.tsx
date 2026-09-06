@@ -11,7 +11,7 @@ import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { pluginApi } from '../lib/pluginApi';
 import type { TradingSession } from '../lib/pluginApi';
-import { isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
+import { isLiveSessionStatus, isConfigurableSessionStatus, isTerminalSessionStatus } from '../lib/sessionStatus';
 import { pluginErrorMessage } from '../lib/pluginErrors';
 import { buildStartPayloadFromConfiguration } from '../lib/pluginTradingConfig';
 import { pickCash, rememberBrokerCash } from '../lib/brokerCash';
@@ -20,13 +20,18 @@ type PluginView = 'empty' | 'broker' | '2fa' | 'config' | 'dashboard' | 'saved';
 
 const PANEL_KEY = 'mintzy.plugin.sessionsOpen';
 
+/** A session with a pending backend scheduled start (10:30 AM) — opens the dashboard, not config. */
+function hasPendingScheduledStart(s: TradingSession | null | undefined): boolean {
+  return (s as { scheduled_start?: { status?: string } } | null | undefined)?.scheduled_start?.status === 'pending';
+}
+
 export default function PluginPage({ initialSession = null }: { initialSession?: TradingSession | null }) {
   const toast = useToast();
   const { user } = useAuth();
   const skipTotp = brokerFromProfile(user?.broker) !== 'angel';
   const [view, setView] = useState<PluginView>(() => {
     if (!initialSession?.python_session_id) return 'empty';
-    if (isConfigurableSessionStatus(initialSession.status)) return 'config';
+    if (isConfigurableSessionStatus(initialSession.status) && !hasPendingScheduledStart(initialSession)) return 'config';
     return 'dashboard';
   });
   const [sessionId, setSessionId] = useState<string | null>(initialSession?.python_session_id ?? null);
@@ -85,7 +90,7 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
       }
     }).catch(() => {});
 
-    if (isConfigurableSessionStatus(s.status)) {
+    if (isConfigurableSessionStatus(s.status) && !hasPendingScheduledStart(s)) {
       setView('config');
       return;
     }
@@ -168,7 +173,7 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
               sessionId={sessionId}
               initialStatus={sessionStatus}
               initialFreeCash={freeCash}
-              readOnly={!isLiveSessionStatus(sessionStatus)}
+              readOnly={isTerminalSessionStatus(sessionStatus)}
               onStop={() => { setView('empty'); setSessionStatus(undefined); fetchSessions(); }}
               onConfigure={() => setView('config')}
             />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
-import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee } from 'lucide-react';
+import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle } from 'lucide-react';
 import { pluginApi, supportsPyramidPnl, supportsExitedSymbols } from '../../lib/pluginApi';
 import {
   parsePyramidPnlBySymbol,
@@ -16,6 +16,7 @@ import {
   resolveSessionStatus,
   isLiveSessionStatus,
   isTerminalSessionStatus,
+  isConfigurableSessionStatus,
   isSimulationRunningStatus,
   simulationStatusLabel,
   simulationStatusBadgeClass,
@@ -27,6 +28,7 @@ import LivePnlPanel from './LivePnlPanel';
 import TradeActionPill from './TradeActionPill';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import type { TradingSession } from '../../lib/pluginApi';
+import { formatCountdown, simulationStartMs } from '../../lib/istClock';
 import {
   parseExitedSymbols,
   rmsHitInWindow,
@@ -656,7 +658,7 @@ function extractTradingSession(raw: unknown): TradingSession | null {
   return session?.python_session_id || session?.status != null ? session : null;
 }
 
-export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop }: Props) {
+export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop, onConfigure }: Props) {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('logs');
   const [logs, setLogs] = useState<TradeLogRow[]>([]);
@@ -669,11 +671,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [confirming, setConfirming] = useState<'stop' | 'force' | null>(null);
+  const [confirming, setConfirming] = useState<'stop' | 'force' | 'cancel' | null>(null);
   const [stopping, setStopping] = useState(false);
+  const [cancellingSchedule, setCancellingSchedule] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [pyramidPnlBySymbol, setPyramidPnlBySymbol] = useState<Record<string, number>>({});
   const [exitedSymbols, setExitedSymbols] = useState<ExitedSymbol[]>([]);
+  const [scheduledStartAtMs, setScheduledStartAtMs] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const seenLiveRef = useRef(!readOnly && isLiveSessionStatus(initialStatus));
   const logsRef = useRef<TradeLogRow[]>([]);
@@ -685,9 +690,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   }, [sessionStatus, initialStatus]);
 
   const effectiveStatus = sessionStatus || initialStatus || '';
+  // Scheduled start time: prefer the backend's scheduled_start, else today 10:30 IST.
+  const scheduledAtMs = scheduledStartAtMs ?? simulationStartMs(nowMs);
+  const isScheduled = isConfigurableSessionStatus(effectiveStatus) && !readOnly;
+  const scheduledRemainingMs = isScheduled ? scheduledAtMs - nowMs : 0;
   // Keep Stop/Force visible for live sessions even if a poll briefly returns a
   // non-active status (e.g. authenticated / unknown). Only hide on terminal.
   const showStopControls =
+    !isConfigurableSessionStatus(effectiveStatus) &&
     !isTerminalSessionStatus(effectiveStatus) &&
     (seenLiveRef.current || isLiveSessionStatus(effectiveStatus) || !readOnly);
 
@@ -750,6 +760,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       }
       const liveStart = parseInstantMs(tradingSession.simulation_live_started_at);
       if (liveStart != null) setLiveStartedAtMs(liveStart);
+      const schedStart = parseInstantMs((tradingSession as { scheduled_start?: { start_at?: unknown } }).scheduled_start?.start_at);
+      if (schedStart != null) setScheduledStartAtMs(schedStart);
     }
 
     const resolved = resolveSessionStatus(
@@ -850,6 +862,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     setLiveStartedAtMs(null);
     setPyramidPnlBySymbol({});
     setExitedSymbols([]);
+    setScheduledStartAtMs(null);
     seenLiveRef.current = !readOnly && isLiveSessionStatus(initialStatus);
     if (initialStatus) setSessionStatus(initialStatus);
     else setSessionStatus('');
@@ -863,6 +876,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     intervalRef.current = setInterval(fetchDashboard, ms);
     return () => clearInterval(intervalRef.current);
   }, [sessionId, readOnly]);
+
+  // Reverse countdown tick while the session is scheduled (authenticated, not started).
+  useEffect(() => {
+    if (!isConfigurableSessionStatus(effectiveStatus)) return;
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [effectiveStatus, sessionId]);
 
   const handleStop = async (force: boolean) => {
     setStopping(true);
@@ -880,6 +901,20 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       setConfirming(null);
     } finally {
       setStopping(false);
+    }
+  };
+
+  const handleCancelSchedule = async () => {
+    setCancellingSchedule(true);
+    try {
+      await pluginApi.abandonSession(sessionId);
+      toast.success('Scheduled start cancelled');
+      setConfirming(null);
+      onStop();
+    } catch (err: any) {
+      toast.error(pluginErrorMessage(err, 'Could not cancel the scheduled start. Please try again.'));
+    } finally {
+      setCancellingSchedule(false);
     }
   };
 
@@ -910,6 +945,28 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
   return (
     <div className="page-stack">
+      {isScheduled && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3.5 shadow-sm">
+          <Clock className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+          <p className="min-w-0 flex-1 text-[13px] font-medium text-amber-950">
+            Session will start at 10:30 AM IST
+            {scheduledRemainingMs > 0 ? (
+              <> — <span className="font-semibold tabular-nums">{formatCountdown(scheduledRemainingMs)}</span> remaining</>
+            ) : (
+              ' — starting now…'
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => setConfirming('cancel')}
+            disabled={cancellingSchedule}
+            className="flex items-center gap-1.5 rounded-lg bg-amber-700 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-amber-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-50"
+          >
+            {cancellingSchedule ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5" aria-hidden="true" />}
+            Cancel schedule
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
         <div className="min-w-0">
           <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Free cash</p>
@@ -948,6 +1005,12 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
         </div>
 
         <div className="flex items-center gap-2">
+          {isConfigurableSessionStatus(effectiveStatus) && !readOnly && (
+            <button type="button" onClick={onConfigure}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30">
+              <Settings2 className="h-3.5 w-3.5" aria-hidden="true" /> Configure
+            </button>
+          )}
           <button type="button" onClick={handleDownload} disabled={downloading}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-50">
             {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -1103,15 +1166,17 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       </div>
 
       <ConfirmDialog open={!!confirming}
-        title={confirming === 'force' ? 'Force stop session?' : 'Stop session?'}
+        title={confirming === 'force' ? 'Force stop session?' : confirming === 'cancel' ? 'Cancel scheduled start?' : 'Stop session?'}
         description={confirming === 'force'
           ? 'This immediately terminates the engine. Open positions will not be closed automatically — you may need to exit them manually with your broker.'
-          : 'The engine will finish gracefully: it stops taking new positions and winds down the session.'}
-        confirmLabel={confirming === 'force' ? 'Force stop' : 'Stop session'}
-        tone={confirming === 'force' ? 'danger' : 'warning'}
-        busy={stopping}
-        onConfirm={() => handleStop(confirming === 'force')}
-        onCancel={() => { if (!stopping) setConfirming(null); }} />
+          : confirming === 'cancel'
+            ? 'This abandons the session. It will NOT auto-start at 10:30 AM. You can start a new session anytime.'
+            : 'The engine will finish gracefully: it stops taking new positions and winds down the session.'}
+        confirmLabel={confirming === 'force' ? 'Force stop' : confirming === 'cancel' ? 'Cancel schedule' : 'Stop session'}
+        tone={confirming === 'cancel' || confirming === 'force' ? 'danger' : 'warning'}
+        busy={stopping || cancellingSchedule}
+        onConfirm={() => (confirming === 'cancel' ? handleCancelSchedule() : handleStop(confirming === 'force'))}
+        onCancel={() => { if (!stopping && !cancellingSchedule) setConfirming(null); }} />
     </div>
   );
 }

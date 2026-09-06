@@ -56,6 +56,22 @@ export function isBeforeSimulationStart(now = Date.now()): boolean {
   return isBeforeIstWallClock(SIMULATION_START_HOUR, SIMULATION_START_MINUTE, now);
 }
 
+/** Epoch ms for today's 10:30 AM IST (the scheduled session start). */
+export function simulationStartMs(now = Date.now()): number {
+  return istTodayAtMs(SIMULATION_START_HOUR, SIMULATION_START_MINUTE, 0, now);
+}
+
+export function formatCountdown(ms: number): string {
+  if (ms <= 0) return '0s';
+  const total = Math.ceil(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 /**
  * Live pyramid-pnl is empty until ~12:50 IST. Closed sessions still fetch anytime
  * so reopened logs can show the 12:59 overlay.
