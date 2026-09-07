@@ -4,6 +4,7 @@ const STATUS_LABELS: Record<string, string> = {
   active: 'Trading',
   running: 'Trading',
   started: 'Trading',
+  simulation_active: 'Simulating',
   authenticated: 'Ready',
   awaiting_totp: 'Awaiting 2FA',
   credentials_submitted: 'Connecting',
@@ -32,7 +33,7 @@ const SIMULATION_STATUS_LABELS: Record<string, string> = {
   canceled: 'Cancelled',
 };
 
-const ACTIVE_STATUSES = ['trading_active', 'active', 'running', 'started'];
+const ACTIVE_STATUSES = ['trading_active', 'active', 'running', 'started', 'simulation_active'];
 const CONFIGURABLE_STATUSES = ['authenticated'];
 const TERMINAL_STATUSES = ['stopped', 'completed', 'abandoned', 'expired', 'error', 'failed'];
 const SIMULATION_RUNNING_STATUSES = ['pending', 'queued', 'running', 'started', 'in_progress'];
