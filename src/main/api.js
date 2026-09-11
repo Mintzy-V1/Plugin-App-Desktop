@@ -148,6 +148,7 @@ function createBrokerApi(prefix) {
 const angleOne = createBrokerApi('angle_one');
 const tradex = createBrokerApi('tradex');
 const bearStreet = createBrokerApi('bear_street');
+const firstock = createBrokerApi('firstock');
 
 // Legacy compatibility wrapper (if needed for migration)
 async function exchangeApiKey(apiKey) {
@@ -175,5 +176,6 @@ module.exports = {
   angleOne,
   tradex,
   bearStreet,
+  firstock,
   exchangeApiKey,
 };
