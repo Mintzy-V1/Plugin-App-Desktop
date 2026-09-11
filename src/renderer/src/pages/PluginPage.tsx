@@ -28,7 +28,8 @@ function hasPendingScheduledStart(s: TradingSession | null | undefined): boolean
 export default function PluginPage({ initialSession = null }: { initialSession?: TradingSession | null }) {
   const toast = useToast();
   const { user } = useAuth();
-  const skipTotp = brokerFromProfile(user?.broker) !== 'angel';
+  const broker = brokerFromProfile(user?.broker);
+  const skipTotp = broker === 'tradex' || broker === 'bear_street';
   const [view, setView] = useState<PluginView>(() => {
     if (!initialSession?.python_session_id) return 'empty';
     if (isConfigurableSessionStatus(initialSession.status) && !hasPendingScheduledStart(initialSession)) return 'config';

@@ -12,6 +12,7 @@ const BROKER_NAME: Record<BrokerType, string> = {
   angel: 'Angel One',
   tradex: 'TradeX',
   bear_street: 'GLOBE CAPITALS',
+  firstock: 'Firstock',
 };
 
 const CALLOUT = {
@@ -177,6 +178,8 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
   const isAngel = broker === 'angel';
   const isTradex = broker === 'tradex';
   const isBear = broker === 'bear_street';
+  const isFirstock = broker === 'firstock';
+  const isTotp = isAngel || isFirstock;
 
   const connectFields = isBear
     ? [
@@ -191,11 +194,18 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
           ['Client ID / User ID', 'Your TradeX client id.'],
           ['Access Secret / Secret Key / JWT 2', 'Second TradeX token. Do not wrap it in quotes.'],
         ]
-      : [
-          ['API Key', 'Angel SmartAPI app key from the Angel developer portal. Not your Mintzy key.'],
-          ['Client Code', 'Your Angel One client code.'],
-          ['Password / PIN', 'The PIN you use with SmartAPI.'],
-        ];
+      : isFirstock
+        ? [
+            ['API Key', 'Firstock API key. Not your Mintzy key.'],
+            ['Client Code', 'Your Firstock client code (also the Firstock user id).'],
+            ['Password', 'Your Firstock password. Use the eye icon to check it.'],
+            ['Vendor Code', 'Your Firstock vendor code (e.g. AB1234_API). Required.'],
+          ]
+        : [
+            ['API Key', 'Angel SmartAPI app key from the Angel developer portal. Not your Mintzy key.'],
+            ['Client Code', 'Your Angel One client code.'],
+            ['Password / PIN', 'The PIN you use with SmartAPI.'],
+          ];
 
   const startLive = isTradex
     ? 'TradeX starts live the moment you press Start Trading. There is no simulation phase and no later switch.'
@@ -489,6 +499,11 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
               Angel One is two steps: these credentials, then a 6-digit TOTP from your Angel authenticator.
             </p>
           )}
+          {isFirstock && (
+            <p>
+              Firstock is two steps: these credentials (including vendor code), then a 6-digit TOTP from your Firstock authenticator.
+            </p>
+          )}
           <Grid headers={['Field', 'What to enter']} rows={connectFields} />
           {isBear && (
             <Note>
@@ -529,19 +544,19 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
     },
   ];
 
-  if (isAngel) {
+  if (isTotp) {
     sections.push({
       id: 'totp',
-      title: 'Angel One TOTP',
+      title: `${name} TOTP`,
       body: (
         <>
           <p>
-            After credentials are accepted you must enter the <strong>6-digit TOTP</strong> from the Angel One / SmartAPI authenticator.
+            After credentials are accepted you must enter the <strong>6-digit TOTP</strong> from the {name} authenticator.
             Codes rotate about every 30 seconds — always use a fresh one. Verify stays disabled until six digits are entered.
           </p>
           <Steps
             items={[
-              'Open the Angel authenticator for this client (not some other app’s TOTP).',
+              'Open the authenticator for this client (not some other app’s TOTP).',
               'Type the six digits into the large field. Letters are rejected automatically.',
               'Click Verify. On success, Mintzy may show free cash, then Configure Session opens.',
               'Back returns to Connect Broker. You will need to connect again.',
@@ -556,8 +571,8 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
             headers={['What you see', 'What to do']}
             rows={[
               ['Enter a 6-digit code', 'Exactly six numbers.'],
-              ['Invalid or expired TOTP…', 'Wait for the next code. Confirm you are on the Angel authenticator for this client.'],
-              ['Broker rejected the login code…', 'Angel rejected the TOTP or the earlier API key / client / PIN. Confirm those three, then a brand-new TOTP.'],
+              ['Invalid or expired TOTP…', 'Wait for the next code. Confirm you are on the correct authenticator for this client.'],
+              ['Broker rejected the login code…', `The broker rejected the TOTP or the earlier credentials. Confirm those fields, then a brand-new TOTP.`],
               ['Broker authentication failed…', 'Start over from Connect Broker if a new TOTP still fails.'],
               ['This broker session expired…', 'Too much time passed. Back → connect again → new TOTP.'],
             ]}
@@ -573,7 +588,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
       title: 'Configure and start',
       body: (
         <>
-          <p>After {name} is connected{isAngel ? ' and TOTP is verified' : ''}, set the session then start.</p>
+          <p>After {name} is connected{isTotp ? ' and TOTP is verified' : ''}, set the session then start.</p>
           <Grid
             headers={['Control', 'What it does']}
             rows={[
@@ -589,7 +604,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
             ]}
           />
           <p>{startLive}</p>
-          <p>Back on this screen returns to {isAngel ? 'the TOTP step' : `Connect ${name}`}.</p>
+          <p>Back on this screen returns to {isTotp ? 'the TOTP step' : `Connect ${name}`}.</p>
           <Warn>
             <p>You cannot abandon a session that is already trading. Use Stop or Force stop on the live dashboard.</p>
           </Warn>
@@ -774,7 +789,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
               items={[
                 'Sign in with the Mintzy API key.',
                 'Optional: Launch Terminal → Saved strategies → New strategy → Save, then Apply leverage.',
-                `New session → enter ${name} credentials → Continue.` + (isAngel ? ' Enter TOTP → Verify.' : ''),
+                `New session → enter ${name} credentials → Continue.` + (isTotp ? ' Enter TOTP → Verify.' : ''),
                 'Configure (or pick the saved strategy) → Start Trading.',
                 'Watch logs and P&L. Stop when you are done. Check the ' + name + ' book if you used Force stop.',
               ]}
@@ -848,7 +863,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
             ['Session', 'One run: connect ' + name + ', start a strategy, record trades and P&L.'],
             ['Live session', 'Trading right now.'],
             ['Simulation', isTradex ? 'Not used on TradeX start. Other brokers may still show older Sim rows.' : 'Practice path before live. Sim rows are tagged Sim and ignored by performance tiles.'],
-            ['TOTP', isAngel ? '6-digit Angel authenticator code, second login step.' : 'Not used for ' + name + ' login in this app.'],
+            ['TOTP', isTotp ? '6-digit authenticator code, second login step.' : 'Not used for ' + name + ' login in this app.'],
             ['P&L', 'Profit and loss for the session or the row.'],
             ['Equity', 'Account value including open positions.'],
             ['Free cash', 'Cash available at ' + name + ' for trading.'],
