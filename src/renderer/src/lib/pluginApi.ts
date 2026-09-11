@@ -1,6 +1,6 @@
 import api from './api';
 
-export type BrokerKey = 'tradex' | 'bear_street' | 'angle_one';
+export type BrokerKey = 'tradex' | 'bear_street' | 'angle_one' | 'firstock';
 
 /** Normalized broker key from the JWT onboard claim. */
 export const getBrokerKey = (): BrokerKey => {
@@ -12,6 +12,7 @@ export const getBrokerKey = (): BrokerKey => {
       const broker = String(payload.broker || '').toLowerCase().replace(/[\s_-]+/g, '');
       if (broker === 'tradex') return 'tradex';
       if (broker === 'bearstreet' || broker.includes('bear')) return 'bear_street';
+      if (broker === 'firstock') return 'firstock';
     }
   } catch {}
   return 'angle_one';
@@ -23,7 +24,7 @@ export const supportsLeverageMultiplier = () => true;
 /** Angel One and Bear Street run the sim → live pyramid flow and expose pyramid P&L. */
 export function supportsPyramidPnl(): boolean {
   const key = getBrokerKey();
-  return key === 'bear_street' || key === 'angle_one';
+  return key === 'bear_street' || key === 'angle_one' || key === 'firstock';
 }
 
 /** RMS / risk-exited symbols that never appear in the engine trade log. */
@@ -35,6 +36,7 @@ const getBase = () => {
   const key = getBrokerKey();
   if (key === 'tradex') return '/api/v1/tradex';
   if (key === 'bear_street') return '/api/v1/bear_street';
+  if (key === 'firstock') return '/api/v1/firstock';
   return '/api/v1/angle_one';
 };
 
@@ -69,10 +71,20 @@ export type BearStreetCredentialsPayload = {
   base_url?: string;
 };
 
+export type FirstockCredentialsPayload = {
+  userId: string;
+  api_key: string;
+  client_code: string;
+  password: string;
+  vendor_code: string;
+  base_url?: string;
+};
+
 export type CredentialsPayload =
   | AngelCredentialsPayload
   | TradeXCredentialsPayload
-  | BearStreetCredentialsPayload;
+  | BearStreetCredentialsPayload
+  | FirstockCredentialsPayload;
 
 export interface CredentialsResponse {
   success: boolean;
