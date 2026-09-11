@@ -62,7 +62,7 @@ export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
             <Shield className="h-6 w-6" aria-hidden="true" />
           </div>
           <h2 className="text-xl font-bold text-slate-900">Two-Factor Auth</h2>
-          <p className="mt-1 text-sm text-slate-500">Enter the 6-digit TOTP from your Angel One authenticator</p>
+          <p className="mt-1 text-sm text-slate-500">Enter the 6-digit TOTP from your broker authenticator</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

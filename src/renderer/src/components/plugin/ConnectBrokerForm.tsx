@@ -5,7 +5,7 @@ import type { CredentialsPayload } from '../../lib/pluginApi';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import { useAuth } from '../../context/AuthContext';
 
-export type BrokerType = 'angel' | 'tradex' | 'bear_street';
+export type BrokerType = 'angel' | 'tradex' | 'bear_street' | 'firstock';
 
 interface Props {
   onSuccess: (sessionId: string, requiresTotp: boolean) => void;
@@ -29,12 +29,14 @@ export function brokerFromProfile(broker?: string | null): BrokerType {
   const normalized = String(broker || '').toLowerCase().replace(/[\s_-]+/g, '');
   if (normalized === 'tradex') return 'tradex';
   if (normalized === 'bearstreet' || normalized.includes('bear')) return 'bear_street';
+  if (normalized === 'firstock') return 'firstock';
   return 'angel';
 }
 
 export function brokerLabel(broker: BrokerType): string {
   if (broker === 'tradex') return 'TradeX';
   if (broker === 'bear_street') return 'GLOBE CAPITALS';
+  if (broker === 'firstock') return 'Firstock';
   return 'Angel One';
 }
 
@@ -43,9 +45,10 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
   const broker = brokerFromProfile(user?.broker);
   const isTradex = broker === 'tradex';
   const isBearStreet = broker === 'bear_street';
+  const isFirstock = broker === 'firstock';
 
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ accessKey: '', clientId: '', secret: '', secondAuth: '' });
+  const [form, setForm] = useState({ accessKey: '', clientId: '', secret: '', secondAuth: '', vendorCode: '' });
   const [showSecret, setShowSecret] = useState(false);
   const [showSecondAuth, setShowSecondAuth] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
       client: { id: 'broker-client-id', placeholder: 'Client Code', autoComplete: 'username' as const },
       secret: { id: 'broker-secret', placeholder: 'Password / PIN', autoComplete: 'current-password' as const },
     };
-  }, [isTradex, isBearStreet]);
+  }, [isTradex, isBearStreet, isFirstock]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +88,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
     const clientId = form.clientId.trim();
     const secret = isTradex ? sanitizeTokenLike(form.secret) : form.secret.trim();
     const secondAuth = form.secondAuth.trim();
+    const vendorCode = form.vendorCode.trim();
 
     if (!accessKey || !clientId || !secret) {
       setError('Fill in all fields');
@@ -92,6 +96,10 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
     }
     if (isBearStreet && !secondAuth) {
       setError('Registered mobile number is required for GLOBE CAPITALS');
+      return;
+    }
+    if (isFirstock && !vendorCode) {
+      setError('Vendor code is required for Firstock');
       return;
     }
 
@@ -112,6 +120,14 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
         second_auth: secondAuth,
         source: 'WEBAPI',
         base_url: BEAR_STREET_BASE_URL,
+      };
+    } else if (isFirstock) {
+      payload = {
+        userId: user.id,
+        api_key: accessKey,
+        client_code: clientId,
+        password: secret,
+        vendor_code: vendorCode,
       };
     } else {
       payload = {
@@ -254,6 +270,28 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
               </div>
               <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-5 text-blue-800">
                 GLOBE CAPITALS authenticates in one step — enter your registered mobile number here. No separate TOTP screen is required.
+              </p>
+            </>
+          )}
+
+          {isFirstock && (
+            <>
+              <div className="relative">
+                <label htmlFor="broker-vendor-code" className="sr-only">Vendor Code</label>
+                <input
+                  id="broker-vendor-code"
+                  type="text"
+                  placeholder="Vendor Code"
+                  required
+                  value={form.vendorCode}
+                  autoComplete="off"
+                  disabled={loading}
+                  onChange={e => setForm(f => ({ ...f, vendorCode: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+              <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-5 text-blue-800">
+                Firstock authenticates in two steps — enter your vendor code here, then the TOTP from your authenticator on the next screen.
               </p>
             </>
           )}
