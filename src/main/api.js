@@ -1,7 +1,7 @@
 const { net } = require('electron');
 const storage = require('./storage');
 
-const API_BASE_URL = process.env.MINTZY_API_URL || 'http://54.159.78.35:3000/api/v1';
+const API_BASE_URL = process.env.MINTZY_API_URL || 'http://52.3.148.248:3000/api/v1';
 
 // Base Request Function
 function request(endpoint, options = {}) {
