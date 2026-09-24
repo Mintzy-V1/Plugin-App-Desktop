@@ -51,6 +51,19 @@ export function isSimCloseIstLog(timeMs: number | null | undefined): boolean {
   return hm != null && hm.hour === 12 && hm.minute === 59;
 }
 
+/**
+ * Session square-off snapshot: engine logs this at 14:50 or 15:00 IST
+ * (a few seconds of lag can push the stamp into the next minute).
+ */
+export function isSessionSquareOffIstLog(timeMs: number | null | undefined): boolean {
+  if (timeMs == null) return false;
+  const hm = istHourMinute(timeMs);
+  if (!hm) return false;
+  if (hm.hour === 14 && hm.minute >= 50 && hm.minute <= 52) return true;
+  if (hm.hour === 15 && hm.minute <= 2) return true;
+  return false;
+}
+
 /** Same IST calendar day as `timeMs`, at hour:minute:second. */
 export function istWallClockMs(timeMs: number, hour: number, minute: number, second = 0): number {
   const parts = new Intl.DateTimeFormat('en-CA', {
