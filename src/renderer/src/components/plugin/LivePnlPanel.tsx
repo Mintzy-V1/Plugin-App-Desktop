@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Activity, LineChart as LineIcon, CandlestickChart } from 'lucide-react';
-import { pluginApi, supportsPyramidPnl } from '../../lib/pluginApi';
+import { pluginApi } from '../../lib/pluginApi';
 import { isAfterMarketCloseIST } from '../../lib/brokerCash';
 import TradeActionPill from './TradeActionPill';
 import TickerScopeDropdown, { formatTickerScopeLabel } from './TickerScopeDropdown';
@@ -39,8 +39,6 @@ interface Props {
   logRows?: LogTickerHint[];
   /** Epoch ms when simulation handed off to live trading. */
   liveStartedAtMs?: number | null;
-  /** 12:59 IST sim-close rows (same P&amp;L as the trade log overlay). */
-  simCloseRows?: Array<{ symbol: string; pnl: string | number }>;
 }
 
 type ChartType = 'area' | 'candle';
@@ -381,78 +379,6 @@ function parseSessionLiveStart(raw: unknown): number | null {
   return ms != null && isPlausibleTs(ms) ? ms : null;
 }
 
-function resolveLogSimulation(row: LogTickerHint, liveAt: number | null): boolean {
-  if (row.simulation === true) return true;
-  if (row.simulation === false) return false;
-  return liveAt != null && row.timeMs != null && row.timeMs < liveAt;
-}
-
-/** Live if the ticker has any post-pyramid log; otherwise it stayed in simulation. */
-function tickerPhaseMap(
-  logs: LogTickerHint[] | undefined,
-  liveAt: number | null,
-): Record<string, 'live' | 'simulation'> {
-  const out: Record<string, 'live' | 'simulation'> = {};
-  if (!logs?.length) return out;
-  for (const row of logs) {
-    const sym = String(row.symbol || '').toUpperCase();
-    if (!sym || sym === '-') continue;
-    if (!resolveLogSimulation(row, liveAt)) out[sym] = 'live';
-    else if (out[sym] !== 'live') out[sym] = 'simulation';
-  }
-  return out;
-}
-
-function tickerPhaseFor(
-  symbol: string,
-  phases: Record<string, 'live' | 'simulation'>,
-): 'live' | 'simulation' {
-  if (phases[symbol] === 'live') return 'live';
-  if (phases[symbol] === 'simulation') return 'simulation';
-  return supportsPyramidPnl() ? 'simulation' : 'live';
-}
-
-function TickerPhaseBadge({ phase }: { phase: 'live' | 'simulation' }) {
-  if (phase === 'live') {
-    return (
-      <span
-        title="This ticker switched from simulation to live"
-        className="rounded bg-emerald-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-emerald-800"
-      >
-        Live
-      </span>
-    );
-  }
-  return (
-    <span
-      title="This ticker stayed in simulation and did not pyramid"
-      className="rounded bg-slate-200/80 px-1 py-px text-[9px] font-semibold tracking-wide text-slate-500"
-    >
-      Simulation
-    </span>
-  );
-}
-
-function sumSimClosePnl(
-  rows: Array<{ symbol: string; pnl: string | number }> | undefined,
-  selected: Set<string> | null,
-): number | null {
-  if (!rows?.length) return null;
-  const last = new Map<string, number>();
-  for (const row of rows) {
-    const sym = String(row.symbol || '').toUpperCase();
-    if (!sym || sym === '-') continue;
-    if (selected && !selected.has(sym)) continue;
-    const pnl = Number(row.pnl);
-    if (!Number.isFinite(pnl)) continue;
-    last.set(sym, pnl);
-  }
-  if (last.size === 0) return null;
-  let total = 0;
-  for (const v of last.values()) total += v;
-  return total;
-}
-
 function tickersFromLogs(logs: LogTickerHint[] | undefined): Record<string, SymbolRow> {
   if (!logs?.length) return {};
   const lastBySym = new Map<string, LogTickerHint>();
@@ -498,7 +424,7 @@ function mergeSymbolMaps(...maps: Array<Record<string, SymbolRow> | undefined>):
   return out;
 }
 
-export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simCloseRows }: Props) {
+export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs }: Props) {
   const [totalPnl, setTotalPnl] = useState(0);
   const [realizedPnl, setRealizedPnl] = useState(0);
   const [unrealizedPnl, setUnrealizedPnl] = useState(0);
@@ -627,7 +553,6 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
   }, [sessionId]);
 
   const liveAt = inferLiveStartedAt(liveStartedAtMs ?? sessionLiveAt, logRows);
-  const tickerPhases = useMemo(() => tickerPhaseMap(logRows, liveAt), [logRows, liveAt]);
   const logTickers = useMemo(() => tickersFromLogs(logRows), [logRows]);
   const tickerMap = useMemo(
     () => mergeSymbolMaps(logTickers, livePoint?.symbols, snapshots[snapshots.length - 1]?.symbols, symbols),
@@ -680,11 +605,6 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
     }
     return last;
   }, [chartHistory, liveAt]);
-  const simCloseTotal = useMemo(
-    () => sumSimClosePnl(simCloseRows, selectedSet),
-    [simCloseRows, selectedSet],
-  );
-  const simPnl = simCloseTotal ?? simEndPoint?.total ?? null;
   const liveEndPoint = useMemo(() => {
     if (chartHistory.length === 0) return null;
     if (liveAt == null) return chartHistory[chartHistory.length - 1];
@@ -781,11 +701,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <TickerScopeDropdown
-                tickers={tickerList.map(([symbol, row]) => ({
-                  symbol,
-                  pnl: symbolNet(row).total,
-                  phase: tickerPhaseFor(symbol, tickerPhases),
-                }))}
+                tickers={tickerList.map(([symbol, row]) => ({ symbol, pnl: symbolNet(row).total }))}
                 selected={selectedSet ? [...selectedSet] : null}
                 onChange={setSelectedTickers}
               />
@@ -811,9 +727,9 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
           {liveAt != null && (
             <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-amber-50/80 px-3 py-2 text-[12px]">
               <span className="font-semibold text-amber-800">Simulation stays on this chart</span>
-              {simPnl != null && (
-                <span className={simPnl >= 0 ? 'text-emerald-700' : 'text-red-700'}>
-                  Sim P&amp;L {formatMoney(simPnl)}
+              {simEndPoint && (
+                <span className={simEndPoint.total >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                  Sim P&amp;L {formatMoney(simEndPoint.total)}
                 </span>
               )}
               {liveEndPoint && (
@@ -874,7 +790,6 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
               const positive = total >= 0;
               const inScope = selectedSet == null || selectedSet.has(sym);
               const solo = selectedSet?.size === 1 && selectedSet.has(sym);
-              const phase = tickerPhaseFor(sym, tickerPhases);
               return (
                 <button
                   key={sym}
@@ -893,10 +808,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
                   }`}
                 >
                   <div className="min-w-0">
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <p className="truncate text-[13px] font-semibold text-slate-900">{sym}</p>
-                      <TickerPhaseBadge phase={phase} />
-                    </div>
+                    <p className="truncate text-[13px] font-semibold text-slate-900">{sym}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {data.side && <TradeActionPill value={data.side} />}
                       {data.qty != null && Number.isFinite(Number(data.qty)) && Number(data.qty) !== 0 && (

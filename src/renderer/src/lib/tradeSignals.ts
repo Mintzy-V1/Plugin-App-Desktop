@@ -8,7 +8,6 @@ export type ActionTone =
   | 'hold'
   | 'filled'
   | 'close'
-  | 'exit'
   | 'neutral';
 
 const TONE_CLASS: Record<ActionTone, string> = {
@@ -21,7 +20,6 @@ const TONE_CLASS: Record<ActionTone, string> = {
   hold: 'bg-amber-50 text-amber-800 ring-amber-100',
   filled: 'bg-emerald-50 text-emerald-800 ring-emerald-100',
   close: 'bg-slate-800 text-white ring-slate-800',
-  exit: 'bg-rose-50 text-rose-800 ring-rose-200',
   neutral: 'bg-slate-100 text-slate-600 ring-slate-200/80',
 };
 
@@ -66,7 +64,6 @@ export function formatTradeLabel(raw: string | number | null | undefined): { lab
 
   if (/close long|exit long/.test(n)) return { label: 'Close Long', tone: 'close' };
   if (/close short|cover short|exit short/.test(n)) return { label: 'Close Short', tone: 'close' };
-  if (n === 'exit') return { label: 'Exit', tone: 'exit' };
   if (/^close|^exit|^cover/.test(n)) return { label: 'Closed', tone: 'close' };
 
   if (/rms/.test(n)) return { label: 'Hit RMS', tone: 'sell' };
@@ -88,8 +85,5 @@ export function isWaitAction(raw: string | number | null | undefined): boolean {
 }
 
 export function actionPillClass(tone: ActionTone): string {
-  if (tone === 'exit') {
-    return 'inline-flex items-center rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-rose-700 ring-1 ring-rose-200';
-  }
   return `inline-flex max-w-[11.5rem] items-center truncate rounded-full px-2 py-0.5 text-[11px] font-semibold leading-4 ring-1 ${TONE_CLASS[tone]}`;
 }

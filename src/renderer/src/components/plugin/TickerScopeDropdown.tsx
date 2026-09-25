@@ -4,7 +4,6 @@ import { Check, ChevronsUpDown, Search } from 'lucide-react';
 export interface TickerScopeOption {
   symbol: string;
   pnl: number;
-  phase?: 'live' | 'simulation';
 }
 
 interface Props {
@@ -148,15 +147,7 @@ export default function TickerScopeDropdown({ tickers, selected, onChange }: Pro
                     >
                       {on && <Check className="h-3 w-3" />}
                     </span>
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate">{t.symbol}</span>
-                      {t.phase === 'live' && (
-                        <span className="rounded bg-emerald-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-emerald-800">Live</span>
-                      )}
-                      {t.phase === 'simulation' && (
-                        <span className="rounded bg-slate-200/80 px-1 py-px text-[9px] font-semibold tracking-wide text-slate-500">Sim</span>
-                      )}
-                    </span>
+                    <span className="truncate">{t.symbol}</span>
                   </span>
                   <span className={`shrink-0 tabular-nums text-[11px] font-medium ${positive ? 'text-emerald-600' : 'text-red-600'}`}>
                     {positive ? '+' : '−'}₹{Math.abs(t.pnl).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
