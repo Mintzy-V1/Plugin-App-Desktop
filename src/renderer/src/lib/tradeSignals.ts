@@ -8,6 +8,7 @@ export type ActionTone =
   | 'hold'
   | 'filled'
   | 'close'
+  | 'exit'
   | 'neutral';
 
 const TONE_CLASS: Record<ActionTone, string> = {
@@ -20,6 +21,7 @@ const TONE_CLASS: Record<ActionTone, string> = {
   hold: 'bg-amber-50 text-amber-800 ring-amber-100',
   filled: 'bg-emerald-50 text-emerald-800 ring-emerald-100',
   close: 'bg-slate-800 text-white ring-slate-800',
+  exit: 'bg-indigo-50 text-indigo-800 ring-indigo-100',
   neutral: 'bg-slate-100 text-slate-600 ring-slate-200/80',
 };
 
@@ -64,6 +66,7 @@ export function formatTradeLabel(raw: string | number | null | undefined): { lab
 
   if (/close long|exit long/.test(n)) return { label: 'Close Long', tone: 'close' };
   if (/close short|cover short|exit short/.test(n)) return { label: 'Close Short', tone: 'close' };
+  if (n === 'exit') return { label: 'Exit', tone: 'exit' };
   if (/^close|^exit|^cover/.test(n)) return { label: 'Closed', tone: 'close' };
 
   if (/rms/.test(n)) return { label: 'Hit RMS', tone: 'sell' };

@@ -6,6 +6,8 @@ import {
   extractOnePmPnlFromHistory,
   mergePyramidMaps,
   isSimCloseIstLog,
+  isLastMorningSimIstLog,
+  isSessionSquareOffIstLog,
   istWallClockMs,
 } from '../../lib/pyramidPnl';
 import { shouldFetchPyramidPnl } from '../../lib/istClock';
@@ -23,7 +25,7 @@ import {
 } from '../../lib/sessionStatus';
 import { downloadSessionCsv } from '../../lib/downloadSessionCsv';
 import { pickCash, rememberBrokerCash } from '../../lib/brokerCash';
-import { isWaitAction } from '../../lib/tradeSignals';
+import { formatTradeLabel, isWaitAction } from '../../lib/tradeSignals';
 import LivePnlPanel from './LivePnlPanel';
 import TradeActionPill from './TradeActionPill';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
@@ -163,6 +165,46 @@ function pickQuantity(r: Record<string, unknown> | null | undefined): string | n
 
 function isPlaceholderValue(v: unknown): boolean {
   return v == null || v === '' || v === '-' || v === '—' || v === '--';
+}
+
+function numOrNull(v: unknown): number | null {
+  if (v == null || v === '' || v === '-') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function isNumericZero(v: unknown): boolean {
+  return numOrNull(v) === 0;
+}
+
+/** Realized + unrealized when both exist. A flat book writes P&L=0; realized still holds the exit profit. */
+function readSymbolNetPnl(row: Record<string, unknown> | null | undefined): number | null {
+  if (!row) return null;
+  const realized = numOrNull(
+    row.symbol_realized_pnl ?? row.realized_pnl ?? row.portfolio_realized_pnl,
+  );
+  const unrealized = numOrNull(
+    row.symbol_unrealized_pnl
+    ?? row.unrealized_pnl
+    ?? row.live_unrealized_pnl
+    ?? row.portfolio_unrealized_pnl,
+  );
+  if (realized != null && unrealized != null) return realized + unrealized;
+  const marked = numOrNull(
+    row.final_pnl ?? row.symbol_pnl ?? row.total_pnl ?? row['P&L'] ?? row.PnL ?? row.pnl,
+  );
+  if (realized != null && realized !== 0) return realized;
+  if (unrealized != null && unrealized !== 0) return unrealized;
+  if (marked != null && marked !== 0) return marked;
+  if (realized != null) return realized;
+  if (unrealized != null) return unrealized;
+  if (marked != null) return marked;
+  return null;
+}
+
+function pickRowPnl(r: Record<string, unknown>): string | number {
+  const net = readSymbolNetPnl(r);
+  return net != null ? net : '-';
 }
 
 function hasQuantity(v: string | number | null | undefined): boolean {
@@ -306,6 +348,72 @@ function applyHistoryQuantities(logs: TradeLogRow[], timeline: QtySample[]): Tra
   });
 }
 
+interface PnlSample {
+  ts: number;
+  bySym: Map<string, number>;
+}
+
+function pnlMapFromSymbols(raw: unknown): Map<string, number> {
+  const bySym = new Map<string, number>();
+  const symbols = pickLivePnlSymbols(raw);
+  if (!symbols) return bySym;
+  for (const [sym, data] of Object.entries(symbols)) {
+    const pnl = readSymbolNetPnl(
+      data && typeof data === 'object' ? data as Record<string, unknown> : null,
+    );
+    if (pnl != null && pnl !== 0) bySym.set(sym.toUpperCase(), pnl);
+  }
+  return bySym;
+}
+
+function buildPnlTimeline(raw: unknown): PnlSample[] {
+  let snapshots: unknown[] = [];
+  if (Array.isArray(raw)) snapshots = raw;
+  else if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    if (Array.isArray(o.snapshots)) snapshots = o.snapshots;
+    else if (o.data && typeof o.data === 'object' && Array.isArray((o.data as Record<string, unknown>).snapshots)) {
+      snapshots = (o.data as Record<string, unknown>).snapshots as unknown[];
+    }
+  }
+
+  const samples: PnlSample[] = [];
+  for (const item of snapshots) {
+    if (!item || typeof item !== 'object') continue;
+    const snap = item as Record<string, unknown>;
+    const ts = parseInstantMs(snap.sampled_at)
+      ?? parseInstantMs(snap.source_ts)
+      ?? parseInstantMs((snap.data as Record<string, unknown> | undefined)?.ts);
+    if (ts == null) continue;
+    const bySym = pnlMapFromSymbols(snap.data ?? snap);
+    if (bySym.size === 0) continue;
+    samples.push({ ts, bySym });
+  }
+  samples.sort((a, b) => a.ts - b.ts);
+  return samples;
+}
+
+function pnlAsOf(timeline: PnlSample[], symbol: string, timeMs: number | null): number | null {
+  if (timeline.length === 0) return null;
+  const key = symbol.toUpperCase();
+  let last: number | null = null;
+  for (const sample of timeline) {
+    if (timeMs != null && sample.ts > timeMs + 15_000) break;
+    const v = sample.bySym.get(key);
+    if (v != null && v !== 0) last = v;
+  }
+  return last;
+}
+
+function applyHistoryPnl(logs: TradeLogRow[], timeline: PnlSample[]): TradeLogRow[] {
+  if (timeline.length === 0) return logs;
+  return logs.map((row) => {
+    if (!isPlaceholderValue(row.pnl) && !isNumericZero(row.pnl)) return row;
+    const pnl = pnlAsOf(timeline, String(row.symbol), row.timeMs);
+    return pnl != null && pnl !== 0 ? { ...row, pnl } : row;
+  });
+}
+
 function logRowKey(row: TradeLogRow): string {
   return `${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`;
 }
@@ -332,6 +440,16 @@ function fillMissingLogFields(row: TradeLogRow, fallback?: TradeLogRow | null): 
   for (const key of keys) {
     const cur = next[key];
     const prev = fallback[key];
+    if (key === 'pnl') {
+      if (
+        (isPlaceholderValue(cur) || isNumericZero(cur))
+        && !isPlaceholderValue(prev)
+        && !isNumericZero(prev)
+      ) {
+        next.pnl = prev as TradeLogRow['pnl'];
+      }
+      continue;
+    }
     if (isPlaceholderValue(cur) && !isPlaceholderValue(prev)) {
       (next as TradeLogRow)[key] = prev as never;
     }
@@ -379,6 +497,7 @@ function mergeIncomingLogs(
   timeline: QtySample[],
   snapSymbols: Record<string, unknown> | null,
   liveSymbols: Record<string, unknown> | null,
+  pnlTimeline: PnlSample[] = [],
 ): TradeLogRow[] {
   const sources = [fromPlugin, fromTrades, fromDash].filter((rows) => rows.length > 0);
   if (sources.length === 0) return previous;
@@ -402,6 +521,7 @@ function mergeIncomingLogs(
   let merged = primary.map((row) => fillMissingLogFields(byKey.get(logRowKey(row)) ?? row, row));
   merged = mergeLogQuantities(merged, fromPlugin, fromTrades, fromDash, previous);
   merged = applyHistoryQuantities(merged, timeline);
+  merged = applyHistoryPnl(merged, pnlTimeline);
   merged = applySymbolQuantities(merged, snapSymbols);
   merged = applySymbolQuantities(merged, liveSymbols);
   merged = merged.map((row) => fillMissingLogFields(row, byKey.get(logRowKey(row))));
@@ -447,7 +567,7 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
       quantity: pickQuantity(r),
       price: r.Price ?? r.price ?? r.curr_price ?? '-',
       change: r['Change(%)'] ?? r.Change ?? r.change ?? r.return_pct ?? '-',
-      pnl: r['P&L'] ?? r.PnL ?? r.pnl ?? r.unrealized_pnl ?? r.realized_pnl ?? '-',
+      pnl: pickRowPnl(r),
       capital: r['Total_Capital'] ?? r.TotalCapital ?? r.total_capital ?? r.capital ?? r.cash_balance ?? r.portfolio_cash_balance ?? '-',
       return_pct: r['Return(%)'] ?? r.Return ?? r.return_pct ?? r.return ?? '-',
       simulation: typeof simRaw === 'boolean'
@@ -519,20 +639,33 @@ function rmsRowFromExit(
 function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow[] {
   if (exits.length === 0) return logs;
   const extra: TradeLogRow[] = [];
+  let patched = logs;
   for (const ex of exits) {
     const ms = parseTradeTimeMs(exitedSymbolTimeRaw(ex));
     const key = ex.symbol.toUpperCase();
-    const already = logs.some((l) => {
+    const exitPnl = exitedSymbolPnl(ex);
+    const matchIdx = patched.findIndex((l) => {
       if (String(l.symbol || '').toUpperCase() !== key) return false;
       if (l.rmsHit) return true;
-      if (l.timeMs != null && ms != null && Math.abs(l.timeMs - ms) < 2000) return true;
+      if (l.timeMs != null && ms != null && l.timeMs >= ms - 5000 && (l.timeMs - ms) < 30 * 60 * 1000) return true;
       return false;
     });
-    if (already) continue;
+    if (matchIdx >= 0) {
+      const row = patched[matchIdx];
+      if (
+        (isPlaceholderValue(row.pnl) || isNumericZero(row.pnl))
+        && exitPnl != null
+        && exitPnl !== 0
+      ) {
+        if (patched === logs) patched = logs.slice();
+        patched[matchIdx] = { ...row, pnl: exitPnl };
+      }
+      continue;
+    }
     extra.push(rmsRowFromExit(ex, ms));
   }
-  if (extra.length === 0) return logs;
-  return [...logs, ...extra].sort((a, b) => (a.timeMs ?? 0) - (b.timeMs ?? 0));
+  if (extra.length === 0) return patched;
+  return [...patched, ...extra].sort((a, b) => (a.timeMs ?? 0) - (b.timeMs ?? 0));
 }
 
 function formatCell(v: string | number, asMoney = false) {
@@ -565,7 +698,8 @@ function resolveSimulation(log: TradeLogRow, liveCutoff: { hasLiveCutoff: boolea
 
 /**
  * Display-only 12:59 IST sim-close rows: copy the last sim block (e.g. 11:45)
- * and set P&L from `/trading/pyramid-pnl`. Live 1pm rows are left unchanged.
+ * and set P&L from `/trading/pyramid-pnl`. Signal/Action are remapped afterwards
+ * in remapSimCloseExitRows. Live 1pm rows are left unchanged.
  */
 function withPyramidSimCloseRows(
   logs: TradeLogRow[],
@@ -651,6 +785,106 @@ function withPyramidSimCloseRows(
   return [...before, ...injected, ...after];
 }
 
+/**
+ * 14:50 / 15:00 IST square-off: engine puts the side in Action and a 0% change.
+ * Show that side in Signal; Action and Change are dashes.
+ */
+function remapSquareOffLogRow(row: TradeLogRow): TradeLogRow {
+  if (row.rmsHit || !isSessionSquareOffIstLog(row.timeMs)) return row;
+  return {
+    ...row,
+    signal: isPlaceholderValue(row.action) ? row.signal : row.action,
+    action: '-',
+    change: '-',
+  };
+}
+
+function invertBuySell(raw: string | number | null | undefined): string | null {
+  const { tone } = formatTradeLabel(raw);
+  if (tone === 'buy' || tone === 'hold-long') return 'Sell';
+  if (tone === 'sell' || tone === 'hold-short') return 'Buy';
+  return null;
+}
+
+function closingSideFromPrior(prior: TradeLogRow): string | null {
+  return invertBuySell(prior.signal) ?? invertBuySell(prior.action);
+}
+
+/**
+ * 12:59 IST is the sim-close exit. Invert Buy/Sell from the last morning
+ * candle (11:45) so a long is closed with Sell and a short with Buy.
+ * Action is Exit; Change is a dash. 11:45 rows stay as the engine logged them.
+ */
+function remapSimCloseExitRows(
+  logs: TradeLogRow[],
+  liveStartedAtMs: number | null,
+): TradeLogRow[] {
+  const cutoff = { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs };
+  const priorBySym = new Map<string, TradeLogRow>();
+  for (const row of logs) {
+    if (row.timeMs == null || row.rmsHit) continue;
+    if (isSimCloseIstLog(row.timeMs)) continue;
+    if (!resolveSimulation(row, cutoff) && !isLastMorningSimIstLog(row.timeMs)) continue;
+    const key = String(row.symbol || '').toUpperCase();
+    if (!key || key === '-') continue;
+    const existing = priorBySym.get(key);
+    if (!existing || (existing.timeMs ?? 0) <= row.timeMs) priorBySym.set(key, row);
+  }
+
+  return logs.map((row) => {
+    if (row.rmsHit || !isSimCloseIstLog(row.timeMs)) return row;
+    const key = String(row.symbol || '').toUpperCase();
+    const prior = priorBySym.get(key);
+    const inverted = prior
+      ? closingSideFromPrior(prior)
+      : invertBuySell(row.signal) ?? invertBuySell(row.action);
+    return {
+      ...row,
+      signal: inverted ?? (prior ? prior.signal : row.signal),
+      action: 'EXIT',
+      change: '-',
+    };
+  });
+}
+
+function lastStopBlockMs(logs: TradeLogRow[], liveStartedAtMs: number | null): number | null {
+  const cutoff = { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs };
+  let last: number | null = null;
+  for (const row of logs) {
+    if (row.timeMs == null || row.rmsHit) continue;
+    if (isSimCloseIstLog(row.timeMs)) continue;
+    if (isLastMorningSimIstLog(row.timeMs)) continue;
+    if (resolveSimulation(row, cutoff)) continue;
+    if (last == null || row.timeMs > last) last = row.timeMs;
+  }
+  return last;
+}
+
+/**
+ * Manual Stop/Force: last live snapshot keeps its Signal, Action is Exit, Change is a dash.
+ * 11:45 and 12:59 are never the stop-exit block — 12:59 has its own sim-close remap.
+ */
+function remapManualStopExitRows(
+  logs: TradeLogRow[],
+  sessionStatus: string,
+  liveStartedAtMs: number | null,
+): TradeLogRow[] {
+  if ((sessionStatus || '').toLowerCase() !== 'stopped') return logs;
+  const lastMs = lastStopBlockMs(logs, liveStartedAtMs);
+  if (lastMs == null) return logs;
+  return logs.map((row) => {
+    if (row.rmsHit || row.timeMs == null) return row;
+    if (Math.abs(row.timeMs - lastMs) > 5000) return row;
+    if (isSimCloseIstLog(row.timeMs) || isLastMorningSimIstLog(row.timeMs)) return row;
+    if (resolveSimulation(row, { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs })) return row;
+    return {
+      ...row,
+      action: 'EXIT',
+      change: '-',
+    };
+  });
+}
+
 function extractTradingSession(raw: unknown): TradingSession | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
@@ -707,8 +941,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const simRunning = isSimulationRunningStatus(simulationStatus);
   const displayLogs = useMemo(() => {
     const withRms = withRmsLogRows(logs, exitedSymbols);
-    return withPyramidSimCloseRows(withRms, pyramidPnlBySymbol, liveStartedAtMs, exitedSymbols);
-  }, [logs, pyramidPnlBySymbol, liveStartedAtMs, exitedSymbols]);
+    const withPyramid = withPyramidSimCloseRows(withRms, pyramidPnlBySymbol, liveStartedAtMs, exitedSymbols);
+    const withSimExit = remapSimCloseExitRows(withPyramid, liveStartedAtMs);
+    const withSquareOff = withSimExit.map(remapSquareOffLogRow);
+    return remapManualStopExitRows(withSquareOff, effectiveStatus, liveStartedAtMs);
+  }, [logs, pyramidPnlBySymbol, liveStartedAtMs, exitedSymbols, effectiveStatus]);
 
   const fetchDashboard = async () => {
     const forSession = sessionId;
@@ -844,6 +1081,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       buildQtyTimeline(historyRaw),
       pickLivePnlSymbols(snapshot),
       pickLivePnlSymbols(livePnl),
+      buildPnlTimeline(historyRaw),
     );
     if (reMerged.length > 0) {
       logsRef.current = reMerged;
@@ -1044,7 +1282,15 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
       {/* Keep both panes mounted so Live P&L history/polling survives tab switches. */}
       <div hidden={tab !== 'pnl'}>
-        <LivePnlPanel key={sessionId} sessionId={sessionId} logRows={logs} liveStartedAtMs={liveStartedAtMs} />
+        <LivePnlPanel
+          key={sessionId}
+          sessionId={sessionId}
+          logRows={logs}
+          liveStartedAtMs={liveStartedAtMs}
+          simCloseRows={displayLogs
+            .filter((row) => isSimCloseIstLog(row.timeMs))
+            .map((row) => ({ symbol: row.symbol, pnl: row.pnl }))}
+        />
       </div>
 
       <div hidden={tab !== 'logs'}>
