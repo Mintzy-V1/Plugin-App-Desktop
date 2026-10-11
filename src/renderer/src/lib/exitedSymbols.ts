@@ -64,6 +64,14 @@ export function exitedSymbolPnl(ex: ExitedSymbol): number | null {
   return num(ex.total_pnl) ?? num(ex.unrealized_pnl) ?? num(ex.realized_pnl);
 }
 
+/** True when `/trading/exited-symbols` looks like a user/manual flatten rather than RMS. */
+export function isManualSymbolExit(ex: ExitedSymbol): boolean {
+  const blob = `${ex.exit_reason || ''} ${ex.status || ''} ${ex.position_status || ''}`.toLowerCase();
+  if (/manual|user|exit.?symbol|trader/.test(blob)) return true;
+  if (/rms|risk|stop.?loss|stoploss|max.?loss|trailing|circuit|profit.?target/.test(blob)) return false;
+  return false;
+}
+
 export function exitedSymbolTimeRaw(ex: ExitedSymbol): string | undefined {
   return ex.exit_time_utc || ex.exit_time;
 }

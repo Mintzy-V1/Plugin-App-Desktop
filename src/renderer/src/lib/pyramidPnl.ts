@@ -108,6 +108,25 @@ function readSymbolUnrealized(row: Record<string, unknown>): number | null {
   );
 }
 
+/** Mark/LTP at the pyramid snapshot — not entry and not the previous candle close. */
+function readSymbolMarkPrice(row: Record<string, unknown>): number | null {
+  const n = num(
+    row.ltp
+    ?? row.LTP
+    ?? row.last_traded_price
+    ?? row.lastTradedPrice
+    ?? row.last_price
+    ?? row.lastPrice
+    ?? row.curr_price
+    ?? row.current_price
+    ?? row.mark_price
+    ?? row.close_price
+    ?? row.ltp_price
+    ?? row.price,
+  );
+  return n != null && n !== 0 ? n : null;
+}
+
 function looksLikeTicker(key: string): boolean {
   return /^[A-Z][A-Z0-9.&-]{1,19}$/.test(key);
 }
@@ -122,6 +141,28 @@ function ingestSymbolRow(out: Record<string, number>, sym: string, row: unknown)
   if (!row || typeof row !== 'object') return;
   const pnl = readSymbolUnrealized(row as Record<string, unknown>);
   if (pnl != null) out[key] = pnl;
+}
+
+function ingestSymbolPrice(out: Record<string, number>, sym: string, row: unknown): void {
+  const key = String(sym || '').toUpperCase().trim();
+  if (!key || key === '-' || !row || typeof row !== 'object') return;
+  const price = readSymbolMarkPrice(row as Record<string, unknown>);
+  if (price != null) out[key] = price;
+}
+
+function ingestPriceMap(out: Record<string, number>, map: unknown): void {
+  if (!map || typeof map !== 'object') return;
+  if (Array.isArray(map)) {
+    for (const item of map) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      ingestSymbolPrice(out, String(row.symbol ?? row.Symbol ?? ''), row);
+    }
+    return;
+  }
+  for (const [sym, row] of Object.entries(map as Record<string, unknown>)) {
+    ingestSymbolPrice(out, sym, row);
+  }
 }
 
 function ingestSymbolMap(out: Record<string, number>, map: unknown): void {
@@ -169,6 +210,88 @@ export function parsePyramidPnlBySymbol(raw: unknown): Record<string, number> {
     ingestSymbolMap(out, nested);
     for (const [key, value] of Object.entries(nested)) {
       if (looksLikeTicker(key)) ingestSymbolRow(out, key, value);
+    }
+  }
+
+  return out;
+}
+
+/** Per-symbol LTP/mark from `/trading/pyramid-pnl/:sessionId` (12:59 snapshot). */
+export function parsePyramidPriceBySymbol(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== 'object') return out;
+
+  const root = raw as Record<string, unknown>;
+  if (root.success === false) return out;
+
+  const payload = (root.data && typeof root.data === 'object' ? root.data : root) as Record<string, unknown>;
+  const nested = (payload.pyramid_pnl && typeof payload.pyramid_pnl === 'object'
+    ? payload.pyramid_pnl
+    : payload.pyramid) as Record<string, unknown> | undefined;
+
+  const symbolPayload = payload.symbols ?? root.symbols ?? nested?.symbols;
+  ingestPriceMap(out, symbolPayload);
+  ingestPriceMap(out, payload.rows ?? payload.logs ?? payload.trades ?? payload.entries ?? root.rows);
+
+  if (Object.keys(out).length === 0) {
+    for (const [key, value] of Object.entries(payload)) {
+      if (key === 'success' || key === 'session_id' || key === 'market_date') continue;
+      if (looksLikeTicker(key)) ingestSymbolPrice(out, key, value);
+    }
+  }
+
+  if (Object.keys(out).length === 0 && nested) {
+    ingestPriceMap(out, nested);
+    for (const [key, value] of Object.entries(nested)) {
+      if (looksLikeTicker(key)) ingestSymbolPrice(out, key, value);
+    }
+  }
+
+  return out;
+}
+
+function simClosePriceRank(timeMs: number): number {
+  const hm = istHourMinute(timeMs);
+  if (!hm) return -1;
+  if (hm.hour === 12 && hm.minute === 59) return 3;
+  if (hm.hour === 13 && hm.minute === 0) return 2;
+  if (hm.hour === 12 && hm.minute >= 57) return 1;
+  return -1;
+}
+
+function pricesFromHistorySymbols(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  ingestPriceMap(out, raw);
+  return out;
+}
+
+/**
+ * LTP at the sim-close minute from `/trading/live-pnl/:id/history`.
+ * Prefers 12:59, then 13:00, then 12:57–12:58.
+ */
+export function extractSimClosePricesFromHistory(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  const root = raw as Record<string, unknown>;
+  const snapshots = Array.isArray(root.snapshots) ? root.snapshots : [];
+  let bestRank = 0;
+
+  for (const item of snapshots) {
+    if (!item || typeof item !== 'object') continue;
+    const snap = item as Record<string, unknown>;
+    const data = (snap.data && typeof snap.data === 'object' ? snap.data : snap) as Record<string, unknown>;
+    const ts = parseInstantMs(data.ts) ?? parseInstantMs(snap.source_ts) ?? parseInstantMs(snap.sampled_at);
+    if (ts == null) continue;
+    const rank = simClosePriceRank(ts);
+    if (rank < bestRank) continue;
+    const map = pricesFromHistorySymbols(data.symbols ?? data);
+    if (Object.keys(map).length === 0) continue;
+    if (rank > bestRank) {
+      bestRank = rank;
+      for (const key of Object.keys(out)) delete out[key];
+    }
+    if (rank === bestRank) {
+      for (const [sym, price] of Object.entries(map)) out[sym] = price;
     }
   }
 
