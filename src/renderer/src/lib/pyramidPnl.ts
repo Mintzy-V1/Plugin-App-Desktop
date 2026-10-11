@@ -108,8 +108,7 @@ function readSymbolUnrealized(row: Record<string, unknown>): number | null {
   );
 }
 
-/** Mark/LTP at the pyramid snapshot — not entry and not the previous candle close. */
-function readSymbolMarkPrice(row: Record<string, unknown>): number | null {
+function readMarkFromObject(row: Record<string, unknown>): number | null {
   const n = num(
     row.ltp
     ?? row.LTP
@@ -122,9 +121,21 @@ function readSymbolMarkPrice(row: Record<string, unknown>): number | null {
     ?? row.mark_price
     ?? row.close_price
     ?? row.ltp_price
+    ?? row.last
     ?? row.price,
   );
   return n != null && n !== 0 ? n : null;
+}
+
+/** Mark/LTP at the pyramid snapshot — not entry and not the previous candle close. */
+function readSymbolMarkPrice(row: Record<string, unknown>): number | null {
+  const nested = [row, row.tick, row.quote, row.market, row.ohlc, row.data];
+  for (const item of nested) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const n = readMarkFromObject(item as Record<string, unknown>);
+    if (n != null) return n;
+  }
+  return null;
 }
 
 function looksLikeTicker(key: string): boolean {
@@ -250,13 +261,12 @@ export function parsePyramidPriceBySymbol(raw: unknown): Record<string, number> 
   return out;
 }
 
-function simClosePriceRank(timeMs: number): number {
+function isSimClosePriceWindow(timeMs: number): boolean {
   const hm = istHourMinute(timeMs);
-  if (!hm) return -1;
-  if (hm.hour === 12 && hm.minute === 59) return 3;
-  if (hm.hour === 13 && hm.minute === 0) return 2;
-  if (hm.hour === 12 && hm.minute >= 57) return 1;
-  return -1;
+  if (!hm) return false;
+  if (hm.hour === 12 && hm.minute >= 50) return true;
+  if (hm.hour === 13 && hm.minute <= 2) return true;
+  return false;
 }
 
 function pricesFromHistorySymbols(raw: unknown): Record<string, number> {
@@ -266,32 +276,29 @@ function pricesFromHistorySymbols(raw: unknown): Record<string, number> {
 }
 
 /**
- * LTP at the sim-close minute from `/trading/live-pnl/:id/history`.
- * Prefers 12:59, then 13:00, then 12:57–12:58.
+ * LTP near sim close from `/trading/live-pnl/:id/history`.
+ * Uses the latest sample in 12:50–13:02 IST per symbol.
  */
 export function extractSimClosePricesFromHistory(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
+  const bestTs: Record<string, number> = {};
   if (!raw || typeof raw !== 'object') return out;
   const root = raw as Record<string, unknown>;
   const snapshots = Array.isArray(root.snapshots) ? root.snapshots : [];
-  let bestRank = 0;
 
   for (const item of snapshots) {
     if (!item || typeof item !== 'object') continue;
     const snap = item as Record<string, unknown>;
     const data = (snap.data && typeof snap.data === 'object' ? snap.data : snap) as Record<string, unknown>;
     const ts = parseInstantMs(data.ts) ?? parseInstantMs(snap.source_ts) ?? parseInstantMs(snap.sampled_at);
-    if (ts == null) continue;
-    const rank = simClosePriceRank(ts);
-    if (rank < bestRank) continue;
+    if (ts == null || !isSimClosePriceWindow(ts)) continue;
     const map = pricesFromHistorySymbols(data.symbols ?? data);
-    if (Object.keys(map).length === 0) continue;
-    if (rank > bestRank) {
-      bestRank = rank;
-      for (const key of Object.keys(out)) delete out[key];
-    }
-    if (rank === bestRank) {
-      for (const [sym, price] of Object.entries(map)) out[sym] = price;
+    for (const [sym, price] of Object.entries(map)) {
+      const prev = bestTs[sym];
+      if (prev == null || ts >= prev) {
+        bestTs[sym] = ts;
+        out[sym] = price;
+      }
     }
   }
 

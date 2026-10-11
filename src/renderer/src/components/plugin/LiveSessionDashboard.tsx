@@ -294,7 +294,11 @@ function pricesFromLivePnl(raw: unknown): Record<string, number> {
       ?? row.last_price
       ?? row.curr_price
       ?? row.mark_price
-      ?? row.price,
+      ?? row.close_price
+      ?? row.last
+      ?? row.price
+      ?? (row.tick && typeof row.tick === 'object' ? (row.tick as Record<string, unknown>).ltp : undefined)
+      ?? (row.quote && typeof row.quote === 'object' ? (row.quote as Record<string, unknown>).ltp : undefined),
     );
     if (n != null && n !== 0) out[sym.toUpperCase()] = n;
   }
@@ -690,8 +694,9 @@ function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow
     if (matchIdx >= 0) {
       const row = patched[matchIdx];
       let next = row;
-      if (looksLikeBrokenExitRow(row)) {
-        next = applySymbolExitDisplay(row, ex);
+      if (looksLikeBrokenExitRow(row) || (isManualSymbolExit(ex) && formatTradeLabel(row.action).tone === 'exit')) {
+        const prior = lastCandleBeforeExit(logs, key, row.timeMs ?? ms);
+        next = applySymbolExitDisplay(row, ex, prior);
       }
       if (
         (isPlaceholderValue(next.pnl) || isNumericZero(next.pnl))
@@ -710,7 +715,13 @@ function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow
     extra.push({
       ...injected,
       action: isManualSymbolExit(ex) ? 'EXIT' : injected.action,
-      signal: isManualSymbolExit(ex) ? (ex.entry_side || ex.exit_side || injected.signal) : injected.signal,
+      signal: isManualSymbolExit(ex)
+        ? (invertBuySell(ex.entry_side)
+          ?? invertBuySell(lastCandleBeforeExit(logs, key, ms)?.signal)
+          ?? invertBuySell(ex.exit_side)
+          ?? ex.exit_side
+          ?? injected.signal)
+        : injected.signal,
       pnl: heldPnl ?? injected.pnl,
     });
   }
@@ -820,7 +831,7 @@ function withPyramidSimCloseRows(
       chartTimeMs: closeMs,
       symbol: template.symbol,
       pnl: pyramidBySymbol[sym],
-      price: mark != null && Number.isFinite(mark) ? mark : '-',
+      price: mark != null && Number.isFinite(mark) ? mark : template.price,
       simulation: true,
       rmsHit: false,
       rmsReason: undefined,
@@ -851,6 +862,36 @@ function isBuySellTone(raw: string | number | null | undefined): boolean {
   return tone === 'buy' || tone === 'sell' || tone === 'hold-long' || tone === 'hold-short';
 }
 
+function invertBuySell(raw: string | number | null | undefined): string | null {
+  const { tone } = formatTradeLabel(raw);
+  if (tone === 'buy' || tone === 'hold-long') return 'Sell';
+  if (tone === 'sell' || tone === 'hold-short') return 'Buy';
+  return null;
+}
+
+function closingSideFromPrior(prior: TradeLogRow): string | null {
+  return invertBuySell(prior.signal) ?? invertBuySell(prior.action);
+}
+
+function lastCandleBeforeExit(
+  logs: TradeLogRow[],
+  symbol: string,
+  beforeMs: number | null,
+): TradeLogRow | null {
+  const key = symbol.toUpperCase();
+  let best: TradeLogRow | null = null;
+  for (const row of logs) {
+    if (String(row.symbol || '').toUpperCase() !== key) continue;
+    if (row.rmsHit || looksLikeBrokenExitRow(row)) continue;
+    if (isSimCloseIstLog(row.timeMs) || isSessionSquareOffIstLog(row.timeMs)) continue;
+    if (formatTradeLabel(row.action).tone === 'exit') continue;
+    if (beforeMs != null && row.timeMs != null && row.timeMs > beforeMs) continue;
+    if (!isBuySellTone(row.signal) && !isBuySellTone(row.action)) continue;
+    if (!best || (row.timeMs ?? 0) >= (best.timeMs ?? 0)) best = row;
+  }
+  return best;
+}
+
 /**
  * Engine manual-exit snapshots often look like the old square-off shape:
  * side in Action (or both columns dashed) and Change 0 / —.
@@ -865,38 +906,59 @@ function looksLikeBrokenExitRow(row: TradeLogRow): boolean {
   return false;
 }
 
-function applySymbolExitDisplay(row: TradeLogRow, ex?: ExitedSymbol): TradeLogRow {
+function applySymbolExitDisplay(
+  row: TradeLogRow,
+  ex?: ExitedSymbol,
+  prior?: TradeLogRow | null,
+): TradeLogRow {
   const rms = ex != null && !isManualSymbolExit(ex)
     && /rms|risk|stop.?loss|stoploss|max.?loss|trailing|circuit|profit.?target/i.test(ex.exit_reason || '');
-  const signal = !isPlaceholderValue(row.signal)
-    ? row.signal
-    : (isBuySellTone(row.action)
-      ? row.action
-      : (ex?.entry_side || ex?.exit_side || row.signal));
+  if (rms) {
+    const signal = !isPlaceholderValue(row.signal)
+      ? row.signal
+      : (isBuySellTone(row.action) ? row.action : (ex?.entry_side || ex?.exit_side || row.signal));
+    return { ...row, signal, action: 'Hit RMS', change: '-' };
+  }
+  const inverted = (prior ? closingSideFromPrior(prior) : null)
+    ?? invertBuySell(ex?.entry_side)
+    ?? invertBuySell(prior?.signal)
+    ?? invertBuySell(prior?.action)
+    ?? invertBuySell(row.signal)
+    ?? invertBuySell(row.action)
+    ?? invertBuySell(ex?.exit_side);
   return {
     ...row,
-    signal,
-    action: rms ? 'Hit RMS' : 'EXIT',
+    signal: inverted ?? (prior ? prior.signal : row.signal),
+    action: 'EXIT',
     change: '-',
   };
 }
 
+function shouldRemapManualExitRow(row: TradeLogRow, ex?: ExitedSymbol): boolean {
+  if (row.rmsHit) return false;
+  if (isSimCloseIstLog(row.timeMs) || isLastMorningSimIstLog(row.timeMs)) return false;
+  if (isSessionSquareOffIstLog(row.timeMs)) return false;
+  if (looksLikeBrokenExitRow(row)) return true;
+  if (formatTradeLabel(row.action).tone === 'exit' && (!ex || isManualSymbolExit(ex))) return true;
+  return false;
+}
+
 /**
- * Per-stock manual exit: keep the side in Signal, Action is Exit, Change is —.
- * Auto RMS rows already have a real Action (Hit RMS / Exit) and are left alone.
+ * Per-stock manual exit: invert Signal from the last candle (Buy→Sell, Sell→Buy),
+ * Action is Exit, Change is —. Auto RMS rows are left as Hit RMS.
  */
 function remapBrokenSymbolExitRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow[] {
   const bySym = new Map<string, ExitedSymbol>();
   for (const ex of exits) bySym.set(ex.symbol.toUpperCase(), ex);
   return logs.map((row) => {
-    if (row.rmsHit) return row;
-    if (isSimCloseIstLog(row.timeMs) || isLastMorningSimIstLog(row.timeMs)) return row;
-    if (isSessionSquareOffIstLog(row.timeMs)) return row;
-    if (!looksLikeBrokenExitRow(row)) return row;
     const ex = bySym.get(String(row.symbol || '').toUpperCase());
     const sideInAction = isPlaceholderValue(row.signal) && isBuySellTone(row.action);
-    if (!ex && !sideInAction) return row;
-    return applySymbolExitDisplay(row, ex);
+    if (!shouldRemapManualExitRow(row, ex) && !sideInAction) return row;
+    if (!ex && !sideInAction && formatTradeLabel(row.action).tone !== 'exit' && !looksLikeBrokenExitRow(row)) {
+      return row;
+    }
+    const prior = lastCandleBeforeExit(logs, String(row.symbol || ''), row.timeMs ?? null);
+    return applySymbolExitDisplay(row, ex, prior);
   });
 }
 
@@ -915,17 +977,6 @@ function remapSquareOffLogRow(row: TradeLogRow): TradeLogRow {
     action: '-',
     change: '-',
   };
-}
-
-function invertBuySell(raw: string | number | null | undefined): string | null {
-  const { tone } = formatTradeLabel(raw);
-  if (tone === 'buy' || tone === 'hold-long') return 'Sell';
-  if (tone === 'sell' || tone === 'hold-short') return 'Buy';
-  return null;
-}
-
-function closingSideFromPrior(prior: TradeLogRow): string | null {
-  return invertBuySell(prior.signal) ?? invertBuySell(prior.action);
 }
 
 /**
@@ -1202,7 +1253,9 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       const stillInSim = liveStartMs == null && !readOnly;
       const priceFromPyramid = pyramidRaw ? parsePyramidPriceBySymbol(pyramidRaw) : {};
       const priceFromHistory = extractSimClosePricesFromHistory(historyRaw);
-      const priceFromLive = stillInSim ? pricesFromLivePnl(livePnl) : {};
+      const priceFromLive = stillInSim
+        ? mergePyramidMaps(pricesFromLivePnl(snapshot), pricesFromLivePnl(livePnl))
+        : {};
       const mergedPrices = mergePyramidMaps(priceFromHistory, priceFromLive, priceFromPyramid);
       if (Object.keys(mergedPrices).length > 0) setPyramidPriceBySymbol(mergedPrices);
     }
