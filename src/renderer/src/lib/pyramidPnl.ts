@@ -37,13 +37,6 @@ function istHourMinute(timeMs: number): { hour: number; minute: number } | null 
   return { hour, minute };
 }
 
-/** True when the log timestamp falls on 13:00 IST. */
-export function isOnePmIstLog(timeMs: number | null | undefined): boolean {
-  if (timeMs == null) return false;
-  const hm = istHourMinute(timeMs);
-  return hm != null && hm.hour === 13 && hm.minute === 0;
-}
-
 /** True when the log timestamp falls on 11:45 IST (last morning sim candle). */
 export function isLastMorningSimIstLog(timeMs: number | null | undefined): boolean {
   if (timeMs == null) return false;
@@ -108,7 +101,7 @@ function readSymbolUnrealized(row: Record<string, unknown>): number | null {
   );
 }
 
-function readMarkFromObject(row: Record<string, unknown>): number | null {
+function readMarkFromObject(row: Record<string, unknown>, allowGenericPrice = false): number | null {
   const n = num(
     row.ltp
     ?? row.LTP
@@ -119,20 +112,20 @@ function readMarkFromObject(row: Record<string, unknown>): number | null {
     ?? row.curr_price
     ?? row.current_price
     ?? row.mark_price
-    ?? row.close_price
+    ?? row.mark
     ?? row.ltp_price
     ?? row.last
-    ?? row.price,
+    ?? (allowGenericPrice ? row.price : undefined),
   );
   return n != null && n !== 0 ? n : null;
 }
 
 /** Mark/LTP at the pyramid snapshot — not entry and not the previous candle close. */
-function readSymbolMarkPrice(row: Record<string, unknown>): number | null {
+function readSymbolMarkPrice(row: Record<string, unknown>, allowGenericPrice = false): number | null {
   const nested = [row, row.tick, row.quote, row.market, row.ohlc, row.data];
   for (const item of nested) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-    const n = readMarkFromObject(item as Record<string, unknown>);
+    const n = readMarkFromObject(item as Record<string, unknown>, allowGenericPrice);
     if (n != null) return n;
   }
   return null;
@@ -154,25 +147,25 @@ function ingestSymbolRow(out: Record<string, number>, sym: string, row: unknown)
   if (pnl != null) out[key] = pnl;
 }
 
-function ingestSymbolPrice(out: Record<string, number>, sym: string, row: unknown): void {
+function ingestSymbolPrice(out: Record<string, number>, sym: string, row: unknown, allowGenericPrice = false): void {
   const key = String(sym || '').toUpperCase().trim();
   if (!key || key === '-' || !row || typeof row !== 'object') return;
-  const price = readSymbolMarkPrice(row as Record<string, unknown>);
+  const price = readSymbolMarkPrice(row as Record<string, unknown>, allowGenericPrice);
   if (price != null) out[key] = price;
 }
 
-function ingestPriceMap(out: Record<string, number>, map: unknown): void {
+function ingestPriceMap(out: Record<string, number>, map: unknown, allowGenericPrice = false): void {
   if (!map || typeof map !== 'object') return;
   if (Array.isArray(map)) {
     for (const item of map) {
       if (!item || typeof item !== 'object') continue;
       const row = item as Record<string, unknown>;
-      ingestSymbolPrice(out, String(row.symbol ?? row.Symbol ?? ''), row);
+      ingestSymbolPrice(out, String(row.symbol ?? row.Symbol ?? ''), row, allowGenericPrice);
     }
     return;
   }
   for (const [sym, row] of Object.entries(map as Record<string, unknown>)) {
-    ingestSymbolPrice(out, sym, row);
+    ingestSymbolPrice(out, sym, row, allowGenericPrice);
   }
 }
 
@@ -261,7 +254,8 @@ export function parsePyramidPriceBySymbol(raw: unknown): Record<string, number> 
   return out;
 }
 
-function isSimClosePriceWindow(timeMs: number): boolean {
+/** 12:50–13:02 IST, the window that holds the 12:59 sim-close mark. */
+export function isSimClosePriceWindow(timeMs: number): boolean {
   const hm = istHourMinute(timeMs);
   if (!hm) return false;
   if (hm.hour === 12 && hm.minute >= 50) return true;
@@ -271,13 +265,14 @@ function isSimClosePriceWindow(timeMs: number): boolean {
 
 function pricesFromHistorySymbols(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
-  ingestPriceMap(out, raw);
+  ingestPriceMap(out, raw, true);
   return out;
 }
 
 /**
- * LTP near sim close from `/trading/live-pnl/:id/history`.
- * Uses the latest sample in 12:50–13:02 IST per symbol.
+ * Handoff LTP from `/trading/live-pnl/:id/history`.
+ * Simulation snapshots are no longer in this feed, so the sample nearest
+ * 12:59 inside 12:50–13:02 IST is the live-open mark.
  */
 export function extractSimClosePricesFromHistory(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
@@ -293,35 +288,14 @@ export function extractSimClosePricesFromHistory(raw: unknown): Record<string, n
     const ts = parseInstantMs(data.ts) ?? parseInstantMs(snap.source_ts) ?? parseInstantMs(snap.sampled_at);
     if (ts == null || !isSimClosePriceWindow(ts)) continue;
     const map = pricesFromHistorySymbols(data.symbols ?? data);
+    const target = istWallClockMs(ts, 12, 59, 0);
     for (const [sym, price] of Object.entries(map)) {
       const prev = bestTs[sym];
-      if (prev == null || ts >= prev) {
+      if (prev == null || Math.abs(ts - target) <= Math.abs(prev - target)) {
         bestTs[sym] = ts;
         out[sym] = price;
       }
     }
-  }
-
-  return out;
-}
-
-/** Fallback: 13:00 IST snapshot from `/trading/live-pnl/:id/history`. */
-export function extractOnePmPnlFromHistory(raw: unknown): Record<string, number> {
-  const out: Record<string, number> = {};
-  if (!raw || typeof raw !== 'object') return out;
-
-  const root = raw as Record<string, unknown>;
-  const snapshots = Array.isArray(root.snapshots) ? root.snapshots : [];
-
-  for (const item of snapshots) {
-    if (!item || typeof item !== 'object') continue;
-    const snap = item as Record<string, unknown>;
-    const data = (snap.data && typeof snap.data === 'object' ? snap.data : snap) as Record<string, unknown>;
-    const ts = parseInstantMs(data.ts) ?? parseInstantMs(snap.source_ts) ?? parseInstantMs(snap.sampled_at);
-    if (ts == null || !isOnePmIstLog(ts)) continue;
-
-    const map = parsePyramidPnlBySymbol({ symbols: data.symbols ?? data });
-    if (Object.keys(map).length > 0) return map;
   }
 
   return out;

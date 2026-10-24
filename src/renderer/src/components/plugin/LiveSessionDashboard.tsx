@@ -4,9 +4,9 @@ import { pluginApi, supportsPyramidPnl, supportsExitedSymbols } from '../../lib/
 import {
   parsePyramidPnlBySymbol,
   parsePyramidPriceBySymbol,
-  extractOnePmPnlFromHistory,
   extractSimClosePricesFromHistory,
   mergePyramidMaps,
+  isSimClosePriceWindow,
   isSimCloseIstLog,
   isLastMorningSimIstLog,
   isSessionSquareOffIstLog,
@@ -76,6 +76,8 @@ interface TradeLogRow {
   /** Engine RMS / risk exit — often missing from the native trade log. */
   rmsHit?: boolean;
   rmsReason?: string;
+  /** Client pressed Exit on this symbol. The system did not auto-exit it. */
+  manualExit?: boolean;
 }
 
 /** Engine logs often use naive IST wall times (`YYYY-MM-DD HH:mm:ss`). */
@@ -121,10 +123,8 @@ function pickStatus(value: unknown): string | null {
 }
 
 const QTY_KEYS = [
+  'net_qty', 'NetQty', 'netqty', 'position_qty',
   'Quantity', 'quantity', 'QTY', 'Qty', 'qty',
-  'qty_traded', 'filled_qty', 'FilledQty', 'filledQty',
-  'lots', 'Lots', 'net_qty', 'netqty', 'NetQty',
-  'position_qty', 'traded_qty', 'order_qty',
 ];
 
 function unwrapQuantity(value: unknown): string | number | null {
@@ -156,12 +156,6 @@ function pickQuantity(r: Record<string, unknown> | null | undefined): string | n
   for (const key of QTY_KEYS) {
     const v = unwrapQuantity(r[key]);
     if (v != null) return v;
-  }
-  for (const [key, val] of Object.entries(r)) {
-    if (/qty|quantity|lots/i.test(key) && !/price|pnl|pct|percent/i.test(key)) {
-      const v = unwrapQuantity(val);
-      if (v != null) return v;
-    }
   }
   return '-';
 }
@@ -221,6 +215,11 @@ function isPositiveQty(v: string | number | null | undefined): boolean {
   return Number.isFinite(n) ? n !== 0 : true;
 }
 
+/** A logged 0 is a flat position. Do not replace it with an older or cumulative size. */
+function hasExplicitQty(v: string | number | null | undefined): boolean {
+  return isPositiveQty(v) || isNumericZero(v);
+}
+
 function applySymbolQuantities(
   logs: TradeLogRow[],
   symbols: Record<string, unknown> | null | undefined,
@@ -235,7 +234,7 @@ function applySymbolQuantities(
   }
   if (bySym.size === 0) return logs;
   return logs.map((row) => {
-    if (isPositiveQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
+    if (hasExplicitQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
     const qty = bySym.get(String(row.symbol).toUpperCase());
     return qty != null ? { ...row, quantity: qty } : row;
   });
@@ -253,7 +252,7 @@ function mergeLogQuantities(primary: TradeLogRow[], ...fallbacks: TradeLogRow[][
   }
   if (byKey.size === 0) return primary;
   return primary.map((row) => {
-    if (isPositiveQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
+    if (hasExplicitQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
     const qty = byKey.get(`${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`);
     return qty != null ? { ...row, quantity: qty } : row;
   });
@@ -296,7 +295,6 @@ function pricesFromLivePnl(raw: unknown): Record<string, number> {
       ?? row.mark_price
       ?? row.close_price
       ?? row.last
-      ?? row.price
       ?? (row.tick && typeof row.tick === 'object' ? (row.tick as Record<string, unknown>).ltp : undefined)
       ?? (row.quote && typeof row.quote === 'object' ? (row.quote as Record<string, unknown>).ltp : undefined),
     );
@@ -361,17 +359,13 @@ function qtyAsOf(timeline: QtySample[], symbol: string, timeMs: number | null): 
     if (q != null && isPositiveQty(q)) last = q;
   }
   if (last != null) return last;
-  for (const sample of timeline) {
-    const q = sample.bySym.get(key);
-    if (q != null && isPositiveQty(q)) return q;
-  }
   return null;
 }
 
 function applyHistoryQuantities(logs: TradeLogRow[], timeline: QtySample[]): TradeLogRow[] {
   if (timeline.length === 0) return logs;
   return logs.map((row) => {
-    if (isPositiveQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
+    if (hasExplicitQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
     const qty = qtyAsOf(timeline, String(row.symbol), row.timeMs);
     return qty != null ? { ...row, quantity: qty } : row;
   });
@@ -422,11 +416,17 @@ function buildPnlTimeline(raw: unknown): PnlSample[] {
   return samples;
 }
 
-function pnlAsOf(timeline: PnlSample[], symbol: string, timeMs: number | null): number | null {
+function pnlAsOf(
+  timeline: PnlSample[],
+  symbol: string,
+  timeMs: number | null,
+  notBeforeMs: number | null = null,
+): number | null {
   if (timeline.length === 0) return null;
   const key = symbol.toUpperCase();
   let last: number | null = null;
   for (const sample of timeline) {
+    if (notBeforeMs != null && sample.ts < notBeforeMs) continue;
     if (timeMs != null && sample.ts > timeMs + 15_000) break;
     const v = sample.bySym.get(key);
     if (v != null && v !== 0) last = v;
@@ -434,11 +434,16 @@ function pnlAsOf(timeline: PnlSample[], symbol: string, timeMs: number | null): 
   return last;
 }
 
-function applyHistoryPnl(logs: TradeLogRow[], timeline: PnlSample[]): TradeLogRow[] {
+function applyHistoryPnl(
+  logs: TradeLogRow[],
+  timeline: PnlSample[],
+  liveAt: number | null = null,
+): TradeLogRow[] {
   if (timeline.length === 0) return logs;
   return logs.map((row) => {
-    if (!isPlaceholderValue(row.pnl) && !isNumericZero(row.pnl)) return row;
-    const pnl = pnlAsOf(timeline, String(row.symbol), row.timeMs);
+    if (!isPlaceholderValue(row.pnl)) return row;
+    const rowIsLive = liveAt != null && row.timeMs != null && row.timeMs >= liveAt;
+    const pnl = pnlAsOf(timeline, String(row.symbol), row.timeMs, rowIsLive ? liveAt : null);
     return pnl != null && pnl !== 0 ? { ...row, pnl } : row;
   });
 }
@@ -470,11 +475,7 @@ function fillMissingLogFields(row: TradeLogRow, fallback?: TradeLogRow | null): 
     const cur = next[key];
     const prev = fallback[key];
     if (key === 'pnl') {
-      if (
-        (isPlaceholderValue(cur) || isNumericZero(cur))
-        && !isPlaceholderValue(prev)
-        && !isNumericZero(prev)
-      ) {
+      if (isPlaceholderValue(cur) && !isPlaceholderValue(prev)) {
         next.pnl = prev as TradeLogRow['pnl'];
       }
       continue;
@@ -486,7 +487,7 @@ function fillMissingLogFields(row: TradeLogRow, fallback?: TradeLogRow | null): 
   if (
     !isWaitAction(next.action) &&
     !isWaitAction(next.signal) &&
-    !isPositiveQty(next.quantity) &&
+    !hasExplicitQty(next.quantity) &&
     isPositiveQty(fallback.quantity)
   ) {
     next.quantity = fallback.quantity;
@@ -508,7 +509,8 @@ function carryForwardQuantities(logs: TradeLogRow[]): TradeLogRow[] {
       updated.set(i, row);
       continue;
     }
-    if (isWaitAction(row.action) || isWaitAction(row.signal)) {
+    if (isNumericZero(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) {
+      if (isNumericZero(row.quantity)) lastBySym.delete(key);
       updated.set(i, row);
       continue;
     }
@@ -527,6 +529,7 @@ function mergeIncomingLogs(
   snapSymbols: Record<string, unknown> | null,
   liveSymbols: Record<string, unknown> | null,
   pnlTimeline: PnlSample[] = [],
+  liveAt: number | null = null,
 ): TradeLogRow[] {
   const sources = [fromPlugin, fromTrades, fromDash].filter((rows) => rows.length > 0);
   if (sources.length === 0) return previous;
@@ -550,7 +553,7 @@ function mergeIncomingLogs(
   let merged = primary.map((row) => fillMissingLogFields(byKey.get(logRowKey(row)) ?? row, row));
   merged = mergeLogQuantities(merged, fromPlugin, fromTrades, fromDash, previous);
   merged = applyHistoryQuantities(merged, timeline);
-  merged = applyHistoryPnl(merged, pnlTimeline);
+  merged = applyHistoryPnl(merged, pnlTimeline, liveAt);
   merged = applySymbolQuantities(merged, snapSymbols);
   merged = applySymbolQuantities(merged, liveSymbols);
   merged = merged.map((row) => fillMissingLogFields(row, byKey.get(logRowKey(row))));
@@ -665,18 +668,19 @@ function rmsRowFromExit(
   };
 }
 
-function lastNonZeroLogPnl(logs: TradeLogRow[], symbol: string): number | null {
+function lastNonZeroLogPnl(logs: TradeLogRow[], symbol: string, minMs: number | null = null): number | null {
   const key = symbol.toUpperCase();
   let last: number | null = null;
   for (const row of logs) {
     if (String(row.symbol || '').toUpperCase() !== key) continue;
+    if (minMs != null && (row.timeMs == null || row.timeMs < minMs)) continue;
     const n = numOrNull(row.pnl);
     if (n != null && n !== 0) last = n;
   }
   return last;
 }
 
-function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow[] {
+function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[], liveAt: number | null = null): TradeLogRow[] {
   if (exits.length === 0) return logs;
   const extra: TradeLogRow[] = [];
   let patched = logs;
@@ -684,7 +688,10 @@ function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow
     const ms = parseTradeTimeMs(exitedSymbolTimeRaw(ex));
     const key = ex.symbol.toUpperCase();
     const fromExit = exitedSymbolPnl(ex);
-    const heldPnl = (fromExit != null && fromExit !== 0) ? fromExit : lastNonZeroLogPnl(logs, key);
+    const exitIsLive = liveAt != null && ms != null && ms >= liveAt;
+    const heldPnl = (fromExit != null && fromExit !== 0)
+      ? fromExit
+      : lastNonZeroLogPnl(logs, key, exitIsLive ? liveAt : null);
     const matchIdx = patched.findIndex((l) => {
       if (String(l.symbol || '').toUpperCase() !== key) return false;
       if (l.rmsHit) return true;
@@ -694,9 +701,22 @@ function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow
     if (matchIdx >= 0) {
       const row = patched[matchIdx];
       let next = row;
-      if (looksLikeBrokenExitRow(row) || (isManualSymbolExit(ex) && formatTradeLabel(row.action).tone === 'exit')) {
+      if (
+        looksLikeBrokenExitRow(row)
+        || row.manualExit
+        || textIsClientManualExit(row)
+        || (isManualSymbolExit(ex) && formatTradeLabel(row.action).tone === 'exit')
+      ) {
         const prior = lastCandleBeforeExit(logs, key, row.timeMs ?? ms);
         next = applySymbolExitDisplay(row, ex, prior);
+      }
+      if (isManualSymbolExit(ex) || row.manualExit || textIsClientManualExit(row)) {
+        const rowIsExit = row.manualExit
+          || textIsClientManualExit(row)
+          || looksLikeBrokenExitRow(row)
+          || formatTradeLabel(row.action).tone === 'exit'
+          || formatTradeLabel(next.action).tone === 'exit';
+        if (rowIsExit) next = { ...next, manualExit: true };
       }
       if (
         (isPlaceholderValue(next.pnl) || isNumericZero(next.pnl))
@@ -712,15 +732,15 @@ function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow
       continue;
     }
     const injected = rmsRowFromExit(ex, ms);
+    const manual = isManualSymbolExit(ex);
     extra.push({
       ...injected,
-      action: isManualSymbolExit(ex) ? 'EXIT' : injected.action,
-      signal: isManualSymbolExit(ex)
-        ? (invertBuySell(ex.entry_side)
-          ?? invertBuySell(lastCandleBeforeExit(logs, key, ms)?.signal)
-          ?? invertBuySell(ex.exit_side)
-          ?? ex.exit_side
-          ?? injected.signal)
+      manualExit: manual || undefined,
+      action: manual ? 'EXIT/MANUAL EXIT' : injected.action,
+      signal: manual
+        ? (invertBuySell(lastCandleBeforeExit(logs, key, ms)?.signal)
+          ?? invertBuySell(lastCandleBeforeExit(logs, key, ms)?.action)
+          ?? '—')
         : injected.signal,
       pnl: heldPnl ?? injected.pnl,
     });
@@ -759,8 +779,9 @@ function resolveSimulation(log: TradeLogRow, liveCutoff: { hasLiveCutoff: boolea
 
 /**
  * Display-only 12:59 IST sim-close rows: copy the last sim block (e.g. 11:45)
- * and set P&L from `/trading/pyramid-pnl`. Price is the mark at 12:59, not the
- * 11:45 candle. Signal/Action are remapped afterwards in remapSimCloseExitRows.
+ * and set P&L from `/trading/pyramid-pnl`. Price is the 12:59 mark only.
+ * The previous candle price is never copied onto this row.
+ * Signal/Action are remapped afterwards in remapSimCloseExitRows.
  */
 function withPyramidSimCloseRows(
   logs: TradeLogRow[],
@@ -770,7 +791,8 @@ function withPyramidSimCloseRows(
   pricesBySymbol: Record<string, number> = {},
 ): TradeLogRow[] {
   const symbols = Object.keys(pyramidBySymbol).filter((sym) => Number.isFinite(pyramidBySymbol[sym]));
-  if (logs.length === 0 || (symbols.length === 0 && exited.length === 0)) return logs;
+  if (logs.length === 0) return logs;
+  if (symbols.length === 0 && exited.length === 0) return stampSimClosePrices(logs, pricesBySymbol);
 
   const cutoff = { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs };
   const refMs = liveStartedAtMs
@@ -831,13 +853,13 @@ function withPyramidSimCloseRows(
       chartTimeMs: closeMs,
       symbol: template.symbol,
       pnl: pyramidBySymbol[sym],
-      price: mark != null && Number.isFinite(mark) ? mark : template.price,
+      price: mark != null && Number.isFinite(mark) && mark !== 0 ? mark : '-',
       simulation: true,
       rmsHit: false,
       rmsReason: undefined,
     });
   }
-  if (injected.length === 0) return logs;
+  if (injected.length === 0) return stampSimClosePrices(logs, pricesBySymbol);
 
   const rest = logs.filter((row) => {
     if (!isSimCloseIstLog(row.timeMs)) return true;
@@ -846,15 +868,35 @@ function withPyramidSimCloseRows(
   });
   const before = rest.filter((row) => row.timeMs == null || row.timeMs < closeMs);
   const after = rest.filter((row) => row.timeMs != null && row.timeMs >= closeMs);
-  const merged = [...before, ...injected, ...after];
-  if (Object.keys(pricesBySymbol).length === 0) return merged;
-  return merged.map((row) => {
-    if (row.rmsHit || !isSimCloseIstLog(row.timeMs)) return row;
+  return stampSimClosePrices([...before, ...injected, ...after], pricesBySymbol);
+}
+
+/** 12:59 price is the sim-close mark. A copied morning-candle price is cleared. */
+function stampSimClosePrices(
+  logs: TradeLogRow[],
+  prices: Record<string, number>,
+): TradeLogRow[] {
+  const lastCandle = new Map<string, number>();
+  return logs.map((row) => {
     const key = String(row.symbol || '').toUpperCase();
-    const mark = pricesBySymbol[key];
-    if (mark == null || !Number.isFinite(mark)) return row;
-    return { ...row, price: mark };
+    if (!key || key === '-' || row.rmsHit || !isSimCloseIstLog(row.timeMs)) {
+      const n = Number(row.price);
+      if (key && key !== '-' && Number.isFinite(n) && n !== 0) lastCandle.set(key, n);
+      return row;
+    }
+    const mark = prices[key];
+    if (mark != null && Number.isFinite(mark) && mark !== 0) return { ...row, price: mark };
+    const candle = lastCandle.get(key);
+    const current = Number(row.price);
+    if (!Number.isFinite(current) || current === 0 || (candle != null && current === candle)) {
+      return { ...row, price: '-' };
+    }
+    return row;
   });
+}
+
+function textIsClientManualExit(row: TradeLogRow): boolean {
+  return /manual\s*exit/i.test(`${row.action ?? ''} ${row.signal ?? ''}`);
 }
 
 function isBuySellTone(raw: string | number | null | undefined): boolean {
@@ -919,6 +961,7 @@ function applySymbolExitDisplay(
       : (isBuySellTone(row.action) ? row.action : (ex?.entry_side || ex?.exit_side || row.signal));
     return { ...row, signal, action: 'Hit RMS', change: '-' };
   }
+  const manual = row.manualExit || textIsClientManualExit(row) || (ex != null && isManualSymbolExit(ex) && !rms);
   const inverted = (prior ? closingSideFromPrior(prior) : null)
     ?? invertBuySell(ex?.entry_side)
     ?? invertBuySell(prior?.signal)
@@ -929,8 +972,9 @@ function applySymbolExitDisplay(
   return {
     ...row,
     signal: inverted ?? (prior ? prior.signal : row.signal),
-    action: 'EXIT',
+    action: manual ? 'EXIT/MANUAL EXIT' : 'EXIT',
     change: '-',
+    manualExit: manual || undefined,
   };
 }
 
@@ -1054,6 +1098,48 @@ function remapManualStopExitRows(
   });
 }
 
+/**
+ * Exit rows: Signal is only the opposite side of the previous row for that
+ * symbol. Action is EXIT, or EXIT/MANUAL EXIT when the client pressed Exit
+ * and the system did not auto-exit.
+ */
+function presentExitRows(logs: TradeLogRow[]): TradeLogRow[] {
+  const lastSide = new Map<string, string>();
+  return logs.map((row) => {
+    const key = String(row.symbol || '').toUpperCase();
+    const manual = row.manualExit === true || textIsClientManualExit(row);
+    const exit = !row.rmsHit && (manual || isPresentedExit(row));
+    if (!exit) {
+      const side = rowSide(row);
+      if (key && key !== '-' && side) lastSide.set(key, side);
+      return row;
+    }
+    const prior = key ? lastSide.get(key) : undefined;
+    const signal = prior ? (invertBuySell(prior) ?? '—') : '—';
+    return {
+      ...row,
+      manualExit: manual || undefined,
+      signal,
+      action: manual ? 'EXIT/MANUAL EXIT' : 'EXIT',
+      change: '-',
+    };
+  });
+}
+
+function rowSide(row: TradeLogRow): string | null {
+  if (isBuySellTone(row.signal)) return String(row.signal);
+  if (isBuySellTone(row.action)) return String(row.action);
+  return null;
+}
+
+function isPresentedExit(row: TradeLogRow): boolean {
+  if (row.rmsHit) return false;
+  if (row.manualExit || textIsClientManualExit(row)) return true;
+  if (isSimCloseIstLog(row.timeMs) || isSessionSquareOffIstLog(row.timeMs)) return true;
+  const tone = formatTradeLabel(row.action).tone;
+  return tone === 'exit' || tone === 'close';
+}
+
 function extractTradingSession(raw: unknown): TradingSession | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
@@ -1086,6 +1172,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const seenLiveRef = useRef(!readOnly && isLiveSessionStatus(initialStatus));
   const logsRef = useRef<TradeLogRow[]>([]);
+  const simCloseLtpRef = useRef<Record<string, number>>({});
   const fetchForSessionRef = useRef(sessionId);
 
   useEffect(() => {
@@ -1110,7 +1197,10 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const simLabel = simulationStatusLabel(simulationStatus);
   const simRunning = isSimulationRunningStatus(simulationStatus);
   const displayLogs = useMemo(() => {
-    const withRms = withRmsLogRows(logs, exitedSymbols);
+    const flagged = logs.map((row) => (
+      row.manualExit || textIsClientManualExit(row) ? { ...row, manualExit: true } : row
+    ));
+    const withRms = withRmsLogRows(flagged, exitedSymbols, liveStartedAtMs);
     const withManualExits = remapBrokenSymbolExitRows(withRms, exitedSymbols);
     const withPyramid = withPyramidSimCloseRows(
       withManualExits,
@@ -1121,7 +1211,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     );
     const withSimExit = remapSimCloseExitRows(withPyramid, liveStartedAtMs);
     const withSquareOff = withSimExit.map(remapSquareOffLogRow);
-    return remapManualStopExitRows(withSquareOff, effectiveStatus, liveStartedAtMs);
+    return presentExitRows(remapManualStopExitRows(withSquareOff, effectiveStatus, liveStartedAtMs));
   }, [logs, pyramidPnlBySymbol, pyramidPriceBySymbol, liveStartedAtMs, exitedSymbols, effectiveStatus]);
 
   const fetchDashboard = async () => {
@@ -1220,6 +1310,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       [],
       pickLivePnlSymbols(snapshot),
       pickLivePnlSymbols(livePnl),
+      [],
+      liveStartMs,
     );
     if (merged.length > 0) {
       logsRef.current = merged;
@@ -1244,19 +1336,21 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
     if (fetchPyramid) {
       const fromApi = pyramidRaw ? parsePyramidPnlBySymbol(pyramidRaw) : {};
-      const fromHistory = Object.keys(fromApi).length === 0
-        ? extractOnePmPnlFromHistory(historyRaw)
-        : {};
-      const mergedPyramid = mergePyramidMaps(fromHistory, fromApi);
-      if (Object.keys(mergedPyramid).length > 0) setPyramidPnlBySymbol(mergedPyramid);
+      if (Object.keys(fromApi).length > 0) setPyramidPnlBySymbol(fromApi);
 
       const stillInSim = liveStartMs == null && !readOnly;
       const priceFromPyramid = pyramidRaw ? parsePyramidPriceBySymbol(pyramidRaw) : {};
       const priceFromHistory = extractSimClosePricesFromHistory(historyRaw);
-      const priceFromLive = stillInSim
-        ? mergePyramidMaps(pricesFromLivePnl(snapshot), pricesFromLivePnl(livePnl))
-        : {};
-      const mergedPrices = mergePyramidMaps(priceFromHistory, priceFromLive, priceFromPyramid);
+      const priceFromLive = mergePyramidMaps(pricesFromLivePnl(snapshot), pricesFromLivePnl(livePnl));
+      if (stillInSim && isSimClosePriceWindow(Date.now())) {
+        simCloseLtpRef.current = mergePyramidMaps(simCloseLtpRef.current, priceFromLive);
+      }
+      simCloseLtpRef.current = mergePyramidMaps(simCloseLtpRef.current, priceFromHistory);
+      const mergedPrices = mergePyramidMaps(
+        priceFromHistory,
+        simCloseLtpRef.current,
+        priceFromPyramid,
+      );
       if (Object.keys(mergedPrices).length > 0) setPyramidPriceBySymbol(mergedPrices);
     }
     if (supportsExitedSymbols() && exitedRaw != null) {
@@ -1272,6 +1366,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       pickLivePnlSymbols(snapshot),
       pickLivePnlSymbols(livePnl),
       buildPnlTimeline(historyRaw),
+      liveStartMs,
     );
     if (reMerged.length > 0) {
       logsRef.current = reMerged;
@@ -1284,6 +1379,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     setLoading(true);
     setLogs([]);
     logsRef.current = [];
+    simCloseLtpRef.current = {};
     setLastUpdated(null);
     setConnected(true);
     setSimulationStatus(null);

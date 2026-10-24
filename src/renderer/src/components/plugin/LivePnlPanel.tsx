@@ -215,31 +215,21 @@ function formatMoney(n: number) {
   return `${sign}₹${Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-const QTY_KEYS = [
+const POSITION_QTY_KEYS = [
+  'net_qty', 'NetQty', 'netqty', 'position_qty',
   'qty', 'quantity', 'Quantity', 'QTY', 'Qty',
-  'net_qty', 'NetQty', 'position_qty', 'filled_qty', 'FilledQty',
-  'lots', 'Lots', 'traded_qty', 'order_qty',
 ];
 
-/** First non-zero qty among known keys. `qty: 0` must not hide `quantity` / `net_qty`. */
-function pickPositiveQty(row: Record<string, unknown> | null | undefined): number | undefined {
+/** Open position. An explicit 0 is flat — do not replace it with filled/traded/order qty. */
+function pickPositionQty(row: Record<string, unknown> | null | undefined): number | undefined {
   if (!row) return undefined;
-  let zero: number | undefined;
-  for (const key of QTY_KEYS) {
+  for (const key of POSITION_QTY_KEYS) {
     if (!(key in row)) continue;
     const n = Number(row[key]);
     if (!Number.isFinite(n)) continue;
-    if (n !== 0) return n;
-    zero = 0;
+    return n;
   }
-  for (const [key, val] of Object.entries(row)) {
-    if (!/qty|quantity|lots/i.test(key) || /price|pnl|pct|percent/i.test(key)) continue;
-    const n = Number(val);
-    if (!Number.isFinite(n)) continue;
-    if (n !== 0) return n;
-    zero = 0;
-  }
-  return zero;
+  return undefined;
 }
 
 function normalizeSymbols(raw: unknown): Record<string, SymbolRow> {
@@ -258,7 +248,7 @@ function normalizeSymbols(raw: unknown): Record<string, SymbolRow> {
     const row = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
     const unrealized = Number(row.unrealized_pnl ?? row.live_unrealized_pnl ?? row.pnl ?? 0);
     const realized = Number(row.realized_pnl ?? 0);
-    const qty = pickPositiveQty(row);
+    const qty = pickPositionQty(row);
     const side = row.side != null ? String(row.side) : undefined;
     mapped[key] = {
       unrealized_pnl: Number.isFinite(unrealized) ? unrealized : 0,
@@ -277,9 +267,14 @@ function symbolNet(row: SymbolRow | undefined): { realized: number; unrealized: 
   return { realized, unrealized, total: realized + unrealized };
 }
 
-function carrySymbolMaps(points: PnlPoint[]): PnlPoint[] {
+function carrySymbolMaps(points: PnlPoint[], liveAt: number | null = null): PnlPoint[] {
   const last: Record<string, SymbolRow> = {};
+  let crossed = false;
   return points.map((p) => {
+    if (liveAt != null && !crossed && p.ts >= liveAt) {
+      crossed = true;
+      for (const key of Object.keys(last)) delete last[key];
+    }
     if (p.symbols) {
       for (const [k, v] of Object.entries(p.symbols)) last[k] = v;
     }
@@ -304,7 +299,11 @@ function ensureDrawable(points: PnlPoint[]): PnlPoint[] {
   return [{ ...p, ts: p.ts - 5 * 60 * 1000 }, p];
 }
 
-function pnlSeriesFromLogs(logs: LogTickerHint[] | undefined, selected: Set<string> | null = null): PnlPoint[] {
+function pnlSeriesFromLogs(
+  logs: LogTickerHint[] | undefined,
+  selected: Set<string> | null = null,
+  resetAt: number | null = null,
+): PnlPoint[] {
   if (!logs?.length) return [];
   const events: Array<{ ts: number; symbol: string; pnl: number }> = [];
   for (const row of logs) {
@@ -320,7 +319,12 @@ function pnlSeriesFromLogs(logs: LogTickerHint[] | undefined, selected: Set<stri
   events.sort((a, b) => a.ts - b.ts);
   const lastBySym = new Map<string, number>();
   const byTs = new Map<number, number>();
+  let reset = false;
   for (const ev of events) {
+    if (resetAt != null && !reset && ev.ts >= resetAt) {
+      lastBySym.clear();
+      reset = true;
+    }
     lastBySym.set(ev.symbol, ev.pnl);
     let total = 0;
     for (const v of lastBySym.values()) total += v;
@@ -358,8 +362,8 @@ function buildSyncedSeries(
   liveAt: number | null,
   selected: Set<string> | null = null,
 ): PnlPoint[] {
-  const logSeries = pnlSeriesFromLogs(logs, selected);
-  const goodSnaps = carrySymbolMaps(snapshots.filter((p) => isPlausibleTs(p.ts)));
+  const logSeries = pnlSeriesFromLogs(logs, selected, liveAt);
+  const goodSnaps = carrySymbolMaps(snapshots.filter((p) => isPlausibleTs(p.ts)), liveAt);
   const lastSnapSymbols = goodSnaps[goodSnaps.length - 1]?.symbols;
   const live = livePoint && isPlausibleTs(livePoint.ts)
     ? { ...livePoint, symbols: { ...(lastSnapSymbols ?? {}), ...(livePoint.symbols ?? {}) } }
@@ -370,9 +374,8 @@ function buildSyncedSeries(
   if (liveAt != null) {
     const simLogs = logSeries.filter((p) => p.ts < liveAt);
     const simSnaps = goodSnaps.filter((p) => p.ts < liveAt);
-    // Simulation segment: prefer the simulation-phase snapshots (they cover the
-    // whole morning even when trade logs are sparse); fall back to logs for
-    // old sessions that predate sim-phase snapshots.
+    // Morning segment is the tick history from before the handoff. Logs cover
+    // sessions whose history no longer includes those snapshots.
     const sim = simSnaps.length > 0 ? mergeBySecond(simLogs, simSnaps) : simLogs;
     let livePts = remap(goodSnaps.filter((p) => p.ts >= liveAt - 60_000));
     if (live && live.ts >= liveAt - 60_000) {
@@ -481,35 +484,30 @@ function sumSimClosePnl(
   return total;
 }
 
-function tickersFromLogs(logs: LogTickerHint[] | undefined): Record<string, SymbolRow> {
+function tickersFromLogs(
+  logs: LogTickerHint[] | undefined,
+  accept: (row: LogTickerHint) => boolean = () => true,
+): Record<string, SymbolRow> {
   if (!logs?.length) return {};
   const lastBySym = new Map<string, LogTickerHint>();
   const lastQtyBySym = new Map<string, number>();
-  const lastPnlBySym = new Map<string, number>();
   for (const row of logs) {
+    if (!accept(row)) continue;
     const sym = String(row.symbol || '').toUpperCase();
     if (!sym || sym === '-') continue;
     lastBySym.set(sym, row);
+    if (isWaitAction(row.action) || isWaitAction(row.signal)) continue;
     const qty = Number(row.quantity);
-    if (
-      Number.isFinite(qty)
-      && qty !== 0
-      && !isWaitAction(row.action)
-      && !isWaitAction(row.signal)
-    ) {
-      lastQtyBySym.set(sym, qty);
-    }
-    const pnl = Number(row.pnl);
-    if (Number.isFinite(pnl) && pnl !== 0) lastPnlBySym.set(sym, pnl);
+    lastQtyBySym.set(sym, Number.isFinite(qty) ? qty : Number.NaN);
   }
   const mapped: Record<string, SymbolRow> = {};
   for (const [sym, row] of lastBySym) {
-    const lastPnl = lastPnlBySym.get(sym);
-    const pnl = lastPnl ?? Number(row.pnl);
+    const qty = lastQtyBySym.get(sym);
+    const pnl = Number(row.pnl);
     mapped[sym] = {
       unrealized_pnl: Number.isFinite(pnl) ? pnl : 0,
       realized_pnl: 0,
-      qty: lastQtyBySym.get(sym),
+      qty: qty != null && Number.isFinite(qty) ? qty : undefined,
       side: row.signal && row.signal !== '-' ? String(row.signal) : undefined,
     };
   }
@@ -531,7 +529,7 @@ function mergeSymbolRow(prev: SymbolRow | undefined, row: SymbolRow): SymbolRow 
     realized_pnl: incomingFlatZero
       ? prev.realized_pnl
       : (Number.isFinite(row.realized_pnl as number) ? row.realized_pnl : prev.realized_pnl),
-    qty: row.qty && row.qty !== 0 ? row.qty : (prev.qty ?? row.qty),
+    qty: Number.isFinite(row.qty as number) ? row.qty : (prev.qty ?? row.qty),
     side: row.side || prev.side,
   };
 }
@@ -596,11 +594,14 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const lastSampledRef = useRef(0);
   const seededRef = useRef(false);
+  const liveBookResetRef = useRef(false);
+  const liveAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     lastSampledRef.current = 0;
     seededRef.current = false;
+    liveBookResetRef.current = false;
     setSnapshots([]);
     setLivePoint(null);
     setSessionLiveAt(null);
@@ -640,10 +641,12 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
         }
         setSnapshots(mergeBySecond([], points));
         const last = points[points.length - 1];
-        if (last && !seededRef.current) {
+        const liveAtNow = liveAtRef.current;
+        const lastIsPreLive = liveAtNow != null && last != null && last.ts < liveAtNow;
+        if (last && !lastIsPreLive && !seededRef.current) {
           seededRef.current = true;
           applySnapshot(last);
-        } else if (last) {
+        } else if (last && !lastIsPreLive) {
           setSymbols((prev) => {
             if (Object.keys(prev).length > 0) return mergeSymbolMaps(prev, last.symbols);
             return last.symbols && Object.keys(last.symbols).length > 0 ? last.symbols : prev;
@@ -675,12 +678,18 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
           setRealizedPnl(res.data.data.realized_pnl);
           setUnrealizedPnl(res.data.data.live_unrealized_pnl);
           const liveSymbols = normalizeSymbols(res.data.data.symbols);
-          if (Object.keys(liveSymbols).length > 0) {
-            setSymbols((prev) => mergeSymbolMaps(prev, liveSymbols));
-          }
-
           const engineTs = parseChartTimeMs(res.data.data.ts);
           const ts = engineTs != null && isPlausibleTs(engineTs) ? engineTs : null;
+          const liveAtNow = liveAtRef.current;
+          const sampleIsLive = liveAtNow != null && (ts == null || ts >= liveAtNow);
+          if (Object.keys(liveSymbols).length > 0) {
+            if (sampleIsLive && !liveBookResetRef.current) {
+              liveBookResetRef.current = true;
+              setSymbols(liveSymbols);
+            } else {
+              setSymbols((prev) => mergeSymbolMaps(prev, liveSymbols));
+            }
+          }
           setLastUpdated(ts != null ? new Date(ts) : new Date());
           if (ts != null && ts - lastSampledRef.current >= 2000) {
             lastSampledRef.current = ts;
@@ -707,21 +716,72 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
   }, [sessionId]);
 
   const liveAt = inferLiveStartedAt(liveStartedAtMs ?? sessionLiveAt, logRows);
+  liveAtRef.current = liveAt;
   const tickerPhases = useMemo(() => tickerPhaseMap(logRows, liveAt), [logRows, liveAt]);
-  const logTickers = useMemo(() => tickersFromLogs(logRows), [logRows]);
-  const tickerMap = useMemo(
-    () => overlaySimClosePnl(
-      mergeSymbolMaps(
-        logTickers,
-        snapshots[snapshots.length - 1]?.symbols,
-        livePoint?.symbols,
-        symbols,
-      ),
+  const logTickers = useMemo(
+    () => tickersFromLogs(logRows, (row) => liveAt == null || resolveLogSimulation(row, liveAt)),
+    [logRows, liveAt],
+  );
+  const liveLogTickers = useMemo(
+    () => tickersFromLogs(logRows, (row) => liveAt != null && !resolveLogSimulation(row, liveAt)),
+    [logRows, liveAt],
+  );
+  const tickerMap = useMemo(() => {
+    if (liveAt == null) {
+      return overlaySimClosePnl(
+        mergeSymbolMaps(
+          logTickers,
+          snapshots[snapshots.length - 1]?.symbols,
+          livePoint?.symbols,
+          symbols,
+        ),
+        simCloseRows,
+        tickerPhases,
+      );
+    }
+    const preLive = snapshots.filter((p) => p.ts < liveAt);
+    const postLive = snapshots.filter((p) => p.ts >= liveAt);
+    const simBook = overlaySimClosePnl(
+      mergeSymbolMaps(logTickers, preLive[preLive.length - 1]?.symbols),
       simCloseRows,
       tickerPhases,
-    ),
-    [logTickers, livePoint, snapshots, symbols, simCloseRows, tickerPhases],
-  );
+    );
+    const liveBook = mergeSymbolMaps(
+      postLive[postLive.length - 1]?.symbols,
+      livePoint && livePoint.ts >= liveAt ? livePoint.symbols : undefined,
+      liveBookResetRef.current ? symbols : undefined,
+    );
+    const names = new Set([
+      ...Object.keys(simBook),
+      ...Object.keys(liveBook),
+      ...Object.keys(tickerPhases),
+    ]);
+    const out: Record<string, SymbolRow> = {};
+    for (const sym of names) {
+      if (tickerPhaseFor(sym, tickerPhases) === 'live') {
+        const logged = liveLogTickers[sym];
+        const base = liveBook[sym] ?? {
+          unrealized_pnl: 0,
+          realized_pnl: 0,
+          side: logged?.side ?? simBook[sym]?.side,
+        };
+        out[sym] = {
+          ...base,
+          qty: logged && Number.isFinite(logged.qty as number) ? logged.qty : base.qty,
+          side: logged?.side || base.side,
+        };
+      } else if (simBook[sym] || logTickers[sym]) {
+        const logged = logTickers[sym];
+        const base = simBook[sym] ?? logged;
+        out[sym] = {
+          ...base!,
+          qty: logged && Number.isFinite(logged.qty as number) ? logged.qty : base?.qty,
+          side: logged?.side || base?.side,
+        };
+      }
+    }
+    return out;
+  }, [logTickers, liveLogTickers, livePoint, snapshots, symbols, simCloseRows, tickerPhases, liveAt]);
   const tickerList = useMemo(
     () => Object.entries(tickerMap).sort((a, b) => a[0].localeCompare(b[0])),
     [tickerMap],
@@ -793,10 +853,13 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
       return { total: realized + unrealized, realized, unrealized };
     };
     if (selectedSet) return fromTickers(selectedSet);
+    if (liveAt != null) {
+      return { total: totalPnl, realized: realizedPnl, unrealized: unrealizedPnl };
+    }
     const held = fromTickers(Object.keys(tickerMap));
     if (totalPnl === 0 && held.total !== 0) return held;
     return { total: totalPnl, realized: realizedPnl, unrealized: unrealizedPnl };
-  }, [selectedSet, totalPnl, realizedPnl, unrealizedPnl, tickerMap]);
+  }, [selectedSet, totalPnl, realizedPnl, unrealizedPnl, tickerMap, liveAt]);
 
   const isPositive = scopedCards.total >= 0;
   const trendColor = isPositive ? 'text-emerald-600' : 'text-red-600';

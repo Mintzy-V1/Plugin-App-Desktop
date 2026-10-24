@@ -64,6 +64,7 @@ export function formatTradeLabel(raw: string | number | null | undefined): { lab
     return { label: 'Hold', tone: 'hold' };
   }
 
+  if (/manual exit/.test(n)) return { label: 'EXIT/MANUAL EXIT', tone: 'exit' };
   if (/close long|exit long/.test(n)) return { label: 'Close Long', tone: 'close' };
   if (/close short|cover short|exit short/.test(n)) return { label: 'Close Short', tone: 'close' };
   if (n === 'exit') return { label: 'Exit', tone: 'exit' };

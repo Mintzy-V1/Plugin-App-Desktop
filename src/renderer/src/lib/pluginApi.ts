@@ -318,7 +318,8 @@ export const pluginApi = {
   },
 
   /**
-   * Saved snapshots for the session market date.
+   * Live-only from the ~13:00 handoff. Simulation snapshots are not included;
+   * simulation P&L is `GET /trading/pyramid-pnl/:id`.
    * `step` = decimation bucket in seconds (last snapshot per bucket); omit for
    * the server default (~480 points). Each snapshot already includes
    * `data.symbols` (per-ticker P&L) — the chart filters/combines tickers on the
@@ -331,7 +332,7 @@ export const pluginApi = {
     );
   },
 
-  /** Unrealized P&L at the 1 PM pyramid snapshot (Angel One + Bear Street). */
+  /** Simulation P&L at the pyramid snapshot. Live P&L does not include this. */
   getPyramidPnl(sessionId: string) {
     return api.get<Record<string, unknown>>(`${getBase()}/trading/pyramid-pnl/${sessionId}`);
   },
