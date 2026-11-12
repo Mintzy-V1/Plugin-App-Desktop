@@ -245,10 +245,6 @@ export const pluginApi = {
     return api.post(`${getBase()}/trading/${sessionId}/abandon`);
   },
 
-  adminStopSession(sessionId: string) {
-    return api.post(`${getBase()}/admin/sessions/${sessionId}/stop`);
-  },
-
   exitSymbol(sessionId: string, symbol: string) {
     return api.post(`${getBase()}/${sessionId}/exit-symbol/${symbol}`);
   },
