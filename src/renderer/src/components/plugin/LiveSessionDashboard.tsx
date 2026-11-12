@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
-import { StopCircle, AlertTriangle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle } from 'lucide-react';
+import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle } from 'lucide-react';
 import { pluginApi, supportsPyramidPnl, supportsExitedSymbols } from '../../lib/pluginApi';
 import {
   parsePyramidPnlBySymbol,
@@ -1074,7 +1074,7 @@ function lastStopBlockMs(logs: TradeLogRow[], liveStartedAtMs: number | null): n
 }
 
 /**
- * Manual Stop/Force: last live snapshot keeps its Signal, Action is Exit, Change is a dash.
+ * Manual Stop: last live snapshot keeps its Signal, Action is Exit, Change is a dash.
  * 11:45 and 12:59 are never the stop-exit block — 12:59 has its own sim-close remap.
  */
 function remapManualStopExitRows(
@@ -1160,7 +1160,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [confirming, setConfirming] = useState<'stop' | 'force' | 'cancel' | null>(null);
+  const [confirming, setConfirming] = useState<'stop' | 'cancel' | null>(null);
   const [stopping, setStopping] = useState(false);
   const [cancellingSchedule, setCancellingSchedule] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -1185,7 +1185,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const scheduledAtMs = scheduledStartAtMs ?? simulationStartMs(nowMs);
   const isScheduled = isConfigurableSessionStatus(effectiveStatus) && !readOnly;
   const scheduledRemainingMs = isScheduled ? scheduledAtMs - nowMs : 0;
-  // Keep Stop/Force visible for live sessions even if a poll briefly returns a
+  // Keep Stop visible for live sessions even if a poll briefly returns a
   // non-active status (e.g. authenticated / unknown). Only hide on terminal.
   const showStopControls =
     !isConfigurableSessionStatus(effectiveStatus) &&
@@ -1410,12 +1410,13 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     return () => clearInterval(id);
   }, [effectiveStatus, sessionId]);
 
-  const handleStop = async (force: boolean) => {
+  // Force stop was removed (12 Nov): it marked the session stopped without closing the
+  // broker book, leaving live positions open. Stop is the only way to end a session.
+  const handleStop = async () => {
     setStopping(true);
     try {
-      if (force) await pluginApi.adminStopSession(sessionId);
-      else await pluginApi.stopTrading(sessionId);
-      toast.success(force ? 'Session force-stopped' : 'Session stopped');
+      await pluginApi.stopTrading(sessionId);
+      toast.success('Session stopped');
       setSessionStatus('stopped');
       seenLiveRef.current = false;
       setConfirming(null);
@@ -1546,10 +1547,6 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
               <button type="button" onClick={() => setConfirming('stop')}
                 className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40">
                 <StopCircle className="h-3.5 w-3.5" aria-hidden="true" /> Stop
-              </button>
-              <button type="button" onClick={() => setConfirming('force')}
-                className="flex items-center gap-1.5 rounded-lg bg-red-500 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40">
-                <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> Force
               </button>
             </>
           )}
@@ -1699,16 +1696,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       </div>
 
       <ConfirmDialog open={!!confirming}
-        title={confirming === 'force' ? 'Force stop session?' : confirming === 'cancel' ? 'Cancel scheduled start?' : 'Stop session?'}
-        description={confirming === 'force'
-          ? 'This immediately terminates the engine. Open positions will not be closed automatically — you may need to exit them manually with your broker.'
-          : confirming === 'cancel'
-            ? 'This abandons the session. It will NOT auto-start at 10:30 AM. You can start a new session anytime.'
-            : 'The engine will finish gracefully: it stops taking new positions and winds down the session.'}
-        confirmLabel={confirming === 'force' ? 'Force stop' : confirming === 'cancel' ? 'Cancel schedule' : 'Stop session'}
-        tone={confirming === 'cancel' || confirming === 'force' ? 'danger' : 'warning'}
+        title={confirming === 'cancel' ? 'Cancel scheduled start?' : 'Stop session?'}
+        description={confirming === 'cancel'
+          ? 'This abandons the session. It will NOT auto-start at 10:30 AM. You can start a new session anytime.'
+          : 'The engine will finish gracefully: it stops taking new positions and winds down the session.'}
+        confirmLabel={confirming === 'cancel' ? 'Cancel schedule' : 'Stop session'}
+        tone={confirming === 'cancel' ? 'danger' : 'warning'}
         busy={stopping || cancellingSchedule}
-        onConfirm={() => (confirming === 'cancel' ? handleCancelSchedule() : handleStop(confirming === 'force'))}
+        onConfirm={() => (confirming === 'cancel' ? handleCancelSchedule() : handleStop())}
         onCancel={() => { if (!stopping && !cancellingSchedule) setConfirming(null); }} />
     </div>
   );

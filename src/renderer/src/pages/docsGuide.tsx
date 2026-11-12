@@ -461,7 +461,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
             <p>“Ready to trade” with a New session button appears when nothing is selected. That button and the plus in the rail do the same thing.</p>
           </Sub>
           <Warn>
-            <p>A Live session is working right now. Deleting it or Force stop is a trading action. Only delete History you no longer need — CSV for that session will no longer download from here.</p>
+            <p>A Live session is working right now. Deleting it or stopping it is a trading action. Only delete History you no longer need — CSV for that session will no longer download from here.</p>
           </Warn>
           <Sub title="If the list fails">
             <Grid
@@ -606,7 +606,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
           <p>{startLive}</p>
           <p>Back on this screen returns to {isTotp ? 'the TOTP step' : `Connect ${name}`}.</p>
           <Warn>
-            <p>You cannot abandon a session that is already trading. Use Stop or Force stop on the live dashboard.</p>
+            <p>You cannot abandon a session that is already trading. Use Stop on the live dashboard.</p>
           </Warn>
           <Sub title="If start fails">
             <Grid
@@ -621,7 +621,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
                 ['Could not update leverage…', 'Retry Apply, or set leverage under Saved strategies.'],
                 ['Could not start trading…', `Confirm symbols, capital, and that the ${name} session is still connected.`],
                 ['This strategy has no symbols to start with.', 'Edit the saved strategy and add at least one symbol.'],
-                ['This session is already trading…', 'Abandon is blocked. Use Stop / Force stop.'],
+                ['This session is already trading…', 'Abandon is blocked. Use Stop.'],
                 ['Could not close this session…', 'Retry Abandon, or delete a leftover row from History.'],
                 ['This broker session expired…', `Plugin session died before start. New session → connect ${name} again.`],
                 ['Search produces no symbol', 'Only the supported NSE cash list is searchable. Use the exchange code (HCLTECH, not “HCL”).'],
@@ -675,28 +675,27 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
     },
     {
       id: 'live',
-      title: 'Live session, Stop, Force',
+      title: 'Live session and Stop',
       body: (
         <>
-          <p>After Start Trading you get free cash, status, last update time, CSV, and — only while live — Stop and Force.</p>
+          <p>After Start Trading you get free cash, status, last update time, CSV, and — only while live — Stop.</p>
           <Grid
             headers={['Control', 'What it does']}
             rows={[
               ['Stop', 'Graceful. The engine stops taking new positions and winds the session down. Confirm in the dialog. Toast: “Session stopped”.'],
-              ['Force', `Kills the engine immediately. Open positions are not closed automatically. Flatten them in the ${name} terminal if anything is still open. Toast: “Session force-stopped”.`],
               ['CSV', 'Downloads stored logs (live) or prefers Mongo logs for past sessions when the VM tradebook is gone.'],
             ]}
           />
           <p>Status you may see: Trading, Simulating, Ready, Stopped, Completed, Abandoned, Expired, Error / Failed, Connecting. <strong>Reconnecting…</strong> means the app lost the plugin feed and is retrying — leave the window open.</p>
           <p>Past sessions stay readable (logs, P&amp;L, CSV). Stop buttons are hidden. After market close, last recorded P&amp;L stays on screen.</p>
           <Danger>
-            <p>Force stop is an emergency. Always open {name} afterwards and confirm there is no leftover position.</p>
+            <p>There is no Force stop. It ended the session without closing the {name} book and left live positions open. If Stop does not finish, contact support and check {name} for open positions; do not leave them.</p>
           </Danger>
           <Grid
             headers={['What you see', 'What to do']}
             rows={[
-              ['Reconnecting…', `Wait. If it never recovers, Stop (or Force), then check ${name}.`],
-              ['Could not stop the session. It may still be running.', `Retry Stop. If it stays live, Force stop, then confirm in ${name}.`],
+              ['Reconnecting…', `Wait. If it never recovers, Stop, then check ${name}.`],
+              ['Could not stop the session. It may still be running.', `Retry Stop. If it stays live, contact support and check ${name} for open positions.`],
               ['Status Error / Failed', `Engine aborted. Read the last log rows, download CSV if present, start a new session. Do not assume positions are flat — check ${name}.`],
               ['Session expired', `Plugin session is gone. You cannot resume it. Connect a new session. Positions at ${name} are independent.`],
             ]}
@@ -791,7 +790,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
                 'Optional: Launch Terminal → Saved strategies → New strategy → Save, then Apply leverage.',
                 `New session → enter ${name} credentials → Continue.` + (isTotp ? ' Enter TOTP → Verify.' : ''),
                 'Configure (or pick the saved strategy) → Start Trading.',
-                'Watch logs and P&L. Stop when you are done. Check the ' + name + ' book if you used Force stop.',
+                'Watch logs and P&L. Stop when you are done. Check the ' + name + ' book after you stop.',
               ]}
             />
           </Sub>
@@ -847,7 +846,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
             <p>This month is the gateway aggregate. Month tiles are summed from live session logs on this computer (simulation skipped). They can disagree.</p>
           </Sub>
           <Sub title="Does logging out stop trading?">
-            <p>No. Stop or Force stop in Launch Terminal, then confirm in {name}.</p>
+            <p>No. Stop in Launch Terminal, then confirm in {name}.</p>
           </Sub>
         </>
       ),
