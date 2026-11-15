@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Activity, LineChart as LineIcon, CandlestickChart } from 'lucide-react';
-import { pluginApi, supportsPyramidPnl } from '../../lib/pluginApi';
+import { useSessionDataSource } from '../../lib/sessionDataSource';
 import { isAfterMarketCloseIST } from '../../lib/brokerCash';
 import { isWaitAction } from '../../lib/tradeSignals';
 import TradeActionPill from './TradeActionPill';
@@ -437,10 +437,11 @@ function tickerPhaseMap(
 function tickerPhaseFor(
   symbol: string,
   phases: Record<string, 'live' | 'simulation'>,
+  pyramidFlow: boolean,
 ): 'live' | 'simulation' {
   if (phases[symbol] === 'live') return 'live';
   if (phases[symbol] === 'simulation') return 'simulation';
-  return supportsPyramidPnl() ? 'simulation' : 'live';
+  return pyramidFlow ? 'simulation' : 'live';
 }
 
 function TickerPhaseBadge({ phase }: { phase: 'live' | 'simulation' }) {
@@ -549,6 +550,7 @@ function overlaySimClosePnl(
   map: Record<string, SymbolRow>,
   simCloseRows: Array<{ symbol: string; pnl: string | number }> | undefined,
   phases: Record<string, 'live' | 'simulation'>,
+  pyramidFlow: boolean,
 ): Record<string, SymbolRow> {
   if (!simCloseRows?.length) return map;
   const simPnl = new Map<string, number>();
@@ -563,7 +565,7 @@ function overlaySimClosePnl(
 
   const out: Record<string, SymbolRow> = { ...map };
   for (const [sym, pnl] of simPnl) {
-    const phase = tickerPhaseFor(sym, phases);
+    const phase = tickerPhaseFor(sym, phases, pyramidFlow);
     if (phase !== 'simulation') continue;
     const cur = out[sym];
     out[sym] = {
@@ -577,6 +579,8 @@ function overlaySimClosePnl(
 }
 
 export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simCloseRows }: Props) {
+  const source = useSessionDataSource();
+  const pyramidFlow = source.supportsPyramidPnl();
   const [totalPnl, setTotalPnl] = useState(0);
   const [realizedPnl, setRealizedPnl] = useState(0);
   const [unrealizedPnl, setUnrealizedPnl] = useState(0);
@@ -630,7 +634,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
     };
 
     const loadHistory = () => {
-      pluginApi.getLivePnlHistory(sessionId, undefined, 10).then(res => {
+      source.getLivePnlHistory(sessionId, undefined, 10).then(res => {
         if (cancelled || !res.data?.snapshots?.length) return;
         const points = res.data.snapshots
           .map(snapshotPoint)
@@ -660,7 +664,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
     loadHistory();
     const historyRefresh = setInterval(loadHistory, 30000);
 
-    pluginApi.getSessionById(sessionId).then((res) => {
+    source.getSessionById(sessionId).then((res) => {
       if (cancelled) return;
       const ms = parseSessionLiveStart(res.data);
       if (ms != null) setSessionLiveAt(ms);
@@ -668,7 +672,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
 
     intervalRef.current = setInterval(async () => {
       try {
-        const res = await pluginApi.getLivePnl(sessionId);
+        const res = await source.getLivePnl(sessionId);
         if (cancelled) return;
         setConnected(true);
         if (res.data.ready && res.data.data) {
@@ -737,6 +741,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
         ),
         simCloseRows,
         tickerPhases,
+        pyramidFlow,
       );
     }
     const preLive = snapshots.filter((p) => p.ts < liveAt);
@@ -745,6 +750,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
       mergeSymbolMaps(logTickers, preLive[preLive.length - 1]?.symbols),
       simCloseRows,
       tickerPhases,
+      pyramidFlow,
     );
     const liveBook = mergeSymbolMaps(
       postLive[postLive.length - 1]?.symbols,
@@ -758,7 +764,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
     ]);
     const out: Record<string, SymbolRow> = {};
     for (const sym of names) {
-      if (tickerPhaseFor(sym, tickerPhases) === 'live') {
+      if (tickerPhaseFor(sym, tickerPhases, pyramidFlow) === 'live') {
         const logged = liveLogTickers[sym];
         const base = liveBook[sym] ?? {
           unrealized_pnl: 0,
@@ -781,7 +787,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
       }
     }
     return out;
-  }, [logTickers, liveLogTickers, livePoint, snapshots, symbols, simCloseRows, tickerPhases, liveAt]);
+  }, [logTickers, liveLogTickers, livePoint, snapshots, symbols, simCloseRows, tickerPhases, liveAt, pyramidFlow]);
   const tickerList = useMemo(
     () => Object.entries(tickerMap).sort((a, b) => a[0].localeCompare(b[0])),
     [tickerMap],
@@ -939,7 +945,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
                 tickers={tickerList.map(([symbol, row]) => ({
                   symbol,
                   pnl: symbolNet(row).total,
-                  phase: tickerPhaseFor(symbol, tickerPhases),
+                  phase: tickerPhaseFor(symbol, tickerPhases, pyramidFlow),
                 }))}
                 selected={selectedSet ? [...selectedSet] : null}
                 onChange={setSelectedTickers}
@@ -1029,7 +1035,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
               const positive = total >= 0;
               const inScope = selectedSet == null || selectedSet.has(sym);
               const solo = selectedSet?.size === 1 && selectedSet.has(sym);
-              const phase = tickerPhaseFor(sym, tickerPhases);
+              const phase = tickerPhaseFor(sym, tickerPhases, pyramidFlow);
               return (
                 <button
                   key={sym}
