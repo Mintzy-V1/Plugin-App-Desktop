@@ -1300,7 +1300,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     const cash = pickCash(snapshot, pluginStatus, fullMatches?.status, dash?.status, tradingSession, pnlSummary?.current);
     if (cash != null) {
       setAvailableCash(cash);
-      rememberBrokerCash(cash);
+      // Only cache the signed-in user's own cash; an admin viewing another account must not overwrite it.
+      if (canControl) rememberBrokerCash(cash);
     }
 
     // Prefer the richest log source. After market close the live VM often
