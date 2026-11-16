@@ -183,6 +183,20 @@ export const adminApi = {
       `/sessions/${enc(sessionId)}`,
     );
   },
+  /**
+   * Stop a session or exit one of its symbols. Both need the account's own
+   * Mintzy API key, which the gateway checks against the session's owner. The
+   * key is sent once in the body and never stored.
+   */
+  stopSession(sessionId: string, apiKey: string) {
+    return adminHttp.post<{ success: boolean; message?: string }>(`/sessions/${enc(sessionId)}/stop`, { apiKey });
+  },
+  exitSymbol(sessionId: string, symbol: string, apiKey: string) {
+    return adminHttp.post<{ success: boolean; symbol: string; message?: string }>(
+      `/sessions/${enc(sessionId)}/exit-symbol/${enc(symbol)}`,
+      { apiKey },
+    );
+  },
   listKeys() {
     return adminHttp.get<{ success: boolean; keys: AdminKey[] }>('/keys');
   },

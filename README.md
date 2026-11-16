@@ -34,7 +34,7 @@ The app loads the real Mintzy Plugin terminal in a hardened BrowserWindow after 
 
 ## Admin mode
 
-Press **Ctrl+Shift+A** on the login screen to sign in with an admin key (or the master key) instead of an API key. Admin mode is a read-only view of every account's live sessions, trades and P&L, served by the gateway's `/api/v1/admin` API, which enforces all access and audit-logs every view. The master key also manages per-admin keys and reads the audit log.
+Press **Ctrl+Shift+A** on the login screen to sign in with an admin key (or the master key) instead of an API key. Admin mode shows every account's live sessions, trades and P&L, served by the gateway's `/api/v1/admin` API, which enforces all access and audit-logs every view. On a running session an admin can also **Stop session** or **Exit position**, but only by entering that account's own Mintzy API key, which the gateway checks against the session's owner (the key is never saved). The master key also manages per-admin keys and reads the audit log.
 
 The admin token is kept in memory and `sessionStorage` only (cleared when the app closes), separate from the user token. See `docs/API.md` in `mintzy-api-gateway` for key setup.
 

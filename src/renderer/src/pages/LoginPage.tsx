@@ -98,7 +98,7 @@ export default function LoginPage() {
 
           {adminMode ? (
             <p className="mt-5 text-center text-xs text-slate-400">
-              Admin access is read-only and every view is logged.{' '}
+              Every admin view and action is logged.{' '}
               <button type="button" onClick={() => { setAdminMode(false); setApiKey(''); setError(''); }}
                 className="font-medium text-blue-600 underline underline-offset-2 transition-colors hover:text-blue-700">
                 Back to user login
