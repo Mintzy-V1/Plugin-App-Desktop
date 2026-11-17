@@ -90,8 +90,10 @@ export function formatTradeLabel(raw: string | number | null | undefined): { lab
   return { label: pretty || original, tone: 'neutral' };
 }
 
+/** No position on this row: a WAIT, or a stock locked out at 13:00. Its qty stays empty. */
 export function isWaitAction(raw: string | number | null | undefined): boolean {
-  return formatTradeLabel(raw).tone === 'wait';
+  const tone = formatTradeLabel(raw).tone;
+  return tone === 'wait' || tone === 'locked';
 }
 
 export function actionPillClass(tone: ActionTone): string {
