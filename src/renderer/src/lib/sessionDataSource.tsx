@@ -20,6 +20,8 @@ export interface SessionDataSource {
   getLivePnlHistory: PluginApi['getLivePnlHistory'];
   getPyramidPnl: PluginApi['getPyramidPnl'];
   getExitedSymbols: PluginApi['getExitedSymbols'];
+  /** Error events: plain for the owner, raw for admins. `since` polls only what changed. */
+  getSessionEvents: (sessionId: string, since?: string | null) => Promise<{ data: unknown }>;
   supportsPyramidPnl: () => boolean;
   supportsExitedSymbols: () => boolean;
   /** Viewer can't act on the session: hides stop, cancel-schedule, configure and CSV controls. */
@@ -38,6 +40,7 @@ export const ownerSessionDataSource: SessionDataSource = {
   getLivePnlHistory: (sessionId, date, step) => pluginApi.getLivePnlHistory(sessionId, date, step),
   getPyramidPnl: (sessionId) => pluginApi.getPyramidPnl(sessionId),
   getExitedSymbols: (sessionId) => pluginApi.getExitedSymbols(sessionId),
+  getSessionEvents: (sessionId, since) => pluginApi.getSessionEvents(sessionId, since),
   supportsPyramidPnl,
   supportsExitedSymbols,
   viewOnly: false,
