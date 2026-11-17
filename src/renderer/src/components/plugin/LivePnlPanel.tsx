@@ -42,6 +42,18 @@ interface Props {
   liveStartedAtMs?: number | null;
   /** 12:59 IST sim-close rows (same P&amp;L as the trade log overlay). */
   simCloseRows?: Array<{ symbol: string; pnl: string | number }>;
+  /** Ended session: its P&L no longer changes, so poll rarely. */
+  readOnly?: boolean;
+}
+
+/**
+ * Live P&L poll interval. The owner sees 1s updates; an admin watching any
+ * account polls every 3s; an ended or stopped session only every 30s. One
+ * request is in flight at a time, so a slow gateway never stacks calls.
+ */
+export function livePnlPollMs({ viewOnly, readOnly, stopped }: { viewOnly: boolean; readOnly: boolean; stopped: boolean }): number {
+  if (readOnly || stopped) return 30000;
+  return viewOnly ? 3000 : 1000;
 }
 
 type ChartType = 'area' | 'candle';
@@ -578,7 +590,7 @@ function overlaySimClosePnl(
   return out;
 }
 
-export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simCloseRows }: Props) {
+export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simCloseRows, readOnly = false }: Props) {
   const source = useSessionDataSource();
   const pyramidFlow = source.supportsPyramidPnl();
   const [totalPnl, setTotalPnl] = useState(0);
@@ -595,7 +607,9 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
   const [sessionLiveAt, setSessionLiveAt] = useState<number | null>(null);
   const [selectedTickers, setSelectedTickers] = useState<string[] | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
   const lastSampledRef = useRef(0);
   const seededRef = useRef(false);
   const liveBookResetRef = useRef(false);
@@ -670,7 +684,8 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
       if (ms != null) setSessionLiveAt(ms);
     }).catch(() => {});
 
-    intervalRef.current = setInterval(async () => {
+    let stoppedSeen = false;
+    const pollLivePnl = async () => {
       try {
         const res = await source.getLivePnl(sessionId);
         if (cancelled) return;
@@ -706,15 +721,24 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
             });
           }
         }
-        if (res.data.stopped) setStopped(true);
+        if (res.data.stopped) {
+          stoppedSeen = true;
+          setStopped(true);
+        }
       } catch {
         if (!cancelled) setConnected(false);
+      } finally {
+        if (!cancelled) {
+          const delay = livePnlPollMs({ viewOnly: source.viewOnly, readOnly: readOnlyRef.current, stopped: stoppedSeen });
+          intervalRef.current = setTimeout(pollLivePnl, delay);
+        }
       }
-    }, 1000);
+    };
+    pollLivePnl();
 
     return () => {
       cancelled = true;
-      clearInterval(intervalRef.current);
+      clearTimeout(intervalRef.current);
       clearInterval(historyRefresh);
     };
   }, [sessionId]);

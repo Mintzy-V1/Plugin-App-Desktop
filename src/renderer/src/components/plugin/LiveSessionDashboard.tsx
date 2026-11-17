@@ -1647,6 +1647,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
           sessionId={sessionId}
           logRows={logs}
           liveStartedAtMs={liveStartedAtMs}
+          readOnly={readOnly}
           simCloseRows={displayLogs
             .filter((row) => isSimCloseIstLog(row.timeMs))
             .map((row) => ({ symbol: row.symbol, pnl: row.pnl }))}
