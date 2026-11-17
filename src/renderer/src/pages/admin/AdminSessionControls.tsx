@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useDialogFocus } from '../../components/ui/useDialogFocus';
 import { Eye, EyeOff, KeyRound, LogOut, StopCircle } from 'lucide-react';
 import { adminApi, type AdminAccount } from '../../lib/adminApi';
 import type { SessionDataSource } from '../../lib/sessionDataSource';
@@ -123,16 +124,13 @@ function ControlDialog({ action, sessionId, user, source, onClose, onDone }: {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const keyRef = useRef<HTMLInputElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const isExit = action === 'exit';
   const account = user ? user.name || user.email : 'this account';
 
-  useEffect(() => {
-    previousFocus.current = document.activeElement as HTMLElement | null;
-    keyRef.current?.focus();
-    return () => previousFocus.current?.focus?.();
-  }, []);
+  // Focus the key field, keep Tab inside the form, Escape closes unless a request is running
+  useDialogFocus(true, formRef, keyRef, onClose, !busy);
 
   useEffect(() => {
     if (!isExit) return;
@@ -147,14 +145,6 @@ function ControlDialog({ action, sessionId, user, source, onClose, onDone }: {
       .catch(() => { if (!cancelled) setPositions([]); });
     return () => { cancelled = true; };
   }, [isExit, sessionId, source]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) { e.stopPropagation(); onClose(); }
-    };
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [busy, onClose]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,6 +183,7 @@ function ControlDialog({ action, sessionId, user, source, onClose, onDone }: {
       onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
     >
       <form
+        ref={formRef}
         onSubmit={submit}
         role="dialog"
         aria-modal="true"
