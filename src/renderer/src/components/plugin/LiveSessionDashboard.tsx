@@ -1454,7 +1454,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
   // Force stop was removed (12 Nov): it marked the session stopped without closing the
   // broker book, leaving live positions open. Stop is the only way to end a session.
+  // The owner's actions call the user API (pluginApi) as the signed-in user.
+  // A view-only source (admin mode) must never reach them, even if a control
+  // is rendered by mistake: admins stop sessions through AdminSessionControls.
   const handleStop = async () => {
+    if (!canControl) return;
     setStopping(true);
     try {
       await pluginApi.stopTrading(sessionId);
@@ -1473,6 +1477,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   };
 
   const handleCancelSchedule = async () => {
+    if (!canControl) return;
     setCancellingSchedule(true);
     try {
       await pluginApi.abandonSession(sessionId);
@@ -1487,6 +1492,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   };
 
   const handleDownload = async () => {
+    if (!canControl) return;
     setDownloading(true);
     try {
       // Past sessions: Mongo logs first (VM final-tradebook is usually gone).
