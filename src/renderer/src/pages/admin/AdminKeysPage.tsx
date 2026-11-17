@@ -4,7 +4,7 @@ import { adminApi, type AdminKey } from '../../lib/adminApi';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import { useToast } from '../../components/ui/Toast';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
-import { EmptyState, Spinner, formatDateTime, inputClass, primaryButtonClass, secondaryButtonClass } from './adminFormat';
+import { EmptyState, LoadError, Spinner, formatDateTime, inputClass, primaryButtonClass, secondaryButtonClass } from './adminFormat';
 
 function NewKeyPanel({ name, keyValue, onDone }: { name: string; keyValue: string; onDone: () => void }) {
   const toast = useToast();
@@ -39,6 +39,7 @@ function NewKeyPanel({ name, keyValue, onDone }: { name: string; keyValue: strin
 export default function AdminKeysPage() {
   const toast = useToast();
   const [keys, setKeys] = useState<AdminKey[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [creating, setCreating] = useState(false);
@@ -47,9 +48,14 @@ export default function AdminKeysPage() {
   const [revoking, setRevoking] = useState(false);
 
   const load = useCallback(() => {
+    setLoadFailed(false);
     adminApi.listKeys()
       .then((res) => setKeys(res.data.keys))
-      .catch(() => toast.error('Could not load admin keys'));
+      .catch(() => {
+        // Keep a list already on screen; only an empty page needs the error state
+        setLoadFailed(true);
+        toast.error('Could not load admin keys');
+      });
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
@@ -102,7 +108,8 @@ export default function AdminKeysPage() {
 
       {created && <NewKeyPanel name={created.name} keyValue={created.key} onDone={() => setCreated(null)} />}
 
-      {!keys && <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400"><Spinner /> Loading keys…</div>}
+      {!keys && !loadFailed && <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400"><Spinner /> Loading keys…</div>}
+      {!keys && loadFailed && <LoadError title="Could not load admin keys" onRetry={load} />}
       {keys && keys.length === 0 && <EmptyState title="No admin keys yet" body="Create one for each team member who needs admin access." />}
 
       {keys && keys.length > 0 && (

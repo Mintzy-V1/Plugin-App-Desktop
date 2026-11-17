@@ -23,6 +23,8 @@ export default function AdminSessionPage({ sessionId, backLabel, onBack, onOpenU
 }) {
   const [data, setData] = useState<Loaded | null>(null);
   const [failed, setFailed] = useState(false);
+  // A reload of an already-shown session failed: its status may be out of date
+  const [refreshFailed, setRefreshFailed] = useState(false);
 
   const [reloadTick, setReloadTick] = useState(0);
   const loadedIdRef = useRef<string | null>(null);
@@ -38,25 +40,32 @@ export default function AdminSessionPage({ sessionId, backLabel, onBack, onOpenU
       .then((res) => {
         if (cancelled) return;
         loadedIdRef.current = sessionId;
+        setRefreshFailed(false);
         setData({ broker: res.data.broker, session: res.data.session, user: res.data.user });
       })
-      .catch(() => { if (!cancelled && loadedIdRef.current !== sessionId) setFailed(true); });
+      .catch(() => {
+        if (cancelled) return;
+        if (loadedIdRef.current !== sessionId) setFailed(true);
+        else setRefreshFailed(true);
+      });
     return () => { cancelled = true; };
   }, [sessionId, reloadTick]);
 
   const source = useMemo(() => createAdminSessionSource(data?.broker), [data?.broker]);
 
   // Stop and Exit only for a session that is running (live or simulating).
-  const controllable = data != null
+  const running = data != null
     && data.session.phase !== 'scheduled'
     && !isTerminalSessionStatus(data.session.status);
+  // Never offer Stop / Exit on a status that could not be refreshed
+  const controllable = running && !refreshFailed;
 
   // Re-read the session while it is running, so the controls go away once it ends.
   useEffect(() => {
-    if (!controllable) return;
+    if (!running) return;
     const id = setInterval(() => setReloadTick((n) => n + 1), 30000);
     return () => clearInterval(id);
-  }, [controllable]);
+  }, [running]);
 
   return (
     <div className="page-stack">
@@ -78,6 +87,12 @@ export default function AdminSessionPage({ sessionId, backLabel, onBack, onOpenU
         )}
       </div>
 
+      {refreshFailed && (
+        <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-[12px] text-amber-900">
+          Could not refresh this session. Its status may be out of date, so Stop and Exit are hidden until it loads again.
+          <button type="button" onClick={() => setReloadTick((n) => n + 1)} className="ml-2 font-semibold underline">Retry</button>
+        </p>
+      )}
       {!data && !failed && <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400"><Spinner /> Loading session…</div>}
       {failed && <EmptyState title="Could not load this session" body="It may have been deleted, or the broker could not be determined." />}
 

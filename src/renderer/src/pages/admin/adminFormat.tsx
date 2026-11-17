@@ -83,6 +83,23 @@ export function EmptyState({ title, body }: { title: string; body?: string }) {
   );
 }
 
+/** A page section that failed to load, with a way to try again. */
+export function LoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
+  return (
+    <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-6 py-10 text-center">
+      <p className="text-sm font-semibold text-red-800">{title}</p>
+      <p className="mt-1 text-[13px] text-red-700/80">The gateway did not answer. Check the connection and try again.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-3 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
 export const inputClass =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20';
 

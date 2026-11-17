@@ -2,21 +2,21 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { adminApi, type AdminAccount, type AdminSession } from '../../lib/adminApi';
 import { sessionStatusLabel } from '../../lib/sessionStatus';
-import { useToast } from '../../components/ui/Toast';
 import {
-  BROKER_OPTIONS, EmptyState, Pager, PhaseBadge, Spinner, brokerLabel, formatDateTime, inputClass, secondaryButtonClass,
+  BROKER_OPTIONS, EmptyState, LoadError, Pager, PhaseBadge, Spinner, brokerLabel, formatDateTime, inputClass, secondaryButtonClass,
 } from './adminFormat';
 
 const PAGE_SIZE = 25;
 
 function AccountList({ onOpenUser }: { onOpenUser: (userId: string) => void }) {
-  const toast = useToast();
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [broker, setBroker] = useState('');
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ users: AdminAccount[]; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   // Debounce typing so each keystroke doesn't hit the API (and the audit log).
   useEffect(() => {
@@ -27,12 +27,17 @@ function AccountList({ onOpenUser }: { onOpenUser: (userId: string) => void }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setFailed(false);
     adminApi.listUsers({ search: query || undefined, broker: broker || undefined, page, limit: PAGE_SIZE })
       .then((res) => { if (!cancelled) setData({ users: res.data.users, total: res.data.total }); })
-      .catch(() => { if (!cancelled) toast.error('Could not load accounts'); })
+      .catch(() => {
+        if (cancelled) return;
+        setData(null);
+        setFailed(true);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [query, broker, page, toast]);
+  }, [query, broker, page, retryTick]);
 
   return (
     <div className="page-stack">
@@ -52,6 +57,7 @@ function AccountList({ onOpenUser }: { onOpenUser: (userId: string) => void }) {
         {loading && <Spinner className="h-4 w-4 text-slate-400" />}
       </div>
 
+      {failed && <LoadError title="Could not load accounts" onRetry={() => setRetryTick((n) => n + 1)} />}
       {data && data.users.length === 0 && <EmptyState title="No accounts found" />}
 
       {data && data.users.length > 0 && (
@@ -99,16 +105,18 @@ function AccountList({ onOpenUser }: { onOpenUser: (userId: string) => void }) {
 }
 
 function AccountDetail({ userId, onBack, onOpenSession }: { userId: string; onBack: () => void; onOpenSession: (sessionId: string) => void }) {
-  const toast = useToast();
   const [data, setData] = useState<{ user: AdminAccount; sessions: AdminSession[] } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setFailed(false);
     adminApi.getUser(userId)
       .then((res) => { if (!cancelled) setData({ user: res.data.user, sessions: res.data.sessions }); })
-      .catch(() => { if (!cancelled) toast.error('Could not load this account'); });
+      .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
-  }, [userId, toast]);
+  }, [userId, retryTick]);
 
   return (
     <div className="page-stack">
@@ -118,7 +126,8 @@ function AccountDetail({ userId, onBack, onOpenSession }: { userId: string; onBa
         </button>
       </div>
 
-      {!data && <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400"><Spinner /> Loading account…</div>}
+      {!data && !failed && <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400"><Spinner /> Loading account…</div>}
+      {!data && failed && <LoadError title="Could not load this account" onRetry={() => setRetryTick((n) => n + 1)} />}
 
       {data && (
         <>
