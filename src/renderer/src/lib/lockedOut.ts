@@ -21,6 +21,7 @@ const REASON_TEXT: Record<string, string> = {
   MISSED_1300: 'the session missed the 13:00 gate',
   GATE_ERROR: 'the 13:00 gate could not run',
   NO_ENTRY: 'no entry at 13:00',
+  ORDER_REJECTED: 'the 13:00 entry order was rejected by your broker',
 };
 
 export function lockReasonText(reason: string | null | undefined): string {
