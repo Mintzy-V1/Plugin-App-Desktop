@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
-import { pluginApi, supportsPyramidPnl, supportsExitedSymbols } from '../../lib/pluginApi';
+import { pluginApi } from '../../lib/pluginApi';
+import { useSessionDataSource } from '../../lib/sessionDataSource';
 import {
   parsePyramidPnlBySymbol,
   parsePyramidPriceBySymbol,
@@ -1176,6 +1177,8 @@ function extractTradingSession(raw: unknown): TradingSession | null {
 
 export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop, onConfigure }: Props) {
   const toast = useToast();
+  const source = useSessionDataSource();
+  const canControl = !source.viewOnly;
   const [tab, setTab] = useState<Tab>('logs');
   const [logs, setLogs] = useState<TradeLogRow[]>([]);
   const [sessionStatus, setSessionStatus] = useState<string>(initialStatus || '');
@@ -1255,14 +1258,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     // live-VM calls — the VM is usually gone and they hang on timeout. Live
     // sessions still fetch everything on the same cadence.
     const calls: Array<Promise<unknown>> = [];
-    if (!readOnly) calls.push(pluginApi.getDashboard(sessionId));
-    calls.push(pluginApi.getSessionStatus(sessionId));
-    calls.push(pluginApi.getSessionTrades(sessionId));
-    calls.push(pluginApi.getSessionById(sessionId));
-    calls.push(pluginApi.getPnlSummary(sessionId));
+    if (!readOnly) calls.push(source.getDashboard(sessionId));
+    calls.push(source.getSessionStatus(sessionId));
+    calls.push(source.getSessionTrades(sessionId));
+    calls.push(source.getSessionById(sessionId));
+    calls.push(source.getPnlSummary(sessionId));
     if (!readOnly) {
-      calls.push(pluginApi.getFullSessionState());
-      calls.push(pluginApi.getLivePnl(sessionId));
+      calls.push(source.getFullSessionState(sessionId));
+      calls.push(source.getLivePnl(sessionId));
     }
     const results = await Promise.allSettled(calls);
     if (fetchForSessionRef.current !== forSession) return;
@@ -1335,7 +1338,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     const cash = pickCash(snapshot, pluginStatus, fullMatches?.status, dash?.status, tradingSession, pnlSummary?.current);
     if (cash != null) {
       setAvailableCash(cash);
-      rememberBrokerCash(cash);
+      // Only cache the signed-in user's own cash; an admin viewing another account must not overwrite it.
+      if (canControl) rememberBrokerCash(cash);
     }
 
     // Prefer the richest log source. After market close the live VM often
@@ -1361,14 +1365,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     setLoading(false);
 
     // Enrichment (background): chart history + pyramid / RMS-exit overlays.
-    const historyRaw = await pluginApi.getLivePnlHistory(sessionId, undefined, 10)
+    const historyRaw = await source.getLivePnlHistory(sessionId, undefined, 10)
       .then(r => r.data).catch(() => null);
-    const fetchPyramid = supportsPyramidPnl() && shouldFetchPyramidPnl(readOnly);
+    const fetchPyramid = source.supportsPyramidPnl() && shouldFetchPyramidPnl(readOnly);
     const pyramidRaw = fetchPyramid
-      ? await pluginApi.getPyramidPnl(sessionId).then(r => r.data).catch(() => null)
+      ? await source.getPyramidPnl(sessionId).then(r => r.data).catch(() => null)
       : null;
-    const exitedRaw = supportsExitedSymbols()
-      ? await pluginApi.getExitedSymbols(sessionId).then(r => r.data).catch(() => null)
+    const exitedRaw = source.supportsExitedSymbols()
+      ? await source.getExitedSymbols(sessionId).then(r => r.data).catch(() => null)
       : null;
     if (fetchForSessionRef.current !== forSession) return;
 
@@ -1391,7 +1395,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       );
       if (Object.keys(mergedPrices).length > 0) setPyramidPriceBySymbol(mergedPrices);
     }
-    if (supportsExitedSymbols() && exitedRaw != null) {
+    if (source.supportsExitedSymbols() && exitedRaw != null) {
       setExitedSymbols(parseExitedSymbols(exitedRaw));
     }
     // Re-merge logs now that the qty timeline from history is available.
@@ -1450,7 +1454,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
   // Force stop was removed (12 Nov): it marked the session stopped without closing the
   // broker book, leaving live positions open. Stop is the only way to end a session.
+  // The owner's actions call the user API (pluginApi) as the signed-in user.
+  // A view-only source (admin mode) must never reach them, even if a control
+  // is rendered by mistake: admins stop sessions through AdminSessionControls.
   const handleStop = async () => {
+    if (!canControl) return;
     setStopping(true);
     try {
       await pluginApi.stopTrading(sessionId);
@@ -1469,6 +1477,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   };
 
   const handleCancelSchedule = async () => {
+    if (!canControl) return;
     setCancellingSchedule(true);
     try {
       await pluginApi.abandonSession(sessionId);
@@ -1483,6 +1492,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   };
 
   const handleDownload = async () => {
+    if (!canControl) return;
     setDownloading(true);
     try {
       // Past sessions: Mongo logs first (VM final-tradebook is usually gone).
@@ -1520,15 +1530,17 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
               ' — starting now…'
             )}
           </p>
-          <button
-            type="button"
-            onClick={() => setConfirming('cancel')}
-            disabled={cancellingSchedule}
-            className="flex items-center gap-1.5 rounded-lg bg-amber-700 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-amber-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-50"
-          >
-            {cancellingSchedule ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5" aria-hidden="true" />}
-            Cancel schedule
-          </button>
+          {canControl && (
+            <button
+              type="button"
+              onClick={() => setConfirming('cancel')}
+              disabled={cancellingSchedule}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-700 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-amber-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-50"
+            >
+              {cancellingSchedule ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5" aria-hidden="true" />}
+              Cancel schedule
+            </button>
+          )}
         </div>
       )}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
@@ -1569,18 +1581,20 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
         </div>
 
         <div className="flex items-center gap-2">
-          {isConfigurableSessionStatus(effectiveStatus) && !readOnly && (
+          {canControl && isConfigurableSessionStatus(effectiveStatus) && !readOnly && (
             <button type="button" onClick={onConfigure}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30">
               <Settings2 className="h-3.5 w-3.5" aria-hidden="true" /> Configure
             </button>
           )}
-          <button type="button" onClick={handleDownload} disabled={downloading}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-50">
-            {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
-            CSV
-          </button>
-          {showStopControls && (
+          {canControl && (
+            <button type="button" onClick={handleDownload} disabled={downloading}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-50">
+              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
+              CSV
+            </button>
+          )}
+          {canControl && showStopControls && (
             <>
               <button type="button" onClick={() => setConfirming('stop')}
                 className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40">
@@ -1639,6 +1653,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
           sessionId={sessionId}
           logRows={logs}
           liveStartedAtMs={liveStartedAtMs}
+          readOnly={readOnly}
           simCloseRows={displayLogs
             .filter((row) => isSimCloseIstLog(row.timeMs))
             .map((row) => ({ symbol: row.symbol, pnl: row.pnl }))}

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AdminProvider, useAdmin } from './context/AdminContext';
 import { ToastProvider } from './components/ui/Toast';
+import AdminApp from './pages/admin/AdminApp';
 import LoginPage from './pages/LoginPage';
 import Navbar from './components/ui/Navbar';
 import Sidebar, { type NavItem } from './components/ui/Sidebar';
@@ -83,6 +85,7 @@ function AuthenticatedApp({ sidebarPinned, onToggleSidebar }: AuthenticatedAppPr
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const { admin, checking: adminChecking } = useAdmin();
   const [sidebarPinned, setSidebarPinned] = useState(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; }
   });
@@ -95,7 +98,10 @@ function AppContent() {
     });
   };
 
-  if (loading) {
+  // Admin mode is entered from the login page and kept apart from the user session.
+  if (admin) return <AdminApp key={`${admin.role}:${admin.name}`} />;
+
+  if (loading || adminChecking) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f7f8fa]">
         <img src="./Mintzy%20Bars%20Full%20Lockup%20Green.png" alt="Mintzy" className="h-9 w-auto animate-pulse object-contain" />
@@ -124,7 +130,9 @@ export default function App() {
   return (
     <ToastProvider>
       <AuthProvider>
-        <AppContent />
+        <AdminProvider>
+          <AppContent />
+        </AdminProvider>
       </AuthProvider>
     </ToastProvider>
   );

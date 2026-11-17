@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useDialogFocus } from './useDialogFocus';
 
 interface Props {
   open: boolean;
@@ -17,29 +18,7 @@ export default function ConfirmDialog({
 }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    previousFocus.current = document.activeElement as HTMLElement | null;
-    cancelRef.current?.focus();
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onCancel(); return; }
-      if (e.key !== 'Tab' || !dialogRef.current) return;
-      const focusables = dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled])');
-      if (focusables.length === 0) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    };
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown, true);
-      previousFocus.current?.focus?.();
-    };
-  }, [open, onCancel]);
+  useDialogFocus(open, dialogRef, cancelRef, onCancel);
 
   if (!open) return null;
 
