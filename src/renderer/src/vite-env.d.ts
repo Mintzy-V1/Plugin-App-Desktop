@@ -9,6 +9,9 @@ interface ImportMeta {
 }
 
 interface MintzyDesktopApi {
+  system?: {
+    showNotification?: (title: string, body: string) => void;
+  };
   auth?: {
     login?: (apiKey: string) => Promise<unknown>;
     logout?: () => Promise<unknown>;

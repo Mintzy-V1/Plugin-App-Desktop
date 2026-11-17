@@ -295,6 +295,14 @@ export const pluginApi = {
   },
 
   /**
+   * Plain-language error events for the user's own session (gateway keeps them until
+   * 48h after the session ends). `since` returns only events changed after it.
+   */
+  getSessionEvents(sessionId: string, since?: string | null) {
+    return api.get<unknown>(`${getBase()}/sessions/${sessionId}/events`, { params: { since: since || undefined } });
+  },
+
+  /**
    * Full live session state from the plugin VM (status, snapshot, execution trades).
    * Uses the user's latest session on the gateway — caller should verify python_session_id.
    */

@@ -77,6 +77,22 @@ export function pluginErrorMessage(
     return fallback;
   }
 
+  // Broker refusals, most specific first. Same wording as the engine's error events.
+  if (/no static egress ip|egress prox/.test(lower)) {
+    return 'Mintzy cannot reach your broker right now. This is on Mintzy’s side, not your account. Please try again shortly, or contact Mintzy support if it continues.';
+  }
+  if (/static ip|whitelist|white list|ip not allowed|unknown ip|unauthorized ip|invalid ip|ip address not/.test(lower)) {
+    return 'Your broker refused the connection because Mintzy’s IP address is not on your API app’s allowed list. Add Mintzy’s static IP in your broker’s API settings (Angel One: SmartAPI › My Apps › Static IP) and try again.';
+  }
+  if (/invalid mpin|wrong mpin|ab1007|invalid pin/.test(lower)) {
+    return 'Your broker rejected the MPIN / PIN. Too many wrong attempts can lock the account for the day. Check it and try again.';
+  }
+  if (/forbidden|status: 403|access denied|permission denied/.test(lower)) {
+    return 'Your broker refused access for this account. Check the allowed IPs and trading permission on your broker API app, then try again.';
+  }
+  if (/invalid token|token expired|jwt expired|ag8001|ag8002|ag8003|session_expired_relogin_required/.test(lower)) {
+    return 'Your broker session has expired. Log in to your broker again from Mintzy.';
+  }
   if (/invalid api key|app not found/.test(lower)) {
     return 'Invalid Angel One API key. Check the key in the Angel SmartAPI portal and try again.';
   }

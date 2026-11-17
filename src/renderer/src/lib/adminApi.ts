@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { SessionEvent } from './sessionEvents';
 import type { SessionDataSource } from './sessionDataSource';
 import type { DashboardData, LivePnlResponse, PnlSnapshot, TradingSession } from './pluginApi';
 
@@ -91,6 +92,8 @@ export interface OverviewSession {
     age_seconds: number;
   } | null;
   stale: boolean;
+  /** Critical / error events in the last hour (gateway: session_events) */
+  problems?: { critical: number; error: number; last_at: string | null };
 }
 
 export interface OverviewResponse {
@@ -175,6 +178,13 @@ export const adminApi = {
   listUsers(params: { search?: string; broker?: string; page?: number; limit?: number }) {
     return adminHttp.get<Paged & { success: boolean; users: AdminAccount[] }>('/users', { params });
   },
+  /** One account's raw error events across its sessions (default: last 7 days). */
+  getUserEvents(userId: string, params: { from?: string; to?: string; severity?: string; code?: string; session_id?: string; page?: number; limit?: number } = {}) {
+    return adminHttp.get<Paged & { success: boolean; events: SessionEvent[]; from: string; to: string }>(
+      `/users/${enc(userId)}/events`,
+      { params },
+    );
+  },
   getUser(userId: string) {
     return adminHttp.get<{ success: boolean; user: AdminAccount; sessions: AdminSession[] }>(`/users/${enc(userId)}`);
   },
@@ -235,6 +245,7 @@ export function createAdminSessionSource(broker: AdminBroker | null | undefined)
       adminHttp.get<{ success: boolean; snapshots: PnlSnapshot[] }>(path(sessionId, '/live-pnl/history'), { params: { date, step } }),
     getPyramidPnl: (sessionId) => adminHttp.get<Record<string, unknown>>(path(sessionId, '/pyramid-pnl')),
     getExitedSymbols: (sessionId) => adminHttp.get(path(sessionId, '/exited-symbols')),
+    getSessionEvents: (sessionId, since) => adminHttp.get(path(sessionId, '/events'), { params: { since: since || undefined } }),
     supportsPyramidPnl: () => pyramid,
     supportsExitedSymbols: () => pyramid,
     viewOnly: true,

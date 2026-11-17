@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import AccountErrorLog from './AccountErrorLog';
 import { ArrowLeft } from 'lucide-react';
 import { adminApi, type AdminAccount, type AdminSession } from '../../lib/adminApi';
 import { sessionStatusLabel } from '../../lib/sessionStatus';
@@ -107,6 +108,7 @@ function AccountList({ onOpenUser }: { onOpenUser: (userId: string) => void }) {
 function AccountDetail({ userId, onBack, onOpenSession }: { userId: string; onBack: () => void; onOpenSession: (sessionId: string) => void }) {
   const [data, setData] = useState<{ user: AdminAccount; sessions: AdminSession[] } | null>(null);
   const [failed, setFailed] = useState(false);
+  const [view, setView] = useState<'sessions' | 'errors'>('sessions');
   const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
@@ -139,8 +141,21 @@ function AccountDetail({ userId, onBack, onOpenSession }: { userId: string; onBa
             </p>
           </div>
 
-          {data.sessions.length === 0 && <EmptyState title="No sessions yet" />}
-          {data.sessions.length > 0 && (
+          <div role="tablist" aria-label="Account data" className="inline-flex gap-0.5 self-start rounded-lg bg-slate-200/60 p-0.5">
+            {([['sessions', 'Sessions'], ['errors', 'Error log (7 days)']] as const).map(([key, label]) => (
+              <button key={key} role="tab" aria-selected={view === key} onClick={() => setView(key)}
+                className={`rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
+                  view === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {view === 'errors' && <AccountErrorLog userId={userId} onOpenSession={onOpenSession} />}
+
+          {view === 'sessions' && data.sessions.length === 0 && <EmptyState title="No sessions yet" />}
+          {view === 'sessions' && data.sessions.length > 0 && (
             <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm">
               <table className="w-full min-w-[640px] text-left text-[13px]">
                 <thead className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-400">
