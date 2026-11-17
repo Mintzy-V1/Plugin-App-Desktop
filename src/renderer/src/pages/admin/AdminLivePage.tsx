@@ -16,6 +16,23 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
   );
 }
 
+/** Critical / error event counts for the last hour; opening the session shows them. */
+function ProblemBadges({ problems }: { problems?: { critical: number; error: number } }) {
+  if (!problems || (problems.critical === 0 && problems.error === 0)) {
+    return <span className="text-[12px] text-slate-300">—</span>;
+  }
+  return (
+    <span className="flex items-center gap-1">
+      {problems.critical > 0 && (
+        <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700 ring-1 ring-red-200">{problems.critical} critical</span>
+      )}
+      {problems.error > 0 && (
+        <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 ring-1 ring-orange-200">{problems.error} error</span>
+      )}
+    </span>
+  );
+}
+
 export default function AdminLivePage({ onOpenSession }: { onOpenSession: (sessionId: string) => void }) {
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [error, setError] = useState(false);
@@ -100,7 +117,7 @@ export default function AdminLivePage({ onOpenSession }: { onOpenSession: (sessi
 
       {data && rows.length > 0 && (
         <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          <table className="w-full min-w-[860px] text-left text-[13px]">
+          <table className="w-full min-w-[960px] text-left text-[13px]">
             <thead className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-400">
               <tr>
                 <th className="px-4 py-2.5 font-medium">Account</th>
@@ -110,6 +127,7 @@ export default function AdminLivePage({ onOpenSession }: { onOpenSession: (sessi
                 <th className="px-3 py-2.5 text-right font-medium">Realized</th>
                 <th className="px-3 py-2.5 text-right font-medium">Unrealized</th>
                 <th className="px-3 py-2.5 text-right font-medium">Open</th>
+                <th className="px-3 py-2.5 font-medium" title="Critical and error events in the last hour">Errors (1h)</th>
                 <th className="px-4 py-2.5 text-right font-medium">Updated</th>
               </tr>
             </thead>
@@ -140,6 +158,9 @@ export default function AdminLivePage({ onOpenSession }: { onOpenSession: (sessi
                   <td className={`px-3 py-2.5 text-right tabular-nums ${pnlClass(s.pnl?.realized)}`}>{formatMoney(s.pnl?.realized)}</td>
                   <td className={`px-3 py-2.5 text-right tabular-nums ${pnlClass(s.pnl?.unrealized)}`}>{formatMoney(s.pnl?.unrealized)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{s.pnl ? `${s.pnl.open_positions}/${s.pnl.symbols}` : '—'}</td>
+                  <td className="px-3 py-2.5">
+                    <ProblemBadges problems={s.problems} />
+                  </td>
                   <td className={`px-4 py-2.5 text-right text-[12px] tabular-nums ${s.pnl && s.pnl.age_seconds > 120 ? 'text-amber-600' : 'text-slate-500'}`}>
                     {s.pnl ? formatAge(s.pnl.age_seconds) : 'No P&L yet'}
                   </td>
