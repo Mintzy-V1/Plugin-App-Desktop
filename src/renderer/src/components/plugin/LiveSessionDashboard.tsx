@@ -16,6 +16,9 @@ import {
 import { shouldFetchPyramidPnl } from '../../lib/istClock';
 import { useToast } from '../ui/Toast';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import AlertDialog from '../ui/AlertDialog';
+import SessionNotifications from './SessionNotifications';
+import { useSessionEvents } from '../../lib/useSessionEvents';
 import {
   sessionStatusLabel,
   resolveSessionStatus,
@@ -63,7 +66,7 @@ interface Props {
   onConfigure: () => void;
 }
 
-type Tab = 'logs' | 'pnl';
+type Tab = 'logs' | 'pnl' | 'alerts';
 
 interface TradeLogRow {
   time: string;
@@ -1180,6 +1183,16 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const source = useSessionDataSource();
   const canControl = !source.viewOnly;
   const [tab, setTab] = useState<Tab>('logs');
+  // Engine errors for this session: popup (owner, running session), toast for warnings,
+  // and the Notifications tab (raw details for admins)
+  const sessionEvents = useSessionEvents(sessionId, {
+    readOnly,
+    onWarning: (e) => toast.info(`${e.title}${e.symbol ? ` (${e.symbol})` : ''}`),
+  });
+  const unreadCount = sessionEvents.unread.size;
+  useEffect(() => {
+    if (tab === 'alerts' && unreadCount > 0) sessionEvents.markAllSeen();
+  }, [tab, unreadCount]);
   const [logs, setLogs] = useState<TradeLogRow[]>([]);
   const [sessionStatus, setSessionStatus] = useState<string>(initialStatus || '');
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
@@ -1636,15 +1649,50 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       )}
 
       <div role="tablist" aria-label="Session data" className="inline-flex gap-0.5 rounded-lg bg-slate-200/60 p-0.5">
-        {(['logs', 'pnl'] as Tab[]).map(t => (
+        {(['logs', 'pnl', 'alerts'] as Tab[]).map(t => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={`rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
+            className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
               tab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}>
-            {t === 'logs' ? 'Trade logs' : 'Live P&L'}
+            {t === 'logs' ? 'Trade logs' : t === 'pnl' ? 'Live P&L' : 'Notifications'}
+            {t === 'alerts' && unreadCount > 0 && (
+              <span className="min-w-[18px] rounded-full bg-red-500 px-1.5 text-center text-[10px] font-bold leading-[18px] text-white"
+                aria-label={`${unreadCount} new`}>
+                {unreadCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
+
+      <div hidden={tab !== 'alerts'}>
+        <SessionNotifications
+          events={sessionEvents.events}
+          raw={!canControl}
+          expired={sessionEvents.expired}
+          expiresAt={sessionEvents.expiresAt}
+          loaded={sessionEvents.loaded}
+          unread={sessionEvents.unread}
+        />
+      </div>
+
+      {sessionEvents.popup && (
+        <AlertDialog
+          open
+          tone={sessionEvents.popup.severity === 'critical' ? 'critical' : 'error'}
+          title={sessionEvents.popup.title}
+          message={sessionEvents.popup.message}
+          action={sessionEvents.popup.action}
+          reference={sessionEvents.popup.event_id}
+          meta={[
+            sessionEvents.popup.symbol,
+            sessionEvents.popup.count > 1 ? `${sessionEvents.popup.count} times` : null,
+          ].filter(Boolean).join(' · ') || undefined}
+          onClose={() => sessionEvents.dismiss(sessionEvents.popup!)}
+          secondaryLabel="All notifications"
+          onSecondary={() => { sessionEvents.markAllSeen(); setTab('alerts'); }}
+        />
+      )}
 
       {/* Keep both panes mounted so Live P&L history/polling survives tab switches. */}
       <div hidden={tab !== 'pnl'}>
