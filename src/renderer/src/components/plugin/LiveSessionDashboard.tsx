@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
-import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle } from 'lucide-react';
+import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
 import { pluginApi } from '../../lib/pluginApi';
 import { useSessionDataSource } from '../../lib/sessionDataSource';
 import {
@@ -29,6 +29,14 @@ import {
 import { downloadSessionCsv } from '../../lib/downloadSessionCsv';
 import { pickCash, rememberBrokerCash } from '../../lib/brokerCash';
 import { formatTradeLabel, isWaitAction } from '../../lib/tradeSignals';
+import {
+  isLockedOutRecord,
+  lockMessageFor,
+  lockReasonText,
+  parseLockedOutSymbols,
+  resolveLockedOut,
+  type LockedOutSymbol,
+} from '../../lib/lockedOut';
 import LivePnlPanel from './LivePnlPanel';
 import TradeActionPill from './TradeActionPill';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
@@ -79,6 +87,10 @@ interface TradeLogRow {
   rmsReason?: string;
   /** Client pressed Exit on this symbol. The system did not auto-exit it. */
   manualExit?: boolean;
+  /** EXP104: the engine locked this stock at 13:00 and will not trade it again today. */
+  lockedOut?: boolean;
+  lockReason?: string;
+  lockMessage?: string;
 }
 
 /** Engine logs often use naive IST wall times (`YYYY-MM-DD HH:mm:ss`). */
@@ -469,6 +481,11 @@ function scoreLogs(rows: TradeLogRow[]): number {
 function fillMissingLogFields(row: TradeLogRow, fallback?: TradeLogRow | null): TradeLogRow {
   if (!fallback) return row;
   const next = { ...row };
+  if (!next.lockedOut && fallback.lockedOut) {
+    next.lockedOut = true;
+    next.lockReason = fallback.lockReason;
+    next.lockMessage = fallback.lockMessage;
+  }
   const keys: Array<keyof TradeLogRow> = [
     'quantity', 'price', 'change', 'pnl', 'capital', 'return_pct', 'signal', 'action',
   ];
@@ -589,6 +606,9 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
     }
 
     const simRaw = r.simulation_logs ?? r.simulationLogs ?? r.is_simulation;
+    const lockedOut = isLockedOutRecord(r);
+    const lockReason = lockedOut ? String(r.lock_reason ?? r.lockReason ?? '').toUpperCase() : undefined;
+    const symbolText = String(r.Symbol ?? r.symbol ?? '-');
 
     return {
       time,
@@ -610,6 +630,13 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
           : simRaw === 'false' || simRaw === 0
             ? false
             : null,
+      ...(lockedOut
+        ? {
+          lockedOut: true,
+          lockReason,
+          lockMessage: String(r.lock_message ?? r.lockMessage ?? '').trim() || lockMessageFor(symbolText, lockReason),
+        }
+        : {}),
     };
   });
 }
@@ -1170,6 +1197,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const [pyramidPnlBySymbol, setPyramidPnlBySymbol] = useState<Record<string, number>>({});
   const [pyramidPriceBySymbol, setPyramidPriceBySymbol] = useState<Record<string, number>>({});
   const [exitedSymbols, setExitedSymbols] = useState<ExitedSymbol[]>([]);
+  const [gatewayLockedOut, setGatewayLockedOut] = useState<LockedOutSymbol[]>([]);
   const [scheduledStartAtMs, setScheduledStartAtMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -1217,6 +1245,13 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     return presentExitRows(remapManualStopExitRows(withSquareOff, effectiveStatus, liveStartedAtMs));
   }, [logs, pyramidPnlBySymbol, pyramidPriceBySymbol, liveStartedAtMs, exitedSymbols, effectiveStatus]);
 
+  // EXP104: stocks locked at 13:00 for the rest of the day
+  const lockedOut = useMemo(() => resolveLockedOut(gatewayLockedOut, logs), [gatewayLockedOut, logs]);
+  const lockedOutReasons = useMemo(() => {
+    const reasons = Array.from(new Set(lockedOut.map((x) => lockReasonText(x.reason))));
+    return reasons.length === 1 ? reasons[0] : null;
+  }, [lockedOut]);
+
   const fetchDashboard = async () => {
     const forSession = sessionId;
     // Critical calls render logs/status fast. Past (read-only) sessions skip the
@@ -1247,9 +1282,12 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       ? extractTradingSession(got(tsRes))
       : null;
     const pnlSummary = got(pnlRes) as Record<string, any> | null;
-    const fullState = got(fullRes) as { python_session_id?: string; status?: unknown; snapshot?: unknown; logs?: unknown } | null;
+    const fullState = got(fullRes) as {
+      python_session_id?: string; status?: unknown; snapshot?: unknown; logs?: unknown; locked_out_symbols?: unknown;
+    } | null;
     // /session always returns the user's latest session — only trust it for this id
     const fullMatches = fullState?.python_session_id === sessionId ? fullState : null;
+    if (fullMatches) setGatewayLockedOut(parseLockedOutSymbols(fullMatches.locked_out_symbols));
 
     const livePnl = got(livePnlRes) as { data?: unknown } | null;
     const anyOk = [dashRes, statusRes, tradesRes, tsRes, pnlRes, fullRes, livePnlRes].some(r => r?.status === 'fulfilled');
@@ -1561,6 +1599,36 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
         </div>
       </div>
 
+      {lockedOut.length > 0 && (
+        <div
+          role="status"
+          className="flex items-start gap-2.5 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3.5 shadow-sm"
+        >
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold text-amber-950">
+              Locked for today
+              {lockedOutReasons ? <span className="font-medium"> ({lockedOutReasons})</span> : null}
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {lockedOut.map((x) => (
+                <span
+                  key={x.symbol}
+                  title={x.message}
+                  className="rounded-md bg-amber-200/70 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900"
+                >
+                  {x.symbol}
+                  {lockedOutReasons ? null : <span className="font-medium"> · {lockReasonText(x.reason)}</span>}
+                </span>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[12px] text-amber-900/80">
+              These stocks will not trade again in this session. The engine has stopped running cycles for them.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div role="tablist" aria-label="Session data" className="inline-flex gap-0.5 rounded-lg bg-slate-200/60 p-0.5">
         {(['logs', 'pnl'] as Tab[]).map(t => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
@@ -1650,11 +1718,17 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                           className={`border-b border-slate-50 text-slate-700 last:border-0 ${
                             log.rmsHit
                               ? 'bg-red-50/80 hover:bg-red-50'
-                              : isSimTrade
+                              : log.lockedOut
+                                ? 'bg-amber-50 shadow-[inset_3px_0_0_0_rgb(251,191,36)] hover:bg-amber-100/70'
+                                : isSimTrade
                                 ? 'bg-slate-50/40 hover:bg-slate-50'
                                 : 'hover:bg-slate-50'
                           }`}
-                          title={log.rmsHit ? (log.rmsReason ? `Hit RMS · ${log.rmsReason}` : 'Hit RMS') : isSimTrade ? 'Simulation trade' : undefined}
+                          title={log.rmsHit
+                            ? (log.rmsReason ? `Hit RMS · ${log.rmsReason}` : 'Hit RMS')
+                            : log.lockedOut
+                              ? log.lockMessage
+                              : isSimTrade ? 'Simulation trade' : undefined}
                         >
                           <td className="px-3.5 py-2 text-xs font-mono">
                             <div className="flex flex-col gap-0.5">
@@ -1665,6 +1739,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                                 {log.rmsHit && (
                                   <span className="rounded bg-red-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-red-800">
                                     RMS
+                                  </span>
+                                )}
+                                {log.lockedOut && !log.rmsHit && (
+                                  <span className="rounded bg-amber-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-900">
+                                    Locked
                                   </span>
                                 )}
                                 {isSimTrade && !log.rmsHit && (
@@ -1678,7 +1757,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                               </span>
                             </div>
                           </td>
-                          <td className="px-3.5 py-2 font-semibold">{log.symbol}</td>
+                          <td className="px-3.5 py-2 font-semibold">
+                            {log.symbol}
+                            {log.lockedOut && log.lockMessage && (
+                              <p className="mt-0.5 max-w-[18rem] whitespace-normal text-[11px] font-medium leading-snug text-amber-800">
+                                {log.lockMessage}
+                              </p>
+                            )}
+                          </td>
                           <td className="px-3.5 py-2">
                             <TradeActionPill value={log.signal} />
                           </td>

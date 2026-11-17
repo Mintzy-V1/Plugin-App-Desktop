@@ -9,6 +9,7 @@ export type ActionTone =
   | 'filled'
   | 'close'
   | 'exit'
+  | 'locked'
   | 'neutral';
 
 const TONE_CLASS: Record<ActionTone, string> = {
@@ -22,6 +23,7 @@ const TONE_CLASS: Record<ActionTone, string> = {
   filled: 'bg-emerald-50 text-emerald-800 ring-emerald-100',
   close: 'bg-slate-800 text-white ring-slate-800',
   exit: 'bg-indigo-50 text-indigo-800 ring-indigo-100',
+  locked: 'bg-amber-100 text-amber-900 ring-amber-300',
   neutral: 'bg-slate-100 text-slate-600 ring-slate-200/80',
 };
 
@@ -50,6 +52,10 @@ export function formatTradeLabel(raw: string | number | null | undefined): { lab
 
   if (/pending/.test(n) || /order sent/.test(n)) {
     return { label: 'Order Sent', tone: 'sent' };
+  }
+  // EXP104 13:00 lockout: checked before WAIT, since its text says "no momentum" too
+  if (/^locked out/.test(n)) {
+    return { label: 'Locked out', tone: 'locked' };
   }
   if (/wait/.test(n) || /no position/.test(n) || /no momentum/.test(n) || n === 'flat') {
     return { label: 'No momentum', tone: 'wait' };
@@ -84,8 +90,10 @@ export function formatTradeLabel(raw: string | number | null | undefined): { lab
   return { label: pretty || original, tone: 'neutral' };
 }
 
+/** No position on this row: a WAIT, or a stock locked out at 13:00. Its qty stays empty. */
 export function isWaitAction(raw: string | number | null | undefined): boolean {
-  return formatTradeLabel(raw).tone === 'wait';
+  const tone = formatTradeLabel(raw).tone;
+  return tone === 'wait' || tone === 'locked';
 }
 
 export function actionPillClass(tone: ActionTone): string {
