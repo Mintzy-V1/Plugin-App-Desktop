@@ -1,8 +1,5 @@
-import { createPortal } from 'react-dom';
-import { SessionResult } from './SessionResult';
-export type { SymbolRow } from '../../lib/livePnlModel';
-export type { LogTickerHint } from '../../lib/livePnlModel';
 export { livePnlPollMs } from '../../lib/livePnlModel';
+export type { SymbolRow, LogTickerHint } from '../../lib/livePnlModel';
 import {
   type PnlPoint,
   type SymbolRow,
@@ -10,26 +7,15 @@ import {
   livePnlPollMs,
   type ChartType,
   IST,
-  IST_OFFSET_MS,
   parseChartTimeMs,
   isPlausibleTs,
   roundTs,
   mergeBySecond,
-  downsamplePoints,
-  type CandlePoint,
-  alignBucketStart,
-  candlesFromSegment,
   bucketForCandles,
   formatAxisTick,
   formatMoney,
-  POSITION_QTY_KEYS,
-  pickPositionQty,
   normalizeSymbols,
   symbolNet,
-  carrySymbolMaps,
-  scopedPoint,
-  ensureDrawable,
-  pnlSeriesFromLogs,
   snapshotPoint,
   buildSyncedSeries,
   inferLiveStartedAt,
@@ -39,24 +25,19 @@ import {
   tickerPhaseFor,
   sumSimClosePnl,
   tickersFromLogs,
-  mergeSymbolRow,
   mergeSymbolMaps,
   overlaySimClosePnl
 } from '../../lib/livePnlModel';
+import { createPortal } from 'react-dom';
+import { SessionResult } from './SessionResult';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Activity, LineChart as LineIcon, CandlestickChart } from 'lucide-react';
 import { useSessionDataSource } from '../../lib/sessionDataSource';
 import { isAfterMarketCloseIST } from '../../lib/brokerCash';
-import { isWaitAction } from '../../lib/tradeSignals';
+
 import TradeActionPill from './TradeActionPill';
 import TickerScopeDropdown, { formatTickerScopeLabel } from './TickerScopeDropdown';
 import SessionTradingChart from './SessionTradingChart';
-
-
-
-
-
-
 
 interface Props {
   summaryHost?: HTMLElement | null;
@@ -71,71 +52,12 @@ interface Props {
   readOnly?: boolean;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 function TickerPhaseBadge({ phase }: { phase: 'live' | 'simulation' }) {
   if (phase === 'live') {
     return (
       <span
         title="This ticker switched from simulation to live"
-        className="rounded bg-emerald-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-emerald-800"
+        className="rounded bg-gain-soft px-1 py-px text-[11px] font-semibold uppercase tracking-wide text-gain"
       >
         Live
       </span>
@@ -144,21 +66,12 @@ function TickerPhaseBadge({ phase }: { phase: 'live' | 'simulation' }) {
   return (
     <span
       title="This ticker stayed in simulation and did not pyramid"
-      className="rounded bg-slate-200/80 px-1 py-px text-[9px] font-semibold tracking-wide text-slate-500"
+      className="rounded bg-line px-1 py-px text-[11px] font-semibold tracking-wide text-muted"
     >
       Simulation
     </span>
   );
 }
-
-
-
-
-
-
-
-
-
 
 
 export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simCloseRows, readOnly = false, summaryHost, positionsHost }: Props) {
@@ -463,8 +376,8 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
   }, [selectedSet, totalPnl, realizedPnl, unrealizedPnl, tickerMap, liveAt]);
 
   const isPositive = scopedCards.total >= 0;
-  const trendColor = isPositive ? 'text-emerald-600' : 'text-red-600';
-  const bgColor = isPositive ? 'bg-emerald-50' : 'bg-red-50';
+  const trendColor = isPositive ? 'text-gain' : 'text-loss';
+  const bgColor = isPositive ? 'bg-gain-soft' : 'bg-loss-soft';
   const hasFigures = ready || chartHistory.length > 0 || tickerList.length > 0;
   const placeholder = !hasFigures;
   const marketClosed = isAfterMarketCloseIST();
@@ -472,22 +385,22 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
   return (
     <div className="page-stack">
       {stopped && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
+        <div className="rounded-xl border border-line bg-subtle px-4 py-2.5 text-sm text-secondary">
           Session ended. Figures below are the last recorded results.
         </div>
       )}
       {!stopped && marketClosed && hasFigures && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
+        <div className="rounded-xl border border-line bg-subtle px-4 py-2.5 text-sm text-secondary">
           Market is closed. Showing the last P&amp;L from this session — it stays on screen.
         </div>
       )}
       {!stopped && !connected && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700">
+        <div className="rounded-xl border border-attention/25 bg-attention-soft px-4 py-2.5 text-sm font-medium text-attention">
           Connection lost — retrying… {lastUpdated && `Last update ${lastUpdated.toLocaleTimeString('en-IN')}`}
         </div>
       )}
       {!stopped && connected && placeholder && (
-        <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700">
+        <div className="flex items-center gap-2 rounded-xl border border-brand/25 bg-info-soft px-4 py-2.5 text-sm font-medium text-info">
           <Activity className="h-4 w-4 animate-pulse" aria-hidden="true" />
           Waiting for the first P&amp;L update…
         </div>
@@ -495,11 +408,11 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
 
       {summaryHost ? createPortal(<SessionResult total={placeholder ? '—' : formatMoney(scopedCards.total)} booked={placeholder ? '—' : formatMoney(scopedCards.realized)} open={placeholder ? '—' : formatMoney(scopedCards.unrealized)} positive={isPositive} bookedPositive={scopedCards.realized >= 0} openPositive={scopedCards.unrealized >= 0} scope={scopeLabel} unavailable={placeholder} />, summaryHost) : <SessionResult total={placeholder ? '—' : formatMoney(scopedCards.total)} booked={placeholder ? '—' : formatMoney(scopedCards.realized)} open={placeholder ? '—' : formatMoney(scopedCards.unrealized)} positive={isPositive} bookedPositive={scopedCards.realized >= 0} openPositive={scopedCards.unrealized >= 0} scope={scopeLabel} unavailable={placeholder} />}
 
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-line/80 bg-surface p-4 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold text-slate-900">P&L over the day</p>
-              <p className="mt-0.5 text-[11px] text-slate-400">
+              <p className="text-[13px] font-semibold text-ink">P&L over the day</p>
+              <p className="mt-0.5 text-[11px] text-muted">
                 {scopeLabel}
                 {chartType === 'candle'
                   ? ` · 1m P&L candles · ${candleData.length} bars`
@@ -519,18 +432,18 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
                 selected={selectedSet ? [...selectedSet] : null}
                 onChange={setSelectedTickers}
               />
-              <div role="group" aria-label="Chart type" className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
+              <div role="group" aria-label="Chart type" className="flex gap-1 rounded-lg bg-subtle p-0.5">
                 <button type="button" onClick={() => setChartType('area')}
                   aria-pressed={chartType === 'area'}
-                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
-                    chartType === 'area' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
+                    chartType === 'area' ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-secondary'
                   }`}>
                   <LineIcon className="h-3.5 w-3.5" aria-hidden="true" /> Line
                 </button>
                 <button type="button" onClick={() => setChartType('candle')}
                   aria-pressed={chartType === 'candle'}
-                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
-                    chartType === 'candle' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
+                    chartType === 'candle' ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-secondary'
                   }`}>
                   <CandlestickChart className="h-3.5 w-3.5" aria-hidden="true" /> Candle
                 </button>
@@ -539,19 +452,19 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
           </div>
 
           {liveAt != null && (
-            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-amber-50/80 px-3 py-2 text-[12px]">
-              <span className="font-semibold text-amber-800">Simulation stays on this chart</span>
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-attention-soft px-3 py-2 text-[12px]">
+              <span className="font-semibold text-attention">Simulation stays on this chart</span>
               {simPnl != null && (
-                <span className={simPnl >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                <span className={simPnl >= 0 ? 'text-gain' : 'text-loss'}>
                   Sim P&amp;L {formatMoney(simPnl)}
                 </span>
               )}
               {liveEndPoint && (
-                <span className={liveEndPoint.total >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                <span className={liveEndPoint.total >= 0 ? 'text-gain' : 'text-loss'}>
                   Live P&amp;L {formatMoney(liveEndPoint.total)}
                 </span>
               )}
-              <span className="text-amber-800/80">
+              <span className="text-attention/80">
                 Switched to live at {formatAxisTick(liveAt, spanMs)}
               </span>
             </div>
@@ -565,7 +478,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
               liveAt={liveAt}
             />
           ) : (
-            <p className="rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
+            <p className="rounded-xl bg-subtle px-4 py-10 text-center text-sm text-muted">
               {tickerList.length === 0
                 ? 'The chart appears here as soon as a ticker reports P&L.'
                 : `Not enough samples yet for ${scopeLabel}.`}
@@ -573,11 +486,11 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
           )}
         </div>
 
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-line/80 bg-surface p-4 shadow-sm">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <div>
-            <p className="text-[13px] font-semibold text-slate-900">Ticker P&amp;L</p>
-            <p className="mt-0.5 text-[11px] text-slate-400">
+            <p className="text-[13px] font-semibold text-ink">Ticker P&amp;L</p>
+            <p className="mt-0.5 text-[11px] text-muted">
               {tickerList.length > 0
                 ? `${tickerList.length} symbol${tickerList.length === 1 ? '' : 's'} · tap a tile to plot it, or combine from the dropdown`
                 : 'Per-stock results appear here as soon as the engine reports them'}
@@ -587,14 +500,14 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
             <button
               type="button"
               onClick={() => setSelectedTickers(null)}
-              className="text-[12px] font-semibold text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 rounded-md px-1"
+              className="text-[12px] font-semibold text-info hover:text-info focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-md px-1"
             >
               Select all
             </button>
           )}
         </div>
         {tickerList.length === 0 ? (
-          <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+          <p className="rounded-xl bg-subtle px-4 py-6 text-center text-sm text-muted">
             No ticker results yet.
           </p>
         ) : (
@@ -614,23 +527,23 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
                     else setSelectedTickers([sym]);
                   }}
                   aria-pressed={solo}
-                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
                     solo
-                      ? 'border-blue-300 bg-blue-50/70'
+                      ? 'border-brand/25 bg-info-soft'
                       : inScope
-                        ? 'border-slate-100 bg-slate-50/80 hover:border-slate-200'
-                        : 'border-slate-100 bg-white opacity-50 hover:opacity-80'
+                        ? 'border-line bg-subtle hover:border-line'
+                        : 'border-line bg-surface opacity-50 hover:opacity-80'
                   }`}
                 >
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <p className="truncate text-[13px] font-semibold text-slate-900">{sym}</p>
+                      <p className="truncate text-[13px] font-semibold text-ink">{sym}</p>
                       <TickerPhaseBadge phase={phase} />
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {data.side && <TradeActionPill value={data.side} />}
                       {data.qty != null && Number.isFinite(Number(data.qty)) && Number(data.qty) !== 0 && (
-                        <span className="text-[11px] text-slate-500">
+                        <span className="text-[11px] text-muted">
                           Qty {(() => {
                             const q = Math.abs(Number(data.qty));
                             return Number.isInteger(q) ? q : q.toLocaleString('en-IN');
@@ -639,7 +552,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
                       )}
                     </div>
                   </div>
-                  <p className={`shrink-0 text-right text-[15px] font-semibold tabular-nums ${positive ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <p className={`shrink-0 text-right text-[15px] font-semibold tabular-nums ${positive ? 'text-gain' : 'text-loss'}`}>
                     {formatMoney(total)}
                   </p>
                 </button>
