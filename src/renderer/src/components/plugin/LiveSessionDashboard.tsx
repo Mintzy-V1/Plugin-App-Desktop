@@ -425,20 +425,20 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   };
 
   const statusColor = (() => {
-    if (simRunning && !hasLiveCutoff) return 'text-amber-600';
+    if (simRunning && !hasLiveCutoff) return 'text-attention';
     const s = (sessionStatus || '').toLowerCase();
-    if (['trading_active', 'active', 'running', 'started'].includes(s)) return 'text-emerald-600';
-    if (['stopped', 'completed', 'abandoned'].includes(s)) return 'text-slate-500';
-    if (['error', 'failed'].includes(s)) return 'text-red-600';
-    return 'text-slate-900';
+    if (['trading_active', 'active', 'running', 'started'].includes(s)) return 'text-gain';
+    if (['stopped', 'completed', 'abandoned'].includes(s)) return 'text-muted';
+    if (['error', 'failed'].includes(s)) return 'text-loss';
+    return 'text-ink';
   })();
 
   return (
     <div className="page-stack">
       {isScheduled && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3.5 shadow-sm">
-          <Clock className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
-          <p className="min-w-0 flex-1 text-[13px] font-medium text-amber-950">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-attention/25 bg-attention-soft px-5 py-3.5 shadow-sm">
+          <Clock className="h-4 w-4 shrink-0 text-attention" aria-hidden="true" />
+          <p className="min-w-0 flex-1 text-[13px] font-medium text-attention">
             Session will start at 10:30 AM IST
             {scheduledRemainingMs > 0 ? (
               <> — <span className="font-semibold tabular-nums">{formatCountdown(scheduledRemainingMs)}</span> remaining</>
@@ -451,7 +451,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
               type="button"
               onClick={() => setConfirming('cancel')}
               disabled={cancellingSchedule}
-              className="flex items-center gap-1.5 rounded-lg bg-amber-700 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-amber-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-attention-action px-2.5 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-attention-action focus:outline-none focus-visible:ring-2 focus-visible:ring-attention/40 disabled:opacity-50"
             >
               {cancellingSchedule ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5" aria-hidden="true" />}
               Cancel schedule
@@ -459,27 +459,27 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
           )}
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-line/80 bg-surface px-5 py-4 shadow-sm">
         <div className="min-w-0">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Free cash</p>
-          <p className="mt-0.5 flex items-center gap-1 text-[15px] font-semibold text-slate-900">
-            <IndianRupee className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-            {availableCash != null ? formatMoney(availableCash).replace(/^₹\s?/, '') : <span className="font-medium text-slate-400">—</span>}
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Free cash</p>
+          <p className="mt-0.5 flex items-center gap-1 text-[15px] font-semibold text-ink">
+            <IndianRupee className="h-3.5 w-3.5 text-gain" aria-hidden="true" />
+            {availableCash != null ? formatMoney(availableCash).replace(/^₹\s?/, '') : <span className="font-medium text-muted">—</span>}
           </p>
         </div>
 
-        <div className="hidden h-8 w-px bg-slate-100 sm:block" aria-hidden="true" />
+        <div className="hidden h-8 w-px bg-subtle sm:block" aria-hidden="true" />
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Status</p>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Status</p>
             {simLabel && (
-              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${simulationStatusBadgeClass(simulationStatus)}`}>
+              <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${simulationStatusBadgeClass(simulationStatus)}`}>
                 Simulation · {simLabel}
               </span>
             )}
             {!connected && (
-              <span className="flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+              <span className="flex items-center gap-1 rounded-md bg-attention-soft px-1.5 py-0.5 text-[11px] font-semibold text-attention">
                 <WifiOff className="h-3 w-3" aria-hidden="true" /> Reconnecting…
               </span>
             )}
@@ -490,7 +490,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
               : (sessionStatusLabel(sessionStatus) || 'Loading…')}
           </p>
           {lastUpdated && (
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-muted">
               Updated {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </p>
           )}
@@ -499,13 +499,13 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
         <div className="flex items-center gap-2">
           {canControl && isConfigurableSessionStatus(effectiveStatus) && !readOnly && (
             <button type="button" onClick={onConfigure}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30">
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-secondary transition-colors hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30">
               <Settings2 className="h-3.5 w-3.5" aria-hidden="true" /> Configure
             </button>
           )}
           {canControl && (
             <button type="button" onClick={handleDownload} disabled={downloading}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-50">
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-secondary transition-colors hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30 disabled:opacity-50">
               {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
               CSV
             </button>
@@ -513,7 +513,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
           {canControl && showStopControls && (
             <>
               <button type="button" onClick={() => setConfirming('stop')}
-                className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40">
+                className="flex items-center gap-1.5 rounded-lg bg-attention-action px-2.5 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-attention-action focus:outline-none focus-visible:ring-2 focus-visible:ring-attention/40">
                 <StopCircle className="h-3.5 w-3.5" aria-hidden="true" /> Stop
               </button>
             </>
@@ -524,11 +524,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       {lockedOut.length > 0 && (
         <div
           role="status"
-          className="flex items-start gap-2.5 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3.5 shadow-sm"
+          className="flex items-start gap-2.5 rounded-xl border border-attention/25 bg-attention-soft px-5 py-3.5 shadow-sm"
         >
-          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-attention" aria-hidden="true" />
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-semibold text-amber-950">
+            <p className="text-[13px] font-semibold text-attention">
               Locked for today
               {lockedOutReasons ? <span className="font-medium"> ({lockedOutReasons})</span> : null}
             </p>
@@ -537,29 +537,29 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                 <span
                   key={x.symbol}
                   title={x.message}
-                  className="rounded-md bg-amber-200/70 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900"
+                  className="rounded-md bg-attention-soft px-1.5 py-0.5 text-[11px] font-semibold text-attention"
                 >
                   {x.symbol}
                   {lockedOutReasons ? null : <span className="font-medium"> · {lockReasonText(x.reason)}</span>}
                 </span>
               ))}
             </div>
-            <p className="mt-1.5 text-[12px] text-amber-900/80">
+            <p className="mt-1.5 text-[12px] text-attention/80">
               These stocks will not trade again in this session. The engine has stopped running cycles for them.
             </p>
           </div>
         </div>
       )}
 
-      <div role="tablist" aria-label="Session data" className="inline-flex gap-0.5 rounded-lg bg-slate-200/60 p-0.5">
+      <div role="tablist" aria-label="Session data" className="inline-flex gap-0.5 rounded-lg bg-line p-0.5">
         {(['logs', 'pnl', 'alerts'] as Tab[]).map(t => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
-              tab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30 ${
+              tab === t ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-secondary'
             }`}>
             {t === 'logs' ? 'Trade logs' : t === 'pnl' ? 'Live P&L' : 'Notifications'}
             {t === 'alerts' && unreadCount > 0 && (
-              <span className="min-w-[18px] rounded-full bg-red-500 px-1.5 text-center text-[10px] font-bold leading-[18px] text-white"
+              <span className="min-w-[18px] rounded-full bg-loss-action px-1.5 text-center text-[11px] font-bold leading-[18px] text-on-primary"
                 aria-label={`${unreadCount} new`}>
                 {unreadCount}
               </span>
@@ -612,34 +612,34 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       </div>
 
       <div hidden={tab !== 'logs'}>
-        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="rounded-xl border border-line/80 bg-surface shadow-sm">
           {loading && logs.length === 0 && displayLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-slate-400">
+            <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-muted">
               <RefreshCw className="h-5 w-5 animate-spin" aria-hidden="true" />
               <p className="text-sm">Loading trades…</p>
             </div>
           ) : displayLogs.length === 0 ? (
             <div className="px-4 py-8 text-center">
-              <p className="text-sm font-medium text-slate-500">No trades yet</p>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="text-sm font-medium text-muted">No trades yet</p>
+              <p className="mt-1 text-xs text-muted">
                 Executed trades will appear here as the engine runs.
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               {displayLogs.some(l => resolveSimulation(l, { hasLiveCutoff, liveStartedAtMs })) && (
-                <p className="border-b border-slate-100 bg-slate-50/80 px-3.5 py-2 text-[11px] text-slate-500">
+                <p className="border-b border-line bg-subtle px-3.5 py-2 text-[11px] text-muted">
                   Rows tagged Sim are simulation trades. Untagged rows are live.
                 </p>
               )}
               {displayLogs.some(l => l.rmsHit) && (
-                <p className="border-b border-red-100 bg-red-50/70 px-3.5 py-2 text-[11px] text-red-800">
+                <p className="border-b border-loss/25 bg-loss-soft px-3.5 py-2 text-[11px] text-loss">
                   Rows tagged RMS were exited by risk management and may not appear in the engine log.
                 </p>
               )}
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  <tr className="border-b border-line text-[11px] font-semibold uppercase tracking-wider text-muted">
                     <th scope="col" className="px-3.5 py-2.5">Time</th>
                     <th scope="col" className="px-3.5 py-2.5">Symbol</th>
                     <th scope="col" className="px-3.5 py-2.5">Signal</th>
@@ -655,8 +655,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                   {displayLogs.map((log, i) => {
                     const pnlNum = Number(log.pnl);
                     const changeNum = Number(log.change);
-                    const pnlColor = Number.isFinite(pnlNum) ? (pnlNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
-                    const changeColor = Number.isFinite(changeNum) ? (changeNum >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-700';
+                    const pnlColor = Number.isFinite(pnlNum) ? (pnlNum >= 0 ? 'text-gain' : 'text-loss') : 'text-secondary';
+                    const changeColor = Number.isFinite(changeNum) ? (changeNum >= 0 ? 'text-gain' : 'text-loss') : 'text-secondary';
                     const cutoff = { hasLiveCutoff, liveStartedAtMs };
                     const isSimTrade = resolveSimulation(log, cutoff);
                     const prev = i > 0 ? displayLogs[i - 1] : null;
@@ -666,21 +666,21 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                     return (
                       <Fragment key={`${log.time}-${log.symbol}-${log.rmsHit ? 'rms' : 'row'}-${i}`}>
                         {showLiveDivider && (
-                          <tr className="bg-emerald-50/70">
-                            <td colSpan={9} className="px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                          <tr className="bg-gain-soft">
+                            <td colSpan={9} className="px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gain">
                               Live trading
                             </td>
                           </tr>
                         )}
                         <tr
-                          className={`border-b border-slate-50 text-slate-700 last:border-0 ${
+                          className={`border-b border-line text-secondary last:border-0 ${
                             log.rmsHit
-                              ? 'bg-red-50/80 hover:bg-red-50'
+                              ? 'bg-loss-soft hover:bg-loss-soft'
                               : log.lockedOut
-                                ? 'bg-amber-50 shadow-[inset_3px_0_0_0_rgb(251,191,36)] hover:bg-amber-100/70'
+                                ? 'bg-attention-soft shadow-[inset_3px_0_0_0_rgb(251,191,36)] hover:bg-attention-soft'
                                 : isSimTrade
-                                ? 'bg-slate-50/40 hover:bg-slate-50'
-                                : 'hover:bg-slate-50'
+                                ? 'bg-subtle hover:bg-subtle'
+                                : 'hover:bg-subtle'
                           }`}
                           title={log.rmsHit
                             ? (log.rmsReason ? `Hit RMS · ${log.rmsReason}` : 'Hit RMS')
@@ -695,17 +695,17 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                               )}
                               <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                                 {log.rmsHit && (
-                                  <span className="rounded bg-red-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-red-800">
+                                  <span className="rounded bg-loss-soft px-1 py-px text-[11px] font-semibold uppercase tracking-wide text-loss">
                                     RMS
                                   </span>
                                 )}
                                 {log.lockedOut && !log.rmsHit && (
-                                  <span className="rounded bg-amber-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-900">
+                                  <span className="rounded bg-attention-soft px-1 py-px text-[11px] font-semibold uppercase tracking-wide text-attention">
                                     Locked
                                   </span>
                                 )}
                                 {isSimTrade && !log.rmsHit && (
-                                  <span className="rounded bg-slate-200/80 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                  <span className="rounded bg-line px-1 py-px text-[11px] font-semibold uppercase tracking-wide text-muted">
                                     Sim
                                   </span>
                                 )}
@@ -718,7 +718,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                           <td className="px-3.5 py-2 font-semibold">
                             {log.symbol}
                             {log.lockedOut && log.lockMessage && (
-                              <p className="mt-0.5 max-w-[18rem] whitespace-normal text-[11px] font-medium leading-snug text-amber-800">
+                              <p className="mt-0.5 max-w-[18rem] whitespace-normal text-[11px] font-medium leading-snug text-attention">
                                 {log.lockMessage}
                               </p>
                             )}
