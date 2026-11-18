@@ -322,33 +322,43 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
       title: 'Dashboard · Overview',
       body: (
         <>
-          <p>Home screen after sign-in. Use it to answer “how is trading doing?” Tabs at the top: Overview, Sessions, Month over month.</p>
-          <Sub title="Account card">
-            <p>Greeting (Good morning / afternoon / evening in IST), your first name, email, and a {name} pill. <strong>Updated …</strong> is a refresh button — click it to reload cash, sessions, and performance immediately. The app also refreshes about every 20 seconds and when you bring the window forward.</p>
+          <p>Home screen after sign-in. It answers “how is trading doing, and why?” The header shows your greeting, a live-session pill, your {name} broker and <strong>Updated …</strong>, which reloads everything. The app also refreshes about every 20 seconds and when you bring the window forward. The top bar shows the IST time and whether the NSE regular session is open (exchange holidays are not shown).</p>
+          <Sub title="Live-session pill">
+            <p>Green with a pulsing dot: N sessions are trading or simulating. Amber “N ready to trade”: {name} is connected but you have not pressed Start Trading. Grey: nothing is connected. Click it to open the Sessions tab.</p>
           </Sub>
-          <Sub title="Three metric cards">
+          <Sub title="Net P&L and equity curve">
             <Grid
-              headers={['Card', 'Meaning']}
+              headers={['Item', 'Meaning']}
               rows={[
-                ['Cash in broker', `Free cash Mintzy last read from ${name}. After you stop a session it keeps the last snapshot.`],
-                ['Equity', 'Account value including open positions, from the monthly aggregate — not from the performance tiles below.'],
-                ['This month', 'Net P&L for the calendar month from the gateway aggregate. Green is profit, red is loss.'],
+                ['Net P&L · all time', 'Sum of every live trading day. The pill is the return on the first account value Mintzy saw in your logs.'],
+                ['This month', `Net P&L for the calendar month, with the change against last month underneath.`],
+                ['Equity / Cash in broker', `Latest account value and free cash Mintzy read from ${name}. After you stop a session the last snapshot stays.`],
+                ['Equity curve', 'Cumulative P&L day by day. Pick 1M, 3M, 6M, 1Y or All; the curve restarts at ₹0 at the start of the range so you see that period’s result. Hover for each day.'],
+                ['Drawdown from peak', 'How far the curve sits below its highest point so far. At ₹0 the account is at a new high.'],
               ]}
             />
           </Sub>
-          <Sub title="Live session row">
-            <p>
-              A green dot and “N live trading session(s)” when something is running. “N ready” means {name} is connected but you have not pressed Start Trading.
-              “No live sessions” means nothing is connected. <strong>View all</strong> opens the Sessions tab.
-            </p>
+          <Sub title="Charts and breakdowns">
+            <Grid
+              headers={['Panel', 'What it shows']}
+              rows={[
+                ['Key metrics', 'Win rate, profit factor, risk : reward, max drawdown, Sharpe ratio and average day. Hover the ⓘ next to each for a one-line definition.'],
+                ['Daily P&L', 'One bar per trading day for the last 20, 60 or 120 days. Bars above the line are profit, below are loss.'],
+                ['Monthly returns', 'Net P&L for each of the last 12 months. Compare months opens the Month over month tab.'],
+                ['Symbols', 'Net P&L per symbol with its win rate. Switch between winners, losers and all.'],
+                ['P&L calendar', 'This month’s trading days shaded by result — deeper colour is a bigger day. Use the arrows for earlier months.'],
+                ['By weekday', 'Average P&L for each weekday, to spot days that consistently help or hurt.'],
+                ['Records', 'Best and worst day, symbol and month, plus longest and current green / red streaks.'],
+              ]}
+            />
           </Sub>
           <Sub title="If Overview fails">
             <Grid
               headers={['What you see', 'What to do']}
               rows={[
-                ["Couldn't load trading data", 'Sessions request failed. Check internet, then Retry. If it persists, wait a minute — the plugin service may be down.'],
+                ['A banner saying figures could not be refreshed', 'The last figures stay on screen. Check internet, then Retry on the banner.'],
                 ['Cash is ₹0.00 or looks stale', `Connect a session in Launch Terminal so Mintzy can read ${name} free cash. After market close the last stored figure stays.`],
-                ['No live sessions / No trading sessions yet', 'Start one from Launch Terminal → New session.'],
+                ['Charts say they appear after your first trading day', 'There is no live trading history yet. Simulation days do not count.'],
               ]}
             />
           </Sub>
@@ -363,17 +373,17 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
           <p>Every {name} session on the account, newest first, 10 per page.</p>
           <Steps
             items={[
-              'Open the Sessions tab (or View all on Overview).',
-              'Each row: short session id, date/time in IST, status pill, CSV button.',
+              'Open the Sessions tab, or click the live-session pill on Overview.',
+              'Filter with All, Live, Ready or Closed — each chip shows how many sessions it holds — or search by strategy name or session ID.',
+              'Each row shows the strategy, a short session ID, the start date and time in IST, and a status pill.',
               'Click a row to open that session in Launch Terminal (logs and P&L). Past sessions are read-only.',
-              'Click the download icon on a row for that session’s logs or tradebook CSV. The table header Download latest uses the newest session.',
-              'Use previous / next and page numbers when there are more than 10 sessions.',
+              'Click CSV on a row for that session’s logs or tradebook.',
             ]}
           />
           <Grid
             headers={['Status you may see', 'Meaning']}
             rows={[
-              ['Trading', 'Engine is running (live).'],
+              ['Trading / Simulating', 'Engine is running.'],
               ['Ready', `${name} is connected; you have not started yet. Opens Configure.`],
               ['Connecting / Awaiting 2FA', 'Login was not finished. Reconnect or delete from History.'],
               ['Stopped / Completed', 'Finished. Open read-only.'],
@@ -398,13 +408,14 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
       title: 'Dashboard · Month over month',
       body: (
         <>
-          <p>Last 12 calendar months as tiles. Open the tab, or the Month over month shortcut in Performance.</p>
+          <p>The last 12 calendar months side by side.</p>
           <ul>
-            <li>Green — that month’s net P&amp;L was positive.</li>
-            <li>Red — negative.</li>
-            <li>— — no live (non-simulation) trades that month.</li>
+            <li>Summary — 12-month net, average month, best and worst month.</li>
+            <li>Bar chart — each month’s net P&amp;L above or below zero.</li>
+            <li>Comparison table — P&amp;L, relative size, return on the account value at the start of that month, green days out of trading days, and the change against the previous traded month.</li>
+            <li>“No trading” — no live (non-simulation) trades that month.</li>
           </ul>
-          <p>These tiles are computed on this computer from session trades, same source as the Performance grid. They can differ slightly from “This month” on Overview, which comes from the gateway aggregate.</p>
+          <p>Months use exactly the same daily figures as “This month” on Overview, so the current month always matches.</p>
         </>
       ),
     },
@@ -414,30 +425,30 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
       body: (
         <>
           <p>
-            Tiles under Overview are calculated on this computer from <strong>live</strong> {name} session trades. Simulation rows are skipped.
-            Finished sessions are remembered on this device after the first load, so opening Dashboard again should be quick. Live sessions are fetched fresh.
-            Last numbers stay on screen while anything new loads.
+            Every figure is built by the Mintzy gateway from one daily P&amp;L series — the same one behind “This month” — so the numbers always agree with each other.
+            For each symbol on each IST day Mintzy takes its latest realised plus unrealised P&amp;L in that session, then adds the symbols up. Simulation (paper) rows never count.
+            Figures refresh every few minutes while you trade and again each evening.
           </p>
-          <p>A dash means there is not enough live history, or capital was missing so a percentage could not be formed.</p>
+          <p>A dash means there is not enough live history yet, or no account value was in the logs so a percentage could not be formed.</p>
           <Grid
-            headers={['Tile', 'How it is calculated']}
+            headers={['Figure', 'How it is calculated']}
             rows={[
-              ['Max profit script', 'Ticker with the highest summed day P&L. P&L in logs is a snapshot, so we take the last row per session / symbol / IST day, then sum those days.'],
-              ['Max losing script', 'Same method, lowest (most negative) sum.'],
-              ['Max profit day', 'IST calendar day with the highest net P&L across all scripts that day.'],
-              ['Max losing day', 'IST calendar day with the lowest net P&L.'],
-              ['Avg win rate', 'Share of trading days that finished green. Flat (zero) days are ignored.'],
-              ['Max drawdown', 'Largest peak-to-trough drop on the cumulative P&L path, as a percent of peak equity (starting capital when logs have it).'],
-              ['Average risk : reward', 'Mean winning day ÷ mean losing day, shown as 1 : x.xx. Dash if there were no losing days.'],
-              ['Overall returns', 'Total P&L ÷ first capital reading in the logs. Hint shows net rupees.'],
-              ['Max winning / losing streak', 'Longest run of consecutive green or red trading days. Days with no trades (weekends, holidays) are skipped and do not break a streak.'],
+              ['Win rate', 'Green days ÷ (green + red days). Flat days are ignored.'],
+              ['Profit factor', 'Total of all green days ÷ total of all red days. Above 1 means the account earns more than it gives back.'],
+              ['Risk : reward', 'Average green day ÷ average red day, shown as 1 : x.xx.'],
+              ['Average day', 'Net P&L ÷ number of trading days (expectancy).'],
+              ['Max drawdown', 'Largest fall of cumulative P&L from an earlier high. The % is of account value at that high (starting capital + P&L so far).'],
+              ['Sharpe ratio', 'Average daily return ÷ its standard deviation, × √252. Needs five or more trading days. Sortino uses only down-day volatility.'],
+              ['Overall return', 'Net P&L ÷ the first account value in your logs.'],
+              ['Best / worst day, symbol, month', 'Highest and lowest net results. A “best” is only shown if it made money, and a “worst” only if it lost.'],
+              ['Streaks', 'Longest run of consecutive green or red trading days. Non-trading days do not break a streak.'],
             ]}
           />
           <Sub title="Worked example">
-            <p>Suppose three live days: Monday +₹2,000, Tuesday −₹500, Wednesday +₹1,000. Win rate is 2/3. Streaks are 1 win, 1 loss, then 1 win (max win 1, max lose 1). Overall rupees +₹2,500. If first capital in the logs was ₹1,00,000, overall return is 2.5%.</p>
+            <p>Three live days with ₹1,00,000 starting capital: Monday +₹2,000, Tuesday −₹500, Wednesday +₹1,000. Win rate 2/3 = 66.7%. Profit factor 3,000 ÷ 500 = 6.00. Risk : reward 1,500 ÷ 500 = 1 : 3.00. The curve peaks at ₹2,000 then falls to ₹1,500, so max drawdown is ₹500 — 0.49% of ₹1,02,000. Overall return is 2.5%.</p>
           </Sub>
           <Tip>
-            <p>Click Refresh on the account card (or leave Dashboard and open it again) after a session stops if you want the tiles to include that day immediately.</p>
+            <p>Click Updated … on the Dashboard after a session stops to pull the latest figures straight away.</p>
           </Tip>
         </>
       ),
