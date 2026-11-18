@@ -29,6 +29,9 @@ export function setAdminToken(token: string | null): void {
 
 export const ADMIN_EXPIRED_EVENT = 'admin:expired';
 
+/** Stop waits for the square-off; the gateway allows 150s, so the app waits a little longer. */
+const STOP_TIMEOUT_MS = 160000;
+
 const adminHttp = axios.create({ baseURL: `${API_BASE}/api/v1/admin`, timeout: 60000 });
 
 adminHttp.interceptors.request.use((config) => {
@@ -199,7 +202,8 @@ export const adminApi = {
    * key is sent once in the body and never stored.
    */
   stopSession(sessionId: string, apiKey: string) {
-    return adminHttp.post<{ success: boolean; message?: string }>(`/sessions/${enc(sessionId)}/stop`, { apiKey });
+    // A Stop squares off first (the plugin can wait up to 60s for exit fills)
+    return adminHttp.post<{ success: boolean; message?: string }>(`/sessions/${enc(sessionId)}/stop`, { apiKey }, { timeout: STOP_TIMEOUT_MS });
   },
   exitSymbol(sessionId: string, symbol: string, apiKey: string) {
     return adminHttp.post<{ success: boolean; symbol: string; message?: string }>(
