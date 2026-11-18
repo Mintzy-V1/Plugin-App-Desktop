@@ -294,6 +294,42 @@ export function ensureDrawable(points: PnlPoint[]): PnlPoint[] {
   return [{ ...p, ts: p.ts - 5 * 60 * 1000 }, p];
 }
 
+export function pnlSeriesFromLogs(
+  logs: LogTickerHint[] | undefined,
+  selected: Set<string> | null = null,
+  resetAt: number | null = null,
+): PnlPoint[] {
+  if (!logs?.length) return [];
+  const events: Array<{ ts: number; symbol: string; pnl: number }> = [];
+  for (const row of logs) {
+    const ts = parseChartTimeMs(row.chartTimeMs ?? row.timeMs);
+    if (ts == null || !isPlausibleTs(ts)) continue;
+    const pnl = Number(row.pnl);
+    if (!Number.isFinite(pnl)) continue;
+    const sym = String(row.symbol || '').toUpperCase();
+    if (!sym || sym === '-') continue;
+    if (selected && !selected.has(sym)) continue;
+    events.push({ ts: roundTs(ts), symbol: sym, pnl });
+  }
+  events.sort((a, b) => a.ts - b.ts);
+  const lastBySym = new Map<string, number>();
+  const byTs = new Map<number, number>();
+  let reset = false;
+  for (const ev of events) {
+    if (resetAt != null && !reset && ev.ts >= resetAt) {
+      lastBySym.clear();
+      reset = true;
+    }
+    lastBySym.set(ev.symbol, ev.pnl);
+    let total = 0;
+    for (const v of lastBySym.values()) total += v;
+    byTs.set(ev.ts, total);
+  }
+  return Array.from(byTs.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([ts, total]) => ({ ts, total, realized: 0, unrealized: total }));
+}
+
 export function snapshotPoint(s: {
   sampled_at?: string;
   source_ts?: number;
@@ -312,4 +348,53 @@ export function snapshotPoint(s: {
     unrealized: Number(s.data.live_unrealized_pnl) || 0,
     symbols: normalizeSymbols(s.data.symbols),
   };
+}
+
+export function buildSyncedSeries(
+  logs: LogTickerHint[] | undefined,
+  snapshots: PnlPoint[],
+  livePoint: PnlPoint | null,
+  liveAt: number | null,
+  selected: Set<string> | null = null,
+): PnlPoint[] {
+  const logSeries = pnlSeriesFromLogs(logs, selected, liveAt);
+  const goodSnaps = carrySymbolMaps(snapshots.filter((p) => isPlausibleTs(p.ts)), liveAt);
+  const lastSnapSymbols = goodSnaps[goodSnaps.length - 1]?.symbols;
+  const live = livePoint && isPlausibleTs(livePoint.ts)
+    ? { ...livePoint, symbols: { ...(lastSnapSymbols ?? {}), ...(livePoint.symbols ?? {}) } }
+    : null;
+
+  const remap = (pts: PnlPoint[]) => (selected ? pts.map((p) => scopedPoint(p, selected)) : pts);
+
+  if (liveAt != null) {
+    const simLogs = logSeries.filter((p) => p.ts < liveAt);
+    const simSnaps = goodSnaps.filter((p) => p.ts < liveAt);
+    // Morning segment is the tick history from before the handoff. Logs cover
+    // sessions whose history no longer includes those snapshots.
+    const sim = simSnaps.length > 0 ? mergeBySecond(simLogs, simSnaps) : simLogs;
+    let livePts = remap(goodSnaps.filter((p) => p.ts >= liveAt - 60_000));
+    if (live && live.ts >= liveAt - 60_000) {
+      livePts = mergeBySecond(livePts, remap([live]));
+    }
+    if (livePts.length === 0) {
+      livePts = logSeries.filter((p) => p.ts >= liveAt);
+    }
+    return ensureDrawable(downsamplePoints(mergeBySecond(sim, livePts), 220, liveAt));
+  }
+
+  let pts = remap(goodSnaps);
+  if (live) pts = mergeBySecond(pts, remap([live]));
+  if (pts.length === 0) pts = logSeries;
+  return ensureDrawable(downsamplePoints(pts, 220, null));
+}
+
+export function inferLiveStartedAt(explicit: number | null | undefined, logs?: LogTickerHint[]): number | null {
+  if (explicit != null && Number.isFinite(explicit) && isPlausibleTs(explicit)) return explicit;
+  if (!logs?.length) return null;
+  const liveTimes = logs
+    .filter((r) => r.simulation === false)
+    .map((r) => parseChartTimeMs(r.chartTimeMs ?? r.timeMs))
+    .filter((n): n is number => n != null && isPlausibleTs(n));
+  if (liveTimes.length === 0) return null;
+  return Math.min(...liveTimes);
 }
