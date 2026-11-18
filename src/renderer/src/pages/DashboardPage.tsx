@@ -211,15 +211,15 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
   return (
     <div className="page-stack">
-      <div role="tablist" aria-label="Dashboard sections" className="inline-flex gap-0.5 rounded-lg bg-slate-200/60 p-0.5">
+      <div role="tablist" aria-label="Dashboard sections" className="inline-flex gap-0.5 rounded-lg bg-line p-0.5">
         {TABS.map(t => (
           <button
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
-              tab === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gain ${
+              tab === t.id ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-secondary'
             }`}
           >
             {t.label}
@@ -229,23 +229,23 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
       {tab === 'overview' && (
         <div className="animate-fade-in page-stack">
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
+          <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-5 py-4 shadow-sm">
             <UserAvatar name={user?.name || 'U'} size="md" />
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-medium text-slate-400">{greetingForNow()}</p>
-              <h2 className="truncate text-[17px] font-semibold tracking-tight text-slate-900">{firstName}</h2>
-              <p className="truncate text-[13px] text-slate-500">{user?.email}</p>
+              <p className="text-[12px] font-medium text-muted">{greetingForNow()}</p>
+              <h2 className="truncate text-[17px] font-semibold tracking-tight text-ink">{firstName}</h2>
+              <p className="truncate text-[13px] text-muted">{user?.email}</p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
               {user?.broker && (
-                <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                <span className="rounded-md bg-subtle px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-secondary">
                   {brokerLabel(brokerFromProfile(user.broker))}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => fetchData()}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-gain"
               >
                 <RefreshCw className="h-3 w-3" aria-hidden="true" />
                 {refreshedAt
@@ -272,27 +272,27 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
             <MetricCard
               label="This month"
               value={currencyFormat(monthlyPnl)}
-              valueClass={monthlyPnl >= 0 ? 'text-emerald-600' : 'text-red-600'}
+              valueClass={monthlyPnl >= 0 ? 'text-gain' : 'text-loss'}
               loading={figuresLoading}
               icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 shadow-sm">
+          <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-5 py-3.5 shadow-sm">
             <div className="flex items-center gap-2.5">
-              <span className={`h-2 w-2 rounded-full ${activeCount > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden="true" />
-              <p className="text-[13px] text-slate-600">
+              <span className={`h-2 w-2 rounded-full ${activeCount > 0 ? 'bg-gain-action' : 'bg-line'}`} aria-hidden="true" />
+              <p className="text-[13px] text-secondary">
                 {loading ? 'Checking sessions…' : activeCount > 0
-                  ? <><span className="font-semibold text-slate-900">{activeCount} live</span> trading session{activeCount > 1 ? 's' : ''}</>
+                  ? <><span className="font-semibold text-ink">{activeCount} live</span> trading session{activeCount > 1 ? 's' : ''}</>
                   : readyCount > 0
-                    ? <><span className="font-semibold text-slate-900">{readyCount} ready</span> — broker connected, not trading yet</>
+                    ? <><span className="font-semibold text-ink">{readyCount} ready</span> — broker connected, not trading yet</>
                     : 'No live sessions'}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setTab('sessions')}
-              className="text-[12px] font-semibold text-emerald-700 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+              className="text-[12px] font-semibold text-gain hover:text-gain focus:outline-none focus-visible:ring-2 focus-visible:ring-gain"
             >
               View all
             </button>
@@ -311,20 +311,20 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
           {loading ? (
             <DashboardSkeleton />
           ) : loadError ? (
-            <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-8 text-center shadow-sm">
-              <p className="text-sm font-semibold text-slate-900">Couldn't load trading data</p>
-              <p className="mt-1 text-sm text-slate-500">Check your connection and try again.</p>
+            <div className="rounded-xl border border-line bg-surface px-4 py-8 text-center shadow-sm">
+              <p className="text-sm font-semibold text-ink">Couldn't load trading data</p>
+              <p className="mt-1 text-sm text-muted">Check your connection and try again.</p>
               <button type="button" onClick={() => fetchData()}
-                className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30">
+                className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-line">
                 Retry
               </button>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+            <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+              <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
                 <div>
-                  <h3 className="text-[13px] font-semibold text-slate-900">Sessions</h3>
-                  <p className="mt-0.5 text-[11px] text-slate-400">
+                  <h3 className="text-[13px] font-semibold text-ink">Sessions</h3>
+                  <p className="mt-0.5 text-[11px] text-muted">
                     {sessions.length === 0
                       ? 'No sessions on this account yet'
                       : onOpenSession
@@ -336,7 +336,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                   type="button"
                   onClick={() => handleDownload(sessions[0]?.python_session_id, sessions[0]?.status)}
                   disabled={!sessions[0]?.python_session_id || !!downloadingId}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-semibold text-secondary transition-colors hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-gain disabled:opacity-50"
                 >
                   {downloadingId === sessions[0]?.python_session_id ? <Spinner className="h-3 w-3" /> : null}
                   Download latest
@@ -344,14 +344,14 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
               </div>
               {sessions.length === 0 ? (
                 <div className="px-4 py-8 text-center">
-                  <p className="text-sm font-medium text-slate-500">No trading sessions yet</p>
-                  <p className="mt-1 text-xs text-slate-400">Start one from Launch Terminal to see it here.</p>
+                  <p className="text-sm font-medium text-muted">No trading sessions yet</p>
+                  <p className="mt-1 text-xs text-muted">Start one from Launch Terminal to see it here.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      <tr className="border-b border-line text-[11px] font-semibold uppercase tracking-wider text-muted">
                         <th scope="col" className="px-5 py-2.5">Session</th>
                         <th scope="col" className="px-5 py-2.5">Date</th>
                         <th scope="col" className="px-5 py-2.5">Status</th>
@@ -372,16 +372,16 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                           }}
                           tabIndex={onOpenSession ? 0 : undefined}
                           aria-label={onOpenSession ? `Open session ${fmtDate(s.created_at)}` : undefined}
-                          className={`border-t border-slate-50 transition-colors hover:bg-slate-50/80 ${
+                          className={`border-t border-line transition-colors hover:bg-subtle ${
                             onOpenSession ? 'cursor-pointer' : ''
                           }`}
                         >
-                          <td className="px-5 py-3 font-mono text-xs text-slate-600" title={s.python_session_id}>
+                          <td className="px-5 py-3 font-mono text-xs text-secondary" title={s.python_session_id}>
                             {s.python_session_id?.length > 18
                               ? `${s.python_session_id.slice(0, 8)}…${s.python_session_id.slice(-6)}`
                               : s.python_session_id}
                           </td>
-                          <td className="px-5 py-3 text-[13px] text-slate-600">{fmtDate(s.created_at)}</td>
+                          <td className="px-5 py-3 text-[13px] text-secondary">{fmtDate(s.created_at)}</td>
                           <td className="px-5 py-3">
                             <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${sessionStatusBadgeClass(s.status)}`}>
                               {sessionStatusLabel(s.status)}
@@ -396,7 +396,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                               }}
                               disabled={!s.python_session_id || downloadingId === s.python_session_id}
                               aria-label={`Download tradebook for ${fmtDate(s.created_at)}`}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-40"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-gain-soft hover:text-gain focus:outline-none focus-visible:ring-2 focus-visible:ring-gain disabled:opacity-40"
                             >
                               {downloadingId === s.python_session_id ? (
                                 <Spinner className="h-3.5 w-3.5" />
@@ -414,8 +414,8 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                 </div>
               )}
               {sessions.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
-                  <p className="text-[12px] text-slate-500">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
+                  <p className="text-[12px] text-muted">
                     {sessionFrom}–{sessionTo} of {sessions.length}
                   </p>
                   {sessionPageCount > 1 && (
@@ -425,13 +425,13 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                         onClick={() => setSessionPage((p) => Math.max(1, p - 1))}
                         disabled={safeSessionPage <= 1}
                         aria-label="Previous page"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-40"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-gain disabled:opacity-40"
                       >
                         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                       </button>
                       {sessionPageItems(safeSessionPage, sessionPageCount).map((item, idx) =>
                         item === 'gap' ? (
-                          <span key={`gap-${idx}`} className="px-1 text-[12px] text-slate-400">…</span>
+                          <span key={`gap-${idx}`} className="px-1 text-[12px] text-muted">…</span>
                         ) : (
                           <button
                             key={item}
@@ -439,10 +439,10 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                             onClick={() => setSessionPage(item)}
                             aria-label={`Page ${item}`}
                             aria-current={item === safeSessionPage ? 'page' : undefined}
-                            className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[12px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
+                            className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[12px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gain ${
                               item === safeSessionPage
-                                ? 'bg-slate-900 text-white'
-                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                ? 'bg-primary text-on-primary'
+                                : 'text-secondary hover:bg-subtle hover:text-ink'
                             }`}
                           >
                             {item}
@@ -454,7 +454,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                         onClick={() => setSessionPage((p) => Math.min(sessionPageCount, p + 1))}
                         disabled={safeSessionPage >= sessionPageCount}
                         aria-label="Next page"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-40"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-gain disabled:opacity-40"
                       >
                         <ChevronRight className="h-4 w-4" aria-hidden="true" />
                       </button>
@@ -485,17 +485,17 @@ function MetricCard({ label, value, valueClass, loading, icon, accent }: {
   accent?: 'emerald';
 }) {
   return (
-    <div className={`rounded-2xl border bg-white px-4 py-4 shadow-sm ${
-      accent === 'emerald' ? 'border-emerald-100' : 'border-slate-200/80'
+    <div className={`rounded-xl border bg-surface px-4 py-4 shadow-sm ${
+      accent === 'emerald' ? 'border-gain/25' : 'border-line'
     }`}>
-      <div className="flex items-center gap-2 text-slate-400">
+      <div className="flex items-center gap-2 text-muted">
         {icon}
         <p className="text-[11px] font-medium uppercase tracking-wider">{label}</p>
       </div>
       {loading ? (
-        <div className="mt-2.5 h-7 w-28 animate-pulse rounded bg-slate-100" />
+        <div className="mt-2.5 h-7 w-28 animate-pulse rounded bg-subtle" />
       ) : (
-        <p className={`mt-1.5 text-xl font-semibold tracking-tight ${valueClass || 'text-slate-900'}`}>{value}</p>
+        <p className={`mt-1.5 text-xl font-semibold tracking-tight ${valueClass || 'text-ink'}`}>{value}</p>
       )}
     </div>
   );
@@ -503,12 +503,12 @@ function MetricCard({ label, value, valueClass, loading, icon, accent }: {
 
 function DashboardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white" aria-busy="true" aria-label="Loading">
-      <div className="border-b border-slate-100 px-4 py-3">
-        <div className="h-3.5 w-28 animate-pulse rounded bg-slate-100" />
+    <div className="overflow-hidden rounded-xl border border-line bg-surface" aria-busy="true" aria-label="Loading">
+      <div className="border-b border-line px-4 py-3">
+        <div className="h-3.5 w-28 animate-pulse rounded bg-subtle" />
       </div>
       <div className="space-y-2.5 p-4">
-        {[0, 1, 2].map(i => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-50" />)}
+        {[0, 1, 2].map(i => <div key={i} className="h-8 animate-pulse rounded-lg bg-subtle" />)}
       </div>
     </div>
   );
