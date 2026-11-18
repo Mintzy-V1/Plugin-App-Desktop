@@ -10,7 +10,14 @@ import {
   numOrNull,
   isNumericZero,
   readSymbolNetPnl,
-  pickRowPnl
+  pickRowPnl,
+  hasQuantity,
+  isPositiveQty,
+  hasExplicitQty,
+  applySymbolQuantities,
+  mergeLogQuantities,
+  pickLivePnlSymbols,
+  type QtySample
 } from '../../lib/liveSessionModel';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
@@ -106,79 +113,17 @@ type Tab = 'logs' | 'pnl' | 'alerts';
 
 
 
-function hasQuantity(v: string | number | null | undefined): boolean {
-  return v != null && v !== '' && v !== '-';
-}
 
-/** Live-pnl often reports 0 after sim→live or when a position is flat. Never treat that as a fill. */
-function isPositiveQty(v: string | number | null | undefined): boolean {
-  if (!hasQuantity(v)) return false;
-  const n = Number(v);
-  return Number.isFinite(n) ? n !== 0 : true;
-}
 
-/** A logged 0 is a flat position. Do not replace it with an older or cumulative size. */
-function hasExplicitQty(v: string | number | null | undefined): boolean {
-  return isPositiveQty(v) || isNumericZero(v);
-}
 
-function applySymbolQuantities(
-  logs: TradeLogRow[],
-  symbols: Record<string, unknown> | null | undefined,
-): TradeLogRow[] {
-  if (!symbols || typeof symbols !== 'object') return logs;
-  const bySym = new Map<string, string | number>();
-  for (const [sym, data] of Object.entries(symbols)) {
-    const qty = pickQuantity(
-      data && typeof data === 'object' ? data as Record<string, unknown> : null,
-    );
-    if (isPositiveQty(qty)) bySym.set(sym.toUpperCase(), qty);
-  }
-  if (bySym.size === 0) return logs;
-  return logs.map((row) => {
-    if (hasExplicitQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
-    const qty = bySym.get(String(row.symbol).toUpperCase());
-    return qty != null ? { ...row, quantity: qty } : row;
-  });
-}
 
-function mergeLogQuantities(primary: TradeLogRow[], ...fallbacks: TradeLogRow[][]): TradeLogRow[] {
-  if (primary.length === 0) return fallbacks.find((rows) => rows.length > 0) ?? [];
-  const byKey = new Map<string, string | number>();
-  for (const rows of [...fallbacks, primary]) {
-    for (const row of rows) {
-      if (!isPositiveQty(row.quantity)) continue;
-      const key = `${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`;
-      byKey.set(key, row.quantity);
-    }
-  }
-  if (byKey.size === 0) return primary;
-  return primary.map((row) => {
-    if (hasExplicitQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
-    const qty = byKey.get(`${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`);
-    return qty != null ? { ...row, quantity: qty } : row;
-  });
-}
 
-function pickLivePnlSymbols(raw: unknown): Record<string, unknown> | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
-  if (o.symbols && typeof o.symbols === 'object' && !Array.isArray(o.symbols)) {
-    return o.symbols as Record<string, unknown>;
-  }
-  if (Array.isArray(o.symbols)) {
-    const mapped: Record<string, unknown> = {};
-    for (const item of o.symbols) {
-      if (!item || typeof item !== 'object') continue;
-      const row = item as Record<string, unknown>;
-      const sym = String(row.symbol ?? row.Symbol ?? '').toUpperCase();
-      if (sym) mapped[sym] = row;
-    }
-    return Object.keys(mapped).length ? mapped : null;
-  }
-  if (o.data && typeof o.data === 'object') return pickLivePnlSymbols(o.data);
-  return null;
-}
+
+
+
+
+
+
 
 /** LTP/mark from a live-pnl payload — used only while still in simulation. */
 function pricesFromLivePnl(raw: unknown): Record<string, number> {
@@ -205,10 +150,7 @@ function pricesFromLivePnl(raw: unknown): Record<string, number> {
   return out;
 }
 
-interface QtySample {
-  ts: number;
-  bySym: Map<string, string | number>;
-}
+
 
 function qtyMapFromSymbols(raw: unknown): Map<string, string | number> {
   const bySym = new Map<string, string | number>();

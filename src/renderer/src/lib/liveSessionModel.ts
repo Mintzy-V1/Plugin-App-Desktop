@@ -189,3 +189,82 @@ export function pickRowPnl(r: Record<string, unknown>): string | number {
   const net = readSymbolNetPnl(r);
   return net != null ? net : '-';
 }
+
+export function hasQuantity(v: string | number | null | undefined): boolean {
+  return v != null && v !== '' && v !== '-';
+}
+
+/** Live-pnl often reports 0 after sim→live or when a position is flat. Never treat that as a fill. */
+export function isPositiveQty(v: string | number | null | undefined): boolean {
+  if (!hasQuantity(v)) return false;
+  const n = Number(v);
+  return Number.isFinite(n) ? n !== 0 : true;
+}
+
+/** A logged 0 is a flat position. Do not replace it with an older or cumulative size. */
+export function hasExplicitQty(v: string | number | null | undefined): boolean {
+  return isPositiveQty(v) || isNumericZero(v);
+}
+
+export function applySymbolQuantities(
+  logs: TradeLogRow[],
+  symbols: Record<string, unknown> | null | undefined,
+): TradeLogRow[] {
+  if (!symbols || typeof symbols !== 'object') return logs;
+  const bySym = new Map<string, string | number>();
+  for (const [sym, data] of Object.entries(symbols)) {
+    const qty = pickQuantity(
+      data && typeof data === 'object' ? data as Record<string, unknown> : null,
+    );
+    if (isPositiveQty(qty)) bySym.set(sym.toUpperCase(), qty);
+  }
+  if (bySym.size === 0) return logs;
+  return logs.map((row) => {
+    if (hasExplicitQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
+    const qty = bySym.get(String(row.symbol).toUpperCase());
+    return qty != null ? { ...row, quantity: qty } : row;
+  });
+}
+
+export function mergeLogQuantities(primary: TradeLogRow[], ...fallbacks: TradeLogRow[][]): TradeLogRow[] {
+  if (primary.length === 0) return fallbacks.find((rows) => rows.length > 0) ?? [];
+  const byKey = new Map<string, string | number>();
+  for (const rows of [...fallbacks, primary]) {
+    for (const row of rows) {
+      if (!isPositiveQty(row.quantity)) continue;
+      const key = `${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`;
+      byKey.set(key, row.quantity);
+    }
+  }
+  if (byKey.size === 0) return primary;
+  return primary.map((row) => {
+    if (hasExplicitQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
+    const qty = byKey.get(`${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`);
+    return qty != null ? { ...row, quantity: qty } : row;
+  });
+}
+
+export function pickLivePnlSymbols(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (o.symbols && typeof o.symbols === 'object' && !Array.isArray(o.symbols)) {
+    return o.symbols as Record<string, unknown>;
+  }
+  if (Array.isArray(o.symbols)) {
+    const mapped: Record<string, unknown> = {};
+    for (const item of o.symbols) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      const sym = String(row.symbol ?? row.Symbol ?? '').toUpperCase();
+      if (sym) mapped[sym] = row;
+    }
+    return Object.keys(mapped).length ? mapped : null;
+  }
+  if (o.data && typeof o.data === 'object') return pickLivePnlSymbols(o.data);
+  return null;
+}
+
+export interface QtySample {
+  ts: number;
+  bySym: Map<string, string | number>;
+}
