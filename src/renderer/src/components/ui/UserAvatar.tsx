@@ -14,7 +14,7 @@ export default function UserAvatar({ name, size = 'md' }: UserAvatarProps) {
   const { box, text } = SIZE[size];
 
   return (
-    <div className={`${box} flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-700 to-emerald-500 font-bold text-white`}>
+    <div className={`${box} flex shrink-0 items-center justify-center rounded-full bg-gain-soft font-bold text-gain`}>
       <span className={text}>{name?.trim()?.charAt(0)?.toUpperCase() || 'U'}</span>
     </div>
   );
