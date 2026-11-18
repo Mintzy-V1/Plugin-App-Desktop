@@ -11,7 +11,7 @@ import type { TradingSession, PerformanceStats } from '../lib/pluginApi';
 import { sessionStatusLabel, sessionStatusBadgeClass, isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
 import { downloadSessionCsv } from '../lib/downloadSessionCsv';
 import { pickCash, readRememberedBrokerCash, rememberBrokerCash } from '../lib/brokerCash';
-import { MonthReturnsGrid } from '../components/plugin/PerformanceStatsGrid';
+import { MonthComparison } from '../components/dashboard/MonthComparison';
 import { brokerFromProfile, brokerLabel } from '../components/plugin/ConnectBrokerForm';
 import { EquityHero } from '../components/dashboard/EquityHero';
 import { KpiStrip } from '../components/dashboard/KpiStrip';
@@ -235,6 +235,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
       {figuresError && <LoadError message="Balances and monthly result could not be refreshed. Any figures shown are from the previous update." onRetry={() => fetchData()} />}
 
       <div role="tabpanel" id="dashboard-sections-panel-overview" aria-labelledby="dashboard-sections-tab-overview" hidden={tab !== 'overview'} className="animate-fade-in flex flex-col gap-4">
+          {tab === 'overview' && <>
           <EquityHero stats={perfStats} loading={statsLoading} monthlyPnl={monthlyPnl} cash={cash} equity={equity} figuresLoading={figuresLoading} />
           <KpiStrip stats={perfStats} loading={statsLoading} />
           <div className="grid gap-4 @min-[1000px]:grid-cols-2">
@@ -252,6 +253,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
           <p className="text-center text-[11px] text-muted">
             Performance uses live trades only and refreshes every few minutes{perfStats?.asOfDate ? ` · as of ${perfStats.asOfDate}` : ''}.
           </p>
+          </>}
       </div>
 
       <div role="tabpanel" id="dashboard-sections-panel-sessions" aria-labelledby="dashboard-sections-tab-sessions" hidden={tab !== 'sessions'} className="animate-fade-in">
@@ -373,7 +375,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
       </div>
 
       <div role="tabpanel" id="dashboard-sections-panel-returns" aria-labelledby="dashboard-sections-tab-returns" hidden={tab !== 'returns'} className="animate-fade-in">
-          <MonthReturnsGrid stats={perfStats} loading={statsLoading} />
+          {tab === 'returns' && <MonthComparison stats={perfStats} loading={statsLoading} />}
       </div>
     </div>
   );
