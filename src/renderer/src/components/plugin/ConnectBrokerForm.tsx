@@ -218,8 +218,9 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
             />
           </div>
 
-          <div className="relative">
+          <div>
             <label htmlFor={fields.secret.id} className="mb-2 block text-xs font-medium text-secondary">{fields.secret.placeholder}</label>
+            <div className="relative">
             <input
               id={fields.secret.id}
               type={showSecret ? 'text' : 'password'}
@@ -242,12 +243,14 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
             >
               {showSecret ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
             </button>
+            </div>
           </div>
 
           {isBearStreet && (
             <>
-              <div className="relative">
+              <div>
                 <label htmlFor="broker-second-auth" className="mb-2 block text-xs font-medium text-secondary">Registered Mobile Number</label>
+                <div className="relative">
                 <input
                   id="broker-second-auth"
                   type={showSecondAuth ? 'text' : 'password'}
@@ -267,6 +270,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
                 >
                   {showSecondAuth ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                 </button>
+                </div>
               </div>
               <p className="rounded-xl border border-brand/25 bg-info-soft px-3 py-2 text-[11px] leading-5 text-info">
                 GLOBE CAPITALS authenticates in one step — enter your registered mobile number here. No separate TOTP screen is required.
