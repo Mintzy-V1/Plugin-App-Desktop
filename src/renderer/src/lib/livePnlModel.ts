@@ -28,6 +28,8 @@ export interface LogTickerHint {
   simulation?: boolean | null;
 }
 
+
+
 /**
  * Live P&L poll interval. The owner sees 1s updates; an admin watching any
  * account polls every 3s; an ended or stopped session only every 30s. One
@@ -41,7 +43,6 @@ export function livePnlPollMs({ viewOnly, readOnly, stopped }: { viewOnly: boole
 export type ChartType = 'area' | 'candle';
 
 export const IST = 'Asia/Kolkata';
-
 export const IST_OFFSET_MS = 5.5 * 3600 * 1000;
 
 export function parseChartTimeMs(raw: unknown): number | null {
@@ -439,6 +440,7 @@ export function tickerPhaseFor(
   return pyramidFlow ? 'simulation' : 'live';
 }
 
+
 export function sumSimClosePnl(
   rows: Array<{ symbol: string; pnl: string | number }> | undefined,
   selected: Set<string> | null,
@@ -459,6 +461,36 @@ export function sumSimClosePnl(
   return total;
 }
 
+export function tickersFromLogs(
+  logs: LogTickerHint[] | undefined,
+  accept: (row: LogTickerHint) => boolean = () => true,
+): Record<string, SymbolRow> {
+  if (!logs?.length) return {};
+  const lastBySym = new Map<string, LogTickerHint>();
+  const lastQtyBySym = new Map<string, number>();
+  for (const row of logs) {
+    if (!accept(row)) continue;
+    const sym = String(row.symbol || '').toUpperCase();
+    if (!sym || sym === '-') continue;
+    lastBySym.set(sym, row);
+    if (isWaitAction(row.action) || isWaitAction(row.signal)) continue;
+    const qty = Number(row.quantity);
+    lastQtyBySym.set(sym, Number.isFinite(qty) ? qty : Number.NaN);
+  }
+  const mapped: Record<string, SymbolRow> = {};
+  for (const [sym, row] of lastBySym) {
+    const qty = lastQtyBySym.get(sym);
+    const pnl = Number(row.pnl);
+    mapped[sym] = {
+      unrealized_pnl: Number.isFinite(pnl) ? pnl : 0,
+      realized_pnl: 0,
+      qty: qty != null && Number.isFinite(qty) ? qty : undefined,
+      side: row.signal && row.signal !== '-' ? String(row.signal) : undefined,
+    };
+  }
+  return mapped;
+}
+
 export function mergeSymbolRow(prev: SymbolRow | undefined, row: SymbolRow): SymbolRow {
   if (!prev) return { ...row };
   const prevNet = symbolNet(prev).total;
@@ -477,4 +509,47 @@ export function mergeSymbolRow(prev: SymbolRow | undefined, row: SymbolRow): Sym
     qty: Number.isFinite(row.qty as number) ? row.qty : (prev.qty ?? row.qty),
     side: row.side || prev.side,
   };
+}
+
+export function mergeSymbolMaps(...maps: Array<Record<string, SymbolRow> | undefined>): Record<string, SymbolRow> {
+  const out: Record<string, SymbolRow> = {};
+  for (const map of maps) {
+    if (!map) continue;
+    for (const [sym, row] of Object.entries(map)) {
+      out[sym] = mergeSymbolRow(out[sym], row);
+    }
+  }
+  return out;
+}
+
+export function overlaySimClosePnl(
+  map: Record<string, SymbolRow>,
+  simCloseRows: Array<{ symbol: string; pnl: string | number }> | undefined,
+  phases: Record<string, 'live' | 'simulation'>,
+  pyramidFlow: boolean,
+): Record<string, SymbolRow> {
+  if (!simCloseRows?.length) return map;
+  const simPnl = new Map<string, number>();
+  for (const row of simCloseRows) {
+    const sym = String(row.symbol || '').toUpperCase();
+    if (!sym || sym === '-') continue;
+    const pnl = Number(row.pnl);
+    if (!Number.isFinite(pnl)) continue;
+    simPnl.set(sym, pnl);
+  }
+  if (simPnl.size === 0) return map;
+
+  const out: Record<string, SymbolRow> = { ...map };
+  for (const [sym, pnl] of simPnl) {
+    const phase = tickerPhaseFor(sym, phases, pyramidFlow);
+    if (phase !== 'simulation') continue;
+    const cur = out[sym];
+    out[sym] = {
+      unrealized_pnl: pnl,
+      realized_pnl: 0,
+      qty: cur?.qty,
+      side: cur?.side,
+    };
+  }
+  return out;
 }

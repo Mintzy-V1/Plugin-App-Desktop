@@ -36,7 +36,10 @@ import {
   tickerPhaseMap,
   tickerPhaseFor,
   sumSimClosePnl,
-  mergeSymbolRow
+  tickersFromLogs,
+  mergeSymbolRow,
+  mergeSymbolMaps,
+  overlaySimClosePnl
 } from '../../lib/livePnlModel';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Activity, LineChart as LineIcon, CandlestickChart } from 'lucide-react';
@@ -146,80 +149,13 @@ function TickerPhaseBadge({ phase }: { phase: 'live' | 'simulation' }) {
 
 
 
-function tickersFromLogs(
-  logs: LogTickerHint[] | undefined,
-  accept: (row: LogTickerHint) => boolean = () => true,
-): Record<string, SymbolRow> {
-  if (!logs?.length) return {};
-  const lastBySym = new Map<string, LogTickerHint>();
-  const lastQtyBySym = new Map<string, number>();
-  for (const row of logs) {
-    if (!accept(row)) continue;
-    const sym = String(row.symbol || '').toUpperCase();
-    if (!sym || sym === '-') continue;
-    lastBySym.set(sym, row);
-    if (isWaitAction(row.action) || isWaitAction(row.signal)) continue;
-    const qty = Number(row.quantity);
-    lastQtyBySym.set(sym, Number.isFinite(qty) ? qty : Number.NaN);
-  }
-  const mapped: Record<string, SymbolRow> = {};
-  for (const [sym, row] of lastBySym) {
-    const qty = lastQtyBySym.get(sym);
-    const pnl = Number(row.pnl);
-    mapped[sym] = {
-      unrealized_pnl: Number.isFinite(pnl) ? pnl : 0,
-      realized_pnl: 0,
-      qty: qty != null && Number.isFinite(qty) ? qty : undefined,
-      side: row.signal && row.signal !== '-' ? String(row.signal) : undefined,
-    };
-  }
-  return mapped;
-}
 
 
 
-function mergeSymbolMaps(...maps: Array<Record<string, SymbolRow> | undefined>): Record<string, SymbolRow> {
-  const out: Record<string, SymbolRow> = {};
-  for (const map of maps) {
-    if (!map) continue;
-    for (const [sym, row] of Object.entries(map)) {
-      out[sym] = mergeSymbolRow(out[sym], row);
-    }
-  }
-  return out;
-}
 
-function overlaySimClosePnl(
-  map: Record<string, SymbolRow>,
-  simCloseRows: Array<{ symbol: string; pnl: string | number }> | undefined,
-  phases: Record<string, 'live' | 'simulation'>,
-  pyramidFlow: boolean,
-): Record<string, SymbolRow> {
-  if (!simCloseRows?.length) return map;
-  const simPnl = new Map<string, number>();
-  for (const row of simCloseRows) {
-    const sym = String(row.symbol || '').toUpperCase();
-    if (!sym || sym === '-') continue;
-    const pnl = Number(row.pnl);
-    if (!Number.isFinite(pnl)) continue;
-    simPnl.set(sym, pnl);
-  }
-  if (simPnl.size === 0) return map;
 
-  const out: Record<string, SymbolRow> = { ...map };
-  for (const [sym, pnl] of simPnl) {
-    const phase = tickerPhaseFor(sym, phases, pyramidFlow);
-    if (phase !== 'simulation') continue;
-    const cur = out[sym];
-    out[sym] = {
-      unrealized_pnl: pnl,
-      realized_pnl: 0,
-      qty: cur?.qty,
-      side: cur?.side,
-    };
-  }
-  return out;
-}
+
+
 
 export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simCloseRows, readOnly = false }: Props) {
   const source = useSessionDataSource();
