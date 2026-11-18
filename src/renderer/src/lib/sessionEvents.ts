@@ -152,8 +152,8 @@ export const SEVERITY_LABEL: Record<EventSeverity, string> = {
 
 /** Tailwind classes per severity: chip and list accent. */
 export const SEVERITY_STYLE: Record<EventSeverity, { chip: string; accent: string }> = {
-  critical: { chip: 'bg-red-100 text-red-800 ring-red-200', accent: 'border-l-red-500' },
-  error: { chip: 'bg-orange-100 text-orange-800 ring-orange-200', accent: 'border-l-orange-400' },
-  warning: { chip: 'bg-amber-100 text-amber-900 ring-amber-200', accent: 'border-l-amber-400' },
-  info: { chip: 'bg-slate-100 text-slate-600 ring-slate-200', accent: 'border-l-slate-300' },
+  critical: { chip: 'bg-loss-soft text-loss ring-loss/25', accent: 'border-l-loss' },
+  error: { chip: 'bg-loss-soft text-loss ring-loss/25', accent: 'border-l-loss' },
+  warning: { chip: 'bg-attention-soft text-attention ring-attention/25', accent: 'border-l-attention' },
+  info: { chip: 'bg-subtle text-secondary ring-brand', accent: 'border-l-line' },
 };

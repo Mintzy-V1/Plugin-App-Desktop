@@ -91,14 +91,14 @@ export function simulationStatusBadgeClass(status?: string | null): string {
     case 'in_progress':
     case 'pending':
     case 'queued':
-      return 'bg-amber-50 text-amber-700 ring-1 ring-amber-100';
+      return 'bg-attention-soft text-attention ring-1 ring-attention/25';
     case 'completed':
-      return 'bg-sky-50 text-sky-700 ring-1 ring-sky-100';
+      return 'bg-info-soft text-info ring-1 ring-brand/25';
     case 'failed':
     case 'error':
-      return 'bg-red-50 text-red-700 ring-1 ring-red-100';
+      return 'bg-loss-soft text-loss ring-1 ring-loss/25';
     default:
-      return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80';
+      return 'bg-subtle text-secondary ring-1 ring-brand/80';
   }
 }
 
@@ -108,13 +108,13 @@ export function sessionStatusBadgeClass(status?: string | null): string {
     case 'active':
     case 'running':
     case 'started':
-      return 'bg-emerald-50 text-emerald-700';
+      return 'bg-gain-soft text-gain';
     case 'authenticated':
-      return 'bg-blue-50 text-blue-700';
+      return 'bg-info-soft text-info';
     case 'error':
     case 'failed':
-      return 'bg-red-50 text-red-700';
+      return 'bg-loss-soft text-loss';
     default:
-      return 'bg-slate-100 text-slate-600';
+      return 'bg-subtle text-secondary';
   }
 }

@@ -55,18 +55,18 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
 
   // Peek labels on hover when collapsed. Icons stay pinned to the same x/y so items never jump.
   const expanded = !collapsed || hovered;
-  const railWidth = collapsed ? 68 : 220;
+  const railWidth = collapsed ? 68 : 240;
 
   return (
     <div className="relative z-30 h-full shrink-0" style={{ width: railWidth }}>
       <aside
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className={`absolute inset-y-0 left-0 flex h-full flex-col overflow-hidden border-r border-slate-200/70 bg-[#fbfcfd] transition-[width,box-shadow] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-          expanded ? 'w-[220px]' : 'w-[68px]'
+        className={`absolute inset-y-0 left-0 flex h-full flex-col overflow-hidden border-r border-line bg-surface transition-[width,box-shadow] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          expanded ? 'w-[240px]' : 'w-[68px]'
         } ${collapsed && hovered ? 'shadow-[8px_0_24px_rgba(15,23,42,0.06)]' : ''}`}
       >
-        <div className="flex h-14 shrink-0 items-center border-b border-slate-200/60">
+        <div className="flex h-16 shrink-0 items-center border-b border-line">
           {expanded ? (
             <div className="flex w-full items-center gap-2 px-3">
               <img
@@ -79,7 +79,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
                 onClick={onToggleCollapse}
                 aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                className="ml-auto shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+                className="ml-auto shrink-0 rounded-md p-1.5 text-muted transition-colors hover:bg-subtle hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 {collapsed
                   ? <PanelLeftOpen className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
@@ -87,7 +87,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
               </button>
             </div>
           ) : (
-            <div className="flex w-full items-center justify-center">
+            <button type="button" onClick={onToggleCollapse} aria-label="Expand sidebar" title="Expand sidebar" className="flex w-full items-center justify-center rounded-lg">
               <div className="h-9 w-9 overflow-hidden">
                 <img
                   src="./Mintzy%20Bars%20Full%20Lockup%20Green.png"
@@ -95,11 +95,11 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
                   className="h-9 w-auto max-w-none"
                 />
               </div>
-            </div>
+            </button>
           )}
         </div>
 
-        <nav aria-label="Main navigation" className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-2">
+        <nav aria-label="Main navigation" className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
             const isActive = active === id;
             return (
@@ -110,17 +110,17 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
                 aria-label={label}
                 aria-current={isActive ? 'page' : undefined}
                 title={!expanded ? label : undefined}
-                className={`relative flex h-10 w-full shrink-0 items-center gap-3 rounded-lg px-2.5 text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
+                className={`relative flex h-10 w-full shrink-0 items-center gap-3 rounded-lg px-2.5 text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                   isActive
-                    ? 'bg-emerald-50/90 font-semibold text-emerald-800'
-                    : 'font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-gain-soft font-semibold text-gain'
+                    : 'font-medium text-secondary hover:bg-subtle hover:text-ink'
                 }`}
               >
                 {isActive && (
-                  <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-emerald-600" aria-hidden="true" />
+                  <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-brand" aria-hidden="true" />
                 )}
                 <Icon
-                  className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-500'}`}
+                  className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-brand' : 'text-muted'}`}
                   strokeWidth={1.75}
                   aria-hidden="true"
                 />
@@ -133,11 +133,11 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
                 </span>
                 {id === 'plugin' && hasLive && (
                   expanded ? (
-                    <span className="shrink-0 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-700">
+                    <span className="shrink-0 rounded-md bg-gain-soft px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-gain">
                       Live
                     </span>
                   ) : (
-                    <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-[#fbfcfd]" aria-hidden="true" />
+                    <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden="true" />
                   )
                 )}
               </button>
@@ -145,24 +145,24 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
           })}
         </nav>
 
-        <div className="shrink-0 border-t border-slate-200/70 px-2 py-2">
+        <div className="shrink-0 border-t border-line px-3 py-4">
           <div className="flex h-12 items-center gap-2.5 px-1">
             <UserAvatar name={user?.name || 'U'} size="sm" />
             <div
               className={`min-w-0 flex-1 transition-opacity duration-200 ${
-                expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+                expanded ? 'opacity-100' : 'invisible opacity-0'
               }`}
             >
-              <p className="truncate text-[13px] font-semibold text-slate-900">{user?.name}</p>
-              <p className="truncate text-[11px] text-slate-500">{user?.email}</p>
+              <p className="truncate text-[13px] font-semibold text-ink">{user?.name}</p>
+              <p className="truncate text-[11px] text-muted">{user?.email}</p>
             </div>
             <button
               type="button"
               onClick={logout}
               aria-label="Log out"
               title="Log out"
-              className={`shrink-0 rounded-md p-1.5 text-slate-400 transition-all duration-200 hover:bg-red-50 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30 ${
-                expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+              className={`shrink-0 rounded-md p-1.5 text-muted transition-all duration-200 hover:bg-loss-soft hover:text-loss focus:outline-none focus-visible:ring-2 focus-visible:ring-loss ${
+                expanded ? 'opacity-100' : 'invisible opacity-0'
               }`}
             >
               <LogOut className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
@@ -174,7 +174,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
               onClick={logout}
               aria-label="Log out"
               title="Log out"
-              className="mt-0.5 flex h-10 w-full items-center justify-start rounded-lg px-2.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30"
+              className="mt-0.5 flex h-10 w-full items-center justify-start rounded-lg px-2.5 text-muted transition-colors hover:bg-loss-soft hover:text-loss focus:outline-none focus-visible:ring-2 focus-visible:ring-loss"
             >
               <LogOut className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />
             </button>
