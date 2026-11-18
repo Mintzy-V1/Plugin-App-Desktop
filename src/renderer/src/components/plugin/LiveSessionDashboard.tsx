@@ -44,6 +44,7 @@ import {
   formatCell,
   formatQuantity,
   resolveSimulation,
+  withPyramidSimCloseRows,
   stampSimClosePrices,
   textIsClientManualExit,
   isBuySellTone,
@@ -223,99 +224,7 @@ type Tab = 'logs' | 'pnl' | 'alerts';
 
 
 
-/**
- * Display-only 12:59 IST sim-close rows: copy the last sim block (e.g. 11:45)
- * and set P&L from `/trading/pyramid-pnl`. Price is the 12:59 mark only.
- * The previous candle price is never copied onto this row.
- * Signal/Action are remapped afterwards in remapSimCloseExitRows.
- */
-function withPyramidSimCloseRows(
-  logs: TradeLogRow[],
-  pyramidBySymbol: Record<string, number>,
-  liveStartedAtMs: number | null,
-  exited: ExitedSymbol[] = [],
-  pricesBySymbol: Record<string, number> = {},
-): TradeLogRow[] {
-  const symbols = Object.keys(pyramidBySymbol).filter((sym) => Number.isFinite(pyramidBySymbol[sym]));
-  if (logs.length === 0) return logs;
-  if (symbols.length === 0 && exited.length === 0) return stampSimClosePrices(logs, pricesBySymbol);
 
-  const cutoff = { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs };
-  const refMs = liveStartedAtMs
-    ?? logs.reduce<number | null>((best, row) => {
-      if (row.timeMs == null) return best;
-      return best == null || row.timeMs > best ? row.timeMs : best;
-    }, null)
-    ?? Date.now();
-  const closeMs = istWallClockMs(refMs, 12, 59, 0);
-  if (!Number.isFinite(closeMs)) return logs;
-
-  const lastSimBySym = new Map<string, TradeLogRow>();
-  let lastSimBlockMs = Number.NEGATIVE_INFINITY;
-  for (const log of logs) {
-    if (isSimCloseIstLog(log.timeMs)) continue;
-    if (log.rmsHit) continue;
-    if (!resolveSimulation(log, cutoff)) continue;
-    const key = String(log.symbol || '').toUpperCase();
-    if (!key || key === '-') continue;
-    lastSimBySym.set(key, log);
-    if (log.timeMs != null && log.timeMs > lastSimBlockMs) lastSimBlockMs = log.timeMs;
-  }
-
-  const blockOrder: string[] = [];
-  if (Number.isFinite(lastSimBlockMs) && lastSimBlockMs > 0) {
-    for (const log of logs) {
-      if (log.timeMs !== lastSimBlockMs) continue;
-      const key = String(log.symbol || '').toUpperCase();
-      if (key && key !== '-' && !blockOrder.includes(key)) blockOrder.push(key);
-    }
-  }
-
-  const ordered = [
-    ...blockOrder.filter((sym) => symbols.includes(sym)),
-    ...symbols.filter((sym) => !blockOrder.includes(sym)),
-  ];
-
-  const closeTime = `${formatLogDate(closeMs)} ${formatLogTime(closeMs)}`;
-  const injected: TradeLogRow[] = [];
-  for (const sym of ordered) {
-    const template = lastSimBySym.get(sym);
-    const fromMs = template?.timeMs
-      ?? (Number.isFinite(lastSimBlockMs) && lastSimBlockMs > 0 ? lastSimBlockMs : Number.NEGATIVE_INFINITY);
-    const rms = rmsHitInWindow(exited, sym, fromMs, closeMs, parseTradeTimeMs);
-    if (rms) {
-      injected.push(rmsRowFromExit(rms, closeMs, {
-        capital: template?.capital ?? '-',
-        simulation: true,
-      }));
-      continue;
-    }
-    if (!template) continue;
-    const mark = pricesBySymbol[sym];
-    injected.push({
-      ...template,
-      time: closeTime,
-      timeMs: closeMs,
-      chartTimeMs: closeMs,
-      symbol: template.symbol,
-      pnl: pyramidBySymbol[sym],
-      price: mark != null && Number.isFinite(mark) && mark !== 0 ? mark : '-',
-      simulation: true,
-      rmsHit: false,
-      rmsReason: undefined,
-    });
-  }
-  if (injected.length === 0) return stampSimClosePrices(logs, pricesBySymbol);
-
-  const rest = logs.filter((row) => {
-    if (!isSimCloseIstLog(row.timeMs)) return true;
-    const key = String(row.symbol || '').toUpperCase();
-    return !pyramidBySymbol[key] && !injected.some((r) => String(r.symbol).toUpperCase() === key);
-  });
-  const before = rest.filter((row) => row.timeMs == null || row.timeMs < closeMs);
-  const after = rest.filter((row) => row.timeMs != null && row.timeMs >= closeMs);
-  return stampSimClosePrices([...before, ...injected, ...after], pricesBySymbol);
-}
 
 
 
