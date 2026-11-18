@@ -55,7 +55,11 @@ import {
   shouldRemapManualExitRow,
   remapBrokenSymbolExitRows,
   remapSquareOffLogRow,
-  rowSide
+  remapSimCloseExitRows,
+  lastStopBlockMs,
+  remapManualStopExitRows,
+  rowSide,
+  isPresentedExit
 } from '../../lib/liveSessionModel';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
@@ -333,80 +337,11 @@ function withPyramidSimCloseRows(
 
 
 
-/**
- * 12:59 IST is the sim-close exit. Invert Buy/Sell from the last morning
- * candle (11:45) so a long is closed with Sell and a short with Buy.
- * Action is Exit; Change is a dash. 11:45 rows stay as the engine logged them.
- */
-function remapSimCloseExitRows(
-  logs: TradeLogRow[],
-  liveStartedAtMs: number | null,
-): TradeLogRow[] {
-  const cutoff = { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs };
-  const priorBySym = new Map<string, TradeLogRow>();
-  for (const row of logs) {
-    if (row.timeMs == null || row.rmsHit) continue;
-    if (isSimCloseIstLog(row.timeMs)) continue;
-    if (!resolveSimulation(row, cutoff) && !isLastMorningSimIstLog(row.timeMs)) continue;
-    const key = String(row.symbol || '').toUpperCase();
-    if (!key || key === '-') continue;
-    const existing = priorBySym.get(key);
-    if (!existing || (existing.timeMs ?? 0) <= row.timeMs) priorBySym.set(key, row);
-  }
 
-  return logs.map((row) => {
-    if (row.rmsHit || !isSimCloseIstLog(row.timeMs)) return row;
-    const key = String(row.symbol || '').toUpperCase();
-    const prior = priorBySym.get(key);
-    const inverted = prior
-      ? closingSideFromPrior(prior)
-      : invertBuySell(row.signal) ?? invertBuySell(row.action);
-    return {
-      ...row,
-      signal: inverted ?? (prior ? prior.signal : row.signal),
-      action: 'EXIT',
-      change: '-',
-    };
-  });
-}
 
-function lastStopBlockMs(logs: TradeLogRow[], liveStartedAtMs: number | null): number | null {
-  const cutoff = { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs };
-  let last: number | null = null;
-  for (const row of logs) {
-    if (row.timeMs == null || row.rmsHit) continue;
-    if (isSimCloseIstLog(row.timeMs)) continue;
-    if (isLastMorningSimIstLog(row.timeMs)) continue;
-    if (resolveSimulation(row, cutoff)) continue;
-    if (last == null || row.timeMs > last) last = row.timeMs;
-  }
-  return last;
-}
 
-/**
- * Manual Stop: last live snapshot keeps its Signal, Action is Exit, Change is a dash.
- * 11:45 and 12:59 are never the stop-exit block — 12:59 has its own sim-close remap.
- */
-function remapManualStopExitRows(
-  logs: TradeLogRow[],
-  sessionStatus: string,
-  liveStartedAtMs: number | null,
-): TradeLogRow[] {
-  if ((sessionStatus || '').toLowerCase() !== 'stopped') return logs;
-  const lastMs = lastStopBlockMs(logs, liveStartedAtMs);
-  if (lastMs == null) return logs;
-  return logs.map((row) => {
-    if (row.rmsHit || row.timeMs == null) return row;
-    if (Math.abs(row.timeMs - lastMs) > 5000) return row;
-    if (isSimCloseIstLog(row.timeMs) || isLastMorningSimIstLog(row.timeMs)) return row;
-    if (resolveSimulation(row, { hasLiveCutoff: liveStartedAtMs != null, liveStartedAtMs })) return row;
-    return {
-      ...row,
-      action: 'EXIT',
-      change: '-',
-    };
-  });
-}
+
+
 
 /**
  * Exit rows: Signal is only the opposite side of the previous row for that
@@ -438,13 +373,7 @@ function presentExitRows(logs: TradeLogRow[]): TradeLogRow[] {
 
 
 
-function isPresentedExit(row: TradeLogRow): boolean {
-  if (row.rmsHit) return false;
-  if (row.manualExit || textIsClientManualExit(row)) return true;
-  if (isSimCloseIstLog(row.timeMs) || isSessionSquareOffIstLog(row.timeMs)) return true;
-  const tone = formatTradeLabel(row.action).tone;
-  return tone === 'exit' || tone === 'close';
-}
+
 
 function extractTradingSession(raw: unknown): TradingSession | null {
   if (!raw || typeof raw !== 'object') return null;
