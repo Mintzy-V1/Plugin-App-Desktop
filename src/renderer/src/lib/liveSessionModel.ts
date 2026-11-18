@@ -348,7 +348,88 @@ export function qtyAsOf(timeline: QtySample[], symbol: string, timeMs: number | 
   return null;
 }
 
+export function applyHistoryQuantities(logs: TradeLogRow[], timeline: QtySample[]): TradeLogRow[] {
+  if (timeline.length === 0) return logs;
+  return logs.map((row) => {
+    if (hasExplicitQty(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) return row;
+    const qty = qtyAsOf(timeline, String(row.symbol), row.timeMs);
+    return qty != null ? { ...row, quantity: qty } : row;
+  });
+}
+
 export interface PnlSample {
   ts: number;
   bySym: Map<string, number>;
+}
+
+export function pnlMapFromSymbols(raw: unknown): Map<string, number> {
+  const bySym = new Map<string, number>();
+  const symbols = pickLivePnlSymbols(raw);
+  if (!symbols) return bySym;
+  for (const [sym, data] of Object.entries(symbols)) {
+    const pnl = readSymbolNetPnl(
+      data && typeof data === 'object' ? data as Record<string, unknown> : null,
+    );
+    if (pnl != null && pnl !== 0) bySym.set(sym.toUpperCase(), pnl);
+  }
+  return bySym;
+}
+
+export function buildPnlTimeline(raw: unknown): PnlSample[] {
+  let snapshots: unknown[] = [];
+  if (Array.isArray(raw)) snapshots = raw;
+  else if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    if (Array.isArray(o.snapshots)) snapshots = o.snapshots;
+    else if (o.data && typeof o.data === 'object' && Array.isArray((o.data as Record<string, unknown>).snapshots)) {
+      snapshots = (o.data as Record<string, unknown>).snapshots as unknown[];
+    }
+  }
+
+  const samples: PnlSample[] = [];
+  for (const item of snapshots) {
+    if (!item || typeof item !== 'object') continue;
+    const snap = item as Record<string, unknown>;
+    const ts = parseInstantMs(snap.sampled_at)
+      ?? parseInstantMs(snap.source_ts)
+      ?? parseInstantMs((snap.data as Record<string, unknown> | undefined)?.ts);
+    if (ts == null) continue;
+    const bySym = pnlMapFromSymbols(snap.data ?? snap);
+    if (bySym.size === 0) continue;
+    samples.push({ ts, bySym });
+  }
+  samples.sort((a, b) => a.ts - b.ts);
+  return samples;
+}
+
+export function pnlAsOf(
+  timeline: PnlSample[],
+  symbol: string,
+  timeMs: number | null,
+  notBeforeMs: number | null = null,
+): number | null {
+  if (timeline.length === 0) return null;
+  const key = symbol.toUpperCase();
+  let last: number | null = null;
+  for (const sample of timeline) {
+    if (notBeforeMs != null && sample.ts < notBeforeMs) continue;
+    if (timeMs != null && sample.ts > timeMs + 15_000) break;
+    const v = sample.bySym.get(key);
+    if (v != null && v !== 0) last = v;
+  }
+  return last;
+}
+
+export function applyHistoryPnl(
+  logs: TradeLogRow[],
+  timeline: PnlSample[],
+  liveAt: number | null = null,
+): TradeLogRow[] {
+  if (timeline.length === 0) return logs;
+  return logs.map((row) => {
+    if (!isPlaceholderValue(row.pnl)) return row;
+    const rowIsLive = liveAt != null && row.timeMs != null && row.timeMs >= liveAt;
+    const pnl = pnlAsOf(timeline, String(row.symbol), row.timeMs, rowIsLive ? liveAt : null);
+    return pnl != null && pnl !== 0 ? { ...row, pnl } : row;
+  });
 }
