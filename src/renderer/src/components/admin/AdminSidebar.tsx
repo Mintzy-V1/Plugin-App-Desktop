@@ -34,7 +34,7 @@ export default function AdminSidebar({ active, onNavigate, collapsed, onToggleCo
         onMouseLeave={() => setHovered(false)}
         className={`absolute inset-y-0 left-0 flex h-full flex-col overflow-hidden border-r border-line bg-surface transition-[width,box-shadow] duration-200 ${expanded ? 'w-[240px]' : 'w-[68px]'} ${collapsed && hovered ? 'shadow-lg shadow-overlay/10' : ''}`}
       >
-        <div className="flex h-16 shrink-0 items-center border-b border-line">
+        <div className="flex h-14 shrink-0 items-center border-b border-line">
           {expanded ? (
             <div className="flex w-full items-center gap-2 px-3">
               <img src="./Mintzy%20Bars%20Full%20Lockup%20Green.png" alt="Mintzy" className="h-8 w-auto min-w-0 max-w-[112px] object-contain object-left" />

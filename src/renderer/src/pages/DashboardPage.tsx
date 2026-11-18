@@ -225,7 +225,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
           {user?.broker && <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-secondary">{brokerLabel(brokerFromProfile(user.broker))}</span>}
           <button type="button" onClick={() => { fetchData(); setStatsGen(n => n + 1); }} title="Refresh" className="inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-xs text-muted hover:bg-subtle hover:text-ink">
             <RefreshCw className={`h-3.5 w-3.5 ${loading || statsLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
-            {refreshedAt ? refreshedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Refresh'}
+            {refreshedAt ? `Updated ${refreshedAt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}` : 'Refresh'}
           </button>
         </div>
       </header>

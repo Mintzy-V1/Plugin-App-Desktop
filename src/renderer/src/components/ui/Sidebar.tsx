@@ -66,7 +66,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
           expanded ? 'w-[240px]' : 'w-[68px]'
         } ${collapsed && hovered ? 'shadow-[8px_0_24px_rgba(15,23,42,0.06)]' : ''}`}
       >
-        <div className="flex h-16 shrink-0 items-center border-b border-line">
+        <div className="flex h-14 shrink-0 items-center border-b border-line">
           {expanded ? (
             <div className="flex w-full items-center gap-2 px-3">
               <img
