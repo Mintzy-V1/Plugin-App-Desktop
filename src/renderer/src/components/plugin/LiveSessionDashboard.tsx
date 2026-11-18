@@ -48,7 +48,12 @@ import {
   isBuySellTone,
   invertBuySell,
   closingSideFromPrior,
-  looksLikeBrokenExitRow
+  lastCandleBeforeExit,
+  looksLikeBrokenExitRow,
+  applySymbolExitDisplay,
+  shouldRemapManualExitRow,
+  remapBrokenSymbolExitRows,
+  rowSide
 } from '../../lib/liveSessionModel';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
@@ -381,84 +386,15 @@ function withPyramidSimCloseRows(
 
 
 
-function lastCandleBeforeExit(
-  logs: TradeLogRow[],
-  symbol: string,
-  beforeMs: number | null,
-): TradeLogRow | null {
-  const key = symbol.toUpperCase();
-  let best: TradeLogRow | null = null;
-  for (const row of logs) {
-    if (String(row.symbol || '').toUpperCase() !== key) continue;
-    if (row.rmsHit || looksLikeBrokenExitRow(row)) continue;
-    if (isSimCloseIstLog(row.timeMs) || isSessionSquareOffIstLog(row.timeMs)) continue;
-    if (formatTradeLabel(row.action).tone === 'exit') continue;
-    if (beforeMs != null && row.timeMs != null && row.timeMs > beforeMs) continue;
-    if (!isBuySellTone(row.signal) && !isBuySellTone(row.action)) continue;
-    if (!best || (row.timeMs ?? 0) >= (best.timeMs ?? 0)) best = row;
-  }
-  return best;
-}
 
 
 
-function applySymbolExitDisplay(
-  row: TradeLogRow,
-  ex?: ExitedSymbol,
-  prior?: TradeLogRow | null,
-): TradeLogRow {
-  const rms = ex != null && !isManualSymbolExit(ex)
-    && /rms|risk|stop.?loss|stoploss|max.?loss|trailing|circuit|profit.?target/i.test(ex.exit_reason || '');
-  if (rms) {
-    const signal = !isPlaceholderValue(row.signal)
-      ? row.signal
-      : (isBuySellTone(row.action) ? row.action : (ex?.entry_side || ex?.exit_side || row.signal));
-    return { ...row, signal, action: 'Hit RMS', change: '-' };
-  }
-  const manual = row.manualExit || textIsClientManualExit(row) || (ex != null && isManualSymbolExit(ex) && !rms);
-  const inverted = (prior ? closingSideFromPrior(prior) : null)
-    ?? invertBuySell(ex?.entry_side)
-    ?? invertBuySell(prior?.signal)
-    ?? invertBuySell(prior?.action)
-    ?? invertBuySell(row.signal)
-    ?? invertBuySell(row.action)
-    ?? invertBuySell(ex?.exit_side);
-  return {
-    ...row,
-    signal: inverted ?? (prior ? prior.signal : row.signal),
-    action: manual ? 'EXIT/MANUAL EXIT' : 'EXIT',
-    change: '-',
-    manualExit: manual || undefined,
-  };
-}
 
-function shouldRemapManualExitRow(row: TradeLogRow, ex?: ExitedSymbol): boolean {
-  if (row.rmsHit) return false;
-  if (isSimCloseIstLog(row.timeMs) || isLastMorningSimIstLog(row.timeMs)) return false;
-  if (isSessionSquareOffIstLog(row.timeMs)) return false;
-  if (looksLikeBrokenExitRow(row)) return true;
-  if (formatTradeLabel(row.action).tone === 'exit' && (!ex || isManualSymbolExit(ex))) return true;
-  return false;
-}
 
-/**
- * Per-stock manual exit: invert Signal from the last candle (Buy→Sell, Sell→Buy),
- * Action is Exit, Change is —. Auto RMS rows are left as Hit RMS.
- */
-function remapBrokenSymbolExitRows(logs: TradeLogRow[], exits: ExitedSymbol[]): TradeLogRow[] {
-  const bySym = new Map<string, ExitedSymbol>();
-  for (const ex of exits) bySym.set(ex.symbol.toUpperCase(), ex);
-  return logs.map((row) => {
-    const ex = bySym.get(String(row.symbol || '').toUpperCase());
-    const sideInAction = isPlaceholderValue(row.signal) && isBuySellTone(row.action);
-    if (!shouldRemapManualExitRow(row, ex) && !sideInAction) return row;
-    if (!ex && !sideInAction && formatTradeLabel(row.action).tone !== 'exit' && !looksLikeBrokenExitRow(row)) {
-      return row;
-    }
-    const prior = lastCandleBeforeExit(logs, String(row.symbol || ''), row.timeMs ?? null);
-    return applySymbolExitDisplay(row, ex, prior);
-  });
-}
+
+
+
+
 
 /**
  * 14:50 / 15:00 IST square-off: engine puts the side in Action and a 0% change.
@@ -580,11 +516,7 @@ function presentExitRows(logs: TradeLogRow[]): TradeLogRow[] {
   });
 }
 
-function rowSide(row: TradeLogRow): string | null {
-  if (isBuySellTone(row.signal)) return String(row.signal);
-  if (isBuySellTone(row.action)) return String(row.action);
-  return null;
-}
+
 
 function isPresentedExit(row: TradeLogRow): boolean {
   if (row.rmsHit) return false;
