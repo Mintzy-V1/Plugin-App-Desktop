@@ -227,9 +227,89 @@ export function pickPositionQty(row: Record<string, unknown> | null | undefined)
   return undefined;
 }
 
+export function normalizeSymbols(raw: unknown): Record<string, SymbolRow> {
+  if (!raw || typeof raw !== 'object') return {};
+  const mapped: Record<string, SymbolRow> = {};
+  const entries = Array.isArray(raw)
+    ? (raw as unknown[]).map((item) => {
+        const row = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+        return [String(row.symbol ?? row.Symbol ?? ''), row] as const;
+      })
+    : Object.entries(raw as Record<string, unknown>);
+
+  for (const [sym, data] of entries) {
+    const key = String(sym || '').toUpperCase();
+    if (!key) continue;
+    const row = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+    const unrealized = Number(row.unrealized_pnl ?? row.live_unrealized_pnl ?? row.pnl ?? 0);
+    const realized = Number(row.realized_pnl ?? 0);
+    const qty = pickPositionQty(row);
+    const side = row.side != null ? String(row.side) : undefined;
+    mapped[key] = {
+      unrealized_pnl: Number.isFinite(unrealized) ? unrealized : 0,
+      realized_pnl: Number.isFinite(realized) ? realized : 0,
+      qty,
+      side,
+    };
+  }
+  return mapped;
+}
+
 export function symbolNet(row: SymbolRow | undefined): { realized: number; unrealized: number; total: number } {
   if (!row) return { realized: 0, unrealized: 0, total: 0 };
   const realized = Number(row.realized_pnl) || 0;
   const unrealized = Number(row.unrealized_pnl) || 0;
   return { realized, unrealized, total: realized + unrealized };
+}
+
+export function carrySymbolMaps(points: PnlPoint[], liveAt: number | null = null): PnlPoint[] {
+  const last: Record<string, SymbolRow> = {};
+  let crossed = false;
+  return points.map((p) => {
+    if (liveAt != null && !crossed && p.ts >= liveAt) {
+      crossed = true;
+      for (const key of Object.keys(last)) delete last[key];
+    }
+    if (p.symbols) {
+      for (const [k, v] of Object.entries(p.symbols)) last[k] = v;
+    }
+    return { ...p, symbols: { ...last, ...(p.symbols ?? {}) } };
+  });
+}
+
+export function scopedPoint(p: PnlPoint, selected: Set<string>): PnlPoint {
+  let realized = 0;
+  let unrealized = 0;
+  for (const sym of selected) {
+    const part = symbolNet(p.symbols?.[sym]);
+    realized += part.realized;
+    unrealized += part.unrealized;
+  }
+  return { ...p, total: realized + unrealized, realized, unrealized };
+}
+
+export function ensureDrawable(points: PnlPoint[]): PnlPoint[] {
+  if (points.length !== 1) return points;
+  const p = points[0];
+  return [{ ...p, ts: p.ts - 5 * 60 * 1000 }, p];
+}
+
+export function snapshotPoint(s: {
+  sampled_at?: string;
+  source_ts?: number;
+  data: { total_pnl: number; realized_pnl: number; live_unrealized_pnl: number; symbols?: Record<string, unknown>; ts?: number };
+}): PnlPoint | null {
+  const ts = parseChartTimeMs(s.data?.ts)
+    ?? parseChartTimeMs(s.source_ts)
+    ?? parseChartTimeMs(s.sampled_at);
+  if (ts == null || !isPlausibleTs(ts)) return null;
+  const total = Number(s.data.total_pnl);
+  if (!Number.isFinite(total)) return null;
+  return {
+    ts: roundTs(ts),
+    total,
+    realized: Number(s.data.realized_pnl) || 0,
+    unrealized: Number(s.data.live_unrealized_pnl) || 0,
+    symbols: normalizeSymbols(s.data.symbols),
+  };
 }
