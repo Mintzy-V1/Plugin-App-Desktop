@@ -19,7 +19,7 @@ const BEAR_STREET_BASE_URL = 'https://connectorservices.odinconnector.co.in/inte
 const SKIP_TOTP_BROKERS: ReadonlySet<BrokerType> = new Set(['tradex', 'bear_street']);
 
 const inputClass =
-  'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 disabled:opacity-60';
+  'w-full rounded-xl border border-line bg-surface px-4 py-3 text-sm text-ink placeholder:text-muted outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:opacity-60';
 
 /** JWTs / keys often get spaces when pasted — strip them for TradeX. */
 const sanitizeTokenLike = (value: string) => value.replace(/\s+/g, '');
@@ -160,25 +160,25 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[380px]">
+    <div className="mx-auto w-full max-w-[440px]">
       <button
         type="button"
         onClick={onBack}
-        className="mb-4 flex items-center gap-1 text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+        className="mb-4 flex items-center gap-1 text-sm text-muted transition-colors hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Cancel
       </button>
 
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-7 shadow-[0_12px_40px_-16px_rgba(15,23,42,0.18)]">
+      <div className="rounded-xl border border-line/80 bg-surface p-7 ">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-info-soft text-info">
             <Lock className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
           </div>
-          <h2 className="text-[22px] font-bold tracking-tight text-slate-900">Connect Broker</h2>
-          <p className="mt-1 text-sm text-slate-500">Enter your {brokerLabel(broker)} credentials</p>
+          <h2 className="font-serif text-3xl tracking-tight text-ink">Connect Broker</h2>
+          <p className="mt-1 text-sm text-muted">Enter your {brokerLabel(broker)} credentials</p>
           {user?.broker && (
-            <p className="mt-3 inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+            <p className="mt-3 inline-flex items-center rounded-full bg-subtle px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-secondary">
               {brokerLabel(broker)}
             </p>
           )}
@@ -186,7 +186,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
 
         <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
-            <label htmlFor={fields.key.id} className="sr-only">{fields.key.placeholder}</label>
+            <label htmlFor={fields.key.id} className="mb-2 block text-xs font-medium text-secondary">{fields.key.placeholder}</label>
             <input
               id={fields.key.id}
               type="text"
@@ -204,7 +204,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
           </div>
 
           <div>
-            <label htmlFor={fields.client.id} className="sr-only">{fields.client.placeholder}</label>
+            <label htmlFor={fields.client.id} className="mb-2 block text-xs font-medium text-secondary">{fields.client.placeholder}</label>
             <input
               id={fields.client.id}
               type="text"
@@ -219,7 +219,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
           </div>
 
           <div className="relative">
-            <label htmlFor={fields.secret.id} className="sr-only">{fields.secret.placeholder}</label>
+            <label htmlFor={fields.secret.id} className="mb-2 block text-xs font-medium text-secondary">{fields.secret.placeholder}</label>
             <input
               id={fields.secret.id}
               type={showSecret ? 'text' : 'password'}
@@ -238,7 +238,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
               type="button"
               onClick={() => setShowSecret(s => !s)}
               aria-label={showSecret ? 'Hide secret' : 'Show secret'}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition-colors hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             >
               {showSecret ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
             </button>
@@ -247,7 +247,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
           {isBearStreet && (
             <>
               <div className="relative">
-                <label htmlFor="broker-second-auth" className="sr-only">Registered Mobile Number</label>
+                <label htmlFor="broker-second-auth" className="mb-2 block text-xs font-medium text-secondary">Registered Mobile Number</label>
                 <input
                   id="broker-second-auth"
                   type={showSecondAuth ? 'text' : 'password'}
@@ -263,12 +263,12 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
                   type="button"
                   onClick={() => setShowSecondAuth(s => !s)}
                   aria-label={showSecondAuth ? 'Hide registered mobile number' : 'Show registered mobile number'}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition-colors hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                 >
                   {showSecondAuth ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                 </button>
               </div>
-              <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-5 text-blue-800">
+              <p className="rounded-xl border border-brand/25 bg-info-soft px-3 py-2 text-[11px] leading-5 text-info">
                 GLOBE CAPITALS authenticates in one step — enter your registered mobile number here. No separate TOTP screen is required.
               </p>
             </>
@@ -277,7 +277,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
           {isFirstock && (
             <>
               <div className="relative">
-                <label htmlFor="broker-vendor-code" className="sr-only">Vendor Code</label>
+                <label htmlFor="broker-vendor-code" className="mb-2 block text-xs font-medium text-secondary">Vendor Code</label>
                 <input
                   id="broker-vendor-code"
                   type="text"
@@ -290,14 +290,14 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
                   className={inputClass}
                 />
               </div>
-              <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-5 text-blue-800">
+              <p className="rounded-xl border border-brand/25 bg-info-soft px-3 py-2 text-[11px] leading-5 text-info">
                 Firstock authenticates in two steps — enter your vendor code here, then the TOTP from your authenticator on the next screen.
               </p>
             </>
           )}
 
           {error && (
-            <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-2.5 text-center text-[13px] font-medium text-red-600">
+            <div role="alert" className="rounded-xl border border-loss/25 bg-loss-soft px-3.5 py-2.5 text-center text-[13px] font-medium text-loss">
               {error}
             </div>
           )}
@@ -305,7 +305,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
           <button
             type="submit"
             disabled={loading}
-            className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? (
               <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Verifying…</>
