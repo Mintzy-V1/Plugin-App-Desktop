@@ -33,7 +33,12 @@ import {
   scoreLogs,
   fillMissingLogFields,
   carryForwardQuantities,
-  formatMoney
+  mergeIncomingLogs,
+  formatMoney,
+  formatLogDate,
+  formatLogTime,
+  lastNonZeroLogPnl,
+  textIsClientManualExit
 } from '../../lib/liveSessionModel';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
@@ -173,50 +178,7 @@ type Tab = 'logs' | 'pnl' | 'alerts';
 
 
 
-function mergeIncomingLogs(
-  fromPlugin: TradeLogRow[],
-  fromTrades: TradeLogRow[],
-  fromDash: TradeLogRow[],
-  previous: TradeLogRow[],
-  timeline: QtySample[],
-  snapSymbols: Record<string, unknown> | null,
-  liveSymbols: Record<string, unknown> | null,
-  pnlTimeline: PnlSample[] = [],
-  liveAt: number | null = null,
-): TradeLogRow[] {
-  const sources = [fromPlugin, fromTrades, fromDash].filter((rows) => rows.length > 0);
-  if (sources.length === 0) return previous;
 
-  const primary = sources.reduce((best, cur) => {
-    const bestScore = scoreLogs(best);
-    const curScore = scoreLogs(cur);
-    if (curScore !== bestScore) return curScore > bestScore ? cur : best;
-    return cur.length > best.length ? cur : best;
-  });
-
-  const byKey = new Map<string, TradeLogRow>();
-  for (const rows of [...sources, previous]) {
-    for (const row of rows) {
-      const key = logRowKey(row);
-      const existing = byKey.get(key);
-      byKey.set(key, existing ? fillMissingLogFields(existing, row) : row);
-    }
-  }
-
-  let merged = primary.map((row) => fillMissingLogFields(byKey.get(logRowKey(row)) ?? row, row));
-  merged = mergeLogQuantities(merged, fromPlugin, fromTrades, fromDash, previous);
-  merged = applyHistoryQuantities(merged, timeline);
-  merged = applyHistoryPnl(merged, pnlTimeline, liveAt);
-  merged = applySymbolQuantities(merged, snapSymbols);
-  merged = applySymbolQuantities(merged, liveSymbols);
-  merged = merged.map((row) => fillMissingLogFields(row, byKey.get(logRowKey(row))));
-  merged = carryForwardQuantities(merged);
-
-  if (previous.length > 0 && scoreLogs(merged) < scoreLogs(previous) * 0.5) {
-    return carryForwardQuantities(previous.map((row) => fillMissingLogFields(row, byKey.get(logRowKey(row)))));
-  }
-  return merged;
-}
 
 function normalizeLogs(raw: unknown): TradeLogRow[] {
   let rows: unknown[] = [];
@@ -278,28 +240,9 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
 
 
 
-function formatLogDate(ms: number): string {
-  return new Date(ms)
-    .toLocaleDateString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: 'numeric',
-      month: 'numeric',
-      year: 'numeric',
-    })
-    .replace(/,/g, '');
-}
 
-function formatLogTime(ms: number): string {
-  return new Date(ms)
-    .toLocaleTimeString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true,
-    })
-    .replace(/\s+(am|pm)/i, '\u00a0$1');
-}
+
+
 
 function rmsRowFromExit(
   ex: ExitedSymbol,
@@ -329,17 +272,7 @@ function rmsRowFromExit(
   };
 }
 
-function lastNonZeroLogPnl(logs: TradeLogRow[], symbol: string, minMs: number | null = null): number | null {
-  const key = symbol.toUpperCase();
-  let last: number | null = null;
-  for (const row of logs) {
-    if (String(row.symbol || '').toUpperCase() !== key) continue;
-    if (minMs != null && (row.timeMs == null || row.timeMs < minMs)) continue;
-    const n = numOrNull(row.pnl);
-    if (n != null && n !== 0) last = n;
-  }
-  return last;
-}
+
 
 function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[], liveAt: number | null = null): TradeLogRow[] {
   if (exits.length === 0) return logs;
@@ -556,9 +489,7 @@ function stampSimClosePrices(
   });
 }
 
-function textIsClientManualExit(row: TradeLogRow): boolean {
-  return /manual\s*exit/i.test(`${row.action ?? ''} ${row.signal ?? ''}`);
-}
+
 
 function isBuySellTone(raw: string | number | null | undefined): boolean {
   const { tone } = formatTradeLabel(raw);
