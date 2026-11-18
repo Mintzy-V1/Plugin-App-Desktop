@@ -17,27 +17,27 @@ const BROKER_NAME: Record<BrokerType, string> = {
 
 const CALLOUT = {
   tip: {
-    wrap: 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/95 to-white',
-    well: 'bg-emerald-600 text-white',
-    title: 'text-emerald-800',
+    wrap: 'border-gain/25 bg-gradient-to-br from-gain-soft to-surface',
+    well: 'bg-gain-action text-on-primary',
+    title: 'text-gain',
     Icon: Lightbulb,
   },
   note: {
-    wrap: 'border-sky-200/80 bg-gradient-to-br from-sky-50/95 to-white',
-    well: 'bg-sky-600 text-white',
-    title: 'text-sky-800',
+    wrap: 'border-brand/25 bg-gradient-to-br from-info-soft to-surface',
+    well: 'bg-primary text-on-primary',
+    title: 'text-info',
     Icon: Info,
   },
   warn: {
-    wrap: 'border-amber-200/80 bg-gradient-to-br from-amber-50/95 to-white',
-    well: 'bg-amber-500 text-white',
-    title: 'text-amber-900',
+    wrap: 'border-attention/25 bg-gradient-to-br from-attention-soft to-surface',
+    well: 'bg-attention-action text-on-primary',
+    title: 'text-attention',
     Icon: AlertTriangle,
   },
   danger: {
-    wrap: 'border-red-200/80 bg-gradient-to-br from-red-50/95 to-white',
-    well: 'bg-red-600 text-white',
-    title: 'text-red-800',
+    wrap: 'border-loss/25 bg-gradient-to-br from-loss-soft to-surface',
+    well: 'bg-loss-action text-on-primary',
+    title: 'text-loss',
     Icon: OctagonAlert,
   },
 } as const;
@@ -53,7 +53,7 @@ function Callout({
 }) {
   const { wrap, well, title: titleClass, Icon } = CALLOUT[tone];
   return (
-    <aside className={`flex w-full gap-3.5 rounded-2xl border ${wrap} px-4 py-4 sm:px-5 sm:py-[18px]`}>
+    <aside className={`flex w-full gap-3.5 rounded-xl border ${wrap} px-4 py-4 sm:px-5 sm:py-[18px]`}>
       <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-sm ${well}`} aria-hidden="true">
         <Icon className="h-4 w-4" strokeWidth={2.25} />
       </span>
@@ -61,7 +61,7 @@ function Callout({
         <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${titleClass}`}>
           {title}
         </p>
-        <div className="mt-2 space-y-2.5 text-[13.5px] leading-[1.7] text-slate-700 [&_p]:m-0">
+        <div className="mt-2 space-y-2.5 text-[13.5px] leading-[1.7] text-secondary [&_p]:m-0">
           {children}
         </div>
       </div>
@@ -71,8 +71,8 @@ function Callout({
 
 function Quote({ children }: { children: ReactNode }) {
   return (
-    <p className="relative rounded-xl border border-slate-200/80 bg-slate-50/80 py-2.5 pl-4 pr-3.5 font-medium leading-relaxed text-slate-800">
-      <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-emerald-500/80" aria-hidden="true" />
+    <p className="relative rounded-xl border border-line/80 bg-subtle py-2.5 pl-4 pr-3.5 font-medium leading-relaxed text-ink">
+      <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-gain-action/80" aria-hidden="true" />
       {children}
     </p>
   );
@@ -101,14 +101,14 @@ function Steps({ items }: { items: ReactNode[] }) {
         <li key={i} className="relative flex items-start gap-4">
           {i < items.length - 1 ? (
             <span
-              className="absolute left-3 top-7 bottom-[-16px] w-px bg-slate-200"
+              className="absolute left-3 top-7 bottom-[-16px] w-px bg-line"
               aria-hidden="true"
             />
           ) : null}
-          <span className="relative z-[1] mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold tabular-nums text-white shadow-[0_1px_2px_rgba(15,23,42,0.2)]">
+          <span className="relative z-[1] mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold tabular-nums text-on-primary shadow-[0_1px_2px_rgba(15,23,42,0.2)]">
             {i + 1}
           </span>
-          <div className="min-w-0 flex-1 rounded-xl bg-slate-50/70 px-3.5 py-2.5 text-[13.5px] leading-[1.7] text-slate-600">
+          <div className="min-w-0 flex-1 rounded-xl bg-subtle px-3.5 py-2.5 text-[13.5px] leading-[1.7] text-secondary">
             {item}
           </div>
         </li>
@@ -120,7 +120,7 @@ function Steps({ items }: { items: ReactNode[] }) {
 function Grid({ headers, rows }: { headers: string[]; rows: string[][] }) {
   const twoCol = headers.length === 2;
   return (
-    <div className="w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="w-full overflow-hidden rounded-xl border border-line/90 bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <table className={`w-full border-collapse text-left text-[13.5px] ${twoCol ? 'table-fixed' : ''}`}>
         {twoCol ? (
           <colgroup>
@@ -129,11 +129,11 @@ function Grid({ headers, rows }: { headers: string[]; rows: string[][] }) {
           </colgroup>
         ) : null}
         <thead>
-          <tr className="border-b border-slate-200 bg-[#f8fafb]">
+          <tr className="border-b border-line bg-subtle">
             {headers.map((h) => (
               <th
                 key={h}
-                className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:px-6"
+                className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted sm:px-6"
               >
                 {h}
               </th>
@@ -142,12 +142,12 @@ function Grid({ headers, rows }: { headers: string[]; rows: string[][] }) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-slate-100 last:border-0 even:bg-slate-50/50">
+            <tr key={i} className="border-b border-line last:border-0 even:bg-subtle">
               {row.map((cell, j) => (
                 <td
                   key={j}
                   className={`px-5 py-3.5 align-top leading-[1.65] break-words sm:px-6 ${
-                    j === 0 ? 'font-semibold text-slate-800' : 'text-slate-600'
+                    j === 0 ? 'font-semibold text-ink' : 'text-secondary'
                   }`}
                 >
                   {cell}
@@ -164,11 +164,11 @@ function Grid({ headers, rows }: { headers: string[]; rows: string[][] }) {
 function Sub({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-3.5">
-      <h4 className="flex items-center gap-2 text-[14px] font-semibold tracking-tight text-slate-900">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+      <h4 className="flex items-center gap-2 text-[14px] font-semibold tracking-tight text-ink">
+        <span className="h-1.5 w-1.5 rounded-full bg-gain-action" aria-hidden="true" />
         {title}
       </h4>
-      <div className="flex flex-col gap-3.5 text-[13.5px] leading-[1.7] text-slate-600">{children}</div>
+      <div className="flex flex-col gap-3.5 text-[13.5px] leading-[1.7] text-secondary">{children}</div>
     </div>
   );
 }

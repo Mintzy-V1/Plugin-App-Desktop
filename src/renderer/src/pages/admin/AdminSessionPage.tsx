@@ -81,50 +81,50 @@ export default function AdminSessionPage({ sessionId, backLabel, onBack, onOpenU
             onStopped={() => setReloadTick((n) => n + 1)}
           />
         ) : (
-          <span className="ml-auto flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+          <span className="ml-auto flex items-center gap-1.5 rounded-md bg-subtle px-2 py-1 text-[11px] font-medium text-secondary">
             <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Read-only admin view
           </span>
         )}
       </div>
 
       {refreshFailed && (
-        <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-[12px] text-amber-900">
+        <p role="status" className="rounded-xl border border-attention/25 bg-attention-soft px-4 py-2 text-[12px] text-attention">
           Could not refresh this session. Its status may be out of date, so Stop and Exit are hidden until it loads again.
           <button type="button" onClick={() => setReloadTick((n) => n + 1)} className="ml-2 font-semibold underline">Retry</button>
         </p>
       )}
-      {!data && !failed && <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400"><Spinner /> Loading session…</div>}
+      {!data && !failed && <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted"><Spinner /> Loading session…</div>}
       {failed && <EmptyState title="Could not load this session" body="It may have been deleted, or the broker could not be determined." />}
 
       {data && (
         <>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-line/80 bg-surface px-5 py-4 shadow-sm">
             <div className="min-w-0">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Account</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Account</p>
               {data.user ? (
                 <button type="button" onClick={() => onOpenUser(data.user!._id)} className="text-left">
-                  <p className="text-[15px] font-semibold text-slate-900 hover:underline">{data.user.name}</p>
-                  <p className="text-[12px] text-slate-500">{data.user.email}</p>
+                  <p className="text-[15px] font-semibold text-ink hover:underline">{data.user.name}</p>
+                  <p className="text-[12px] text-muted">{data.user.email}</p>
                 </button>
               ) : (
-                <p className="text-[15px] font-semibold text-slate-500">Unknown user</p>
+                <p className="text-[15px] font-semibold text-muted">Unknown user</p>
               )}
             </div>
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Broker</p>
-              <p className="text-[13px] font-medium text-slate-800">{brokerLabel(data.broker)}</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Broker</p>
+              <p className="text-[13px] font-medium text-ink">{brokerLabel(data.broker)}</p>
             </div>
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Strategy</p>
-              <p className="text-[13px] font-medium text-slate-800">{data.session.configuration_name || '—'}</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Strategy</p>
+              <p className="text-[13px] font-medium text-ink">{data.session.configuration_name || '—'}</p>
             </div>
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Started</p>
-              <p className="text-[13px] font-medium text-slate-800">{formatDateTime(data.session.created_at)}</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Started</p>
+              <p className="text-[13px] font-medium text-ink">{formatDateTime(data.session.created_at)}</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               <PhaseBadge phase={data.session.phase} />
-              <span className="font-mono text-[11px] text-slate-400">{sessionId}</span>
+              <span className="font-mono text-[11px] text-muted">{sessionId}</span>
             </div>
           </div>
 
