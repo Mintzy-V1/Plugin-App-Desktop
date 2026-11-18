@@ -46,7 +46,7 @@ export default function AlertDialog({
 
   return (
     <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm"
+      className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4 backdrop-blur-sm"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
@@ -55,30 +55,30 @@ export default function AlertDialog({
         aria-modal="true"
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-message"
-        className={`animate-scale-in w-full max-w-md rounded-xl border bg-white p-5 shadow-xl ${critical ? 'border-red-200' : 'border-orange-200'}`}
+        className={`animate-scale-in w-full max-w-md rounded-xl border bg-surface p-5 shadow-xl ${critical ? 'border-loss/20' : 'border-attention/20'}`}
       >
         <div className="flex items-start gap-3">
-          <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${critical ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
+          <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${critical ? 'bg-loss-soft text-loss' : 'bg-attention-soft text-attention'}`}>
             <Icon className="h-4.5 w-4.5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h3 id="alert-dialog-title" className="text-[15px] font-semibold text-slate-900">{title}</h3>
-            {meta && <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">{meta}</p>}
-            <p id="alert-dialog-message" className="mt-2 text-sm leading-relaxed text-slate-600">{message}</p>
+            <h3 id="alert-dialog-title" className="text-[15px] font-semibold text-ink">{title}</h3>
+            {meta && <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-muted">{meta}</p>}
+            <p id="alert-dialog-message" className="mt-2 text-sm leading-relaxed text-secondary">{message}</p>
             {action && (
-              <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">What you can do</p>
-                <p className="mt-0.5 text-[13px] leading-relaxed text-slate-700">{action}</p>
+              <div className="mt-3 rounded-lg bg-subtle px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">What you can do</p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-secondary">{action}</p>
               </div>
             )}
             {reference && (
               <button
                 type="button"
                 onClick={copyReference}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1 font-mono text-[11px] text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 font-mono text-[11px] text-secondary transition-colors hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                 title="Copy this reference for Mintzy support"
               >
-                {copied ? <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
+                {copied ? <Check className="h-3 w-3 text-brand" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
                 Ref {reference}
               </button>
             )}
@@ -89,7 +89,7 @@ export default function AlertDialog({
             <button
               type="button"
               onClick={onSecondary}
-              className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+              className="flex-1 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-secondary transition-colors hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
               {secondaryLabel}
             </button>
@@ -98,7 +98,7 @@ export default function AlertDialog({
             ref={okRef}
             type="button"
             onClick={onClose}
-            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors focus:outline-none focus-visible:ring-2 ${critical ? 'bg-red-500 hover:bg-red-600 focus-visible:ring-red-500/40' : 'bg-orange-500 hover:bg-orange-600 focus-visible:ring-orange-500/40'}`}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 ${critical ? 'bg-loss-soft text-loss hover:brightness-95 focus-visible:ring-loss' : 'bg-attention-soft text-attention hover:brightness-95 focus-visible:ring-attention'}`}
           >
             OK, got it
           </button>

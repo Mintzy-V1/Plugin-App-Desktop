@@ -179,6 +179,9 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
               onConfigure={() => setView('config')}
             />
           )}
+          {(['broker','2fa','config'] as PluginView[]).includes(view) && <ol aria-label="Session setup progress" className="mx-auto mb-7 flex w-full max-w-xl items-center justify-center gap-3 text-xs text-muted">
+            {(skipTotp ? [{id:'broker',label:'Connect broker'},{id:'config',label:'Configure'}] : [{id:'broker',label:'Connect broker'},{id:'2fa',label:'Verify'},{id:'config',label:'Configure'}]).map((step, index) => <li key={step.id} aria-current={step.id === view ? 'step' : undefined} className={`flex items-center gap-2 ${step.id === view ? 'font-semibold text-ink' : ''}`}><span className={`flex h-6 w-6 items-center justify-center rounded-full border ${step.id === view ? 'border-brand bg-gain-soft text-gain' : 'border-line bg-surface'}`}>{index+1}</span>{step.label}</li>)}
+          </ol>}
           {view === 'broker' && (
             <div className="flex min-h-[480px] items-center justify-center py-2">
               <ConnectBrokerForm onSuccess={handleBrokerSuccess} onBack={() => setView('empty')} />
@@ -232,17 +235,17 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
           )}
           {view === 'empty' && (
             <div className="flex min-h-[480px] flex-col items-center justify-center py-8">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 ring-1 ring-emerald-100">
-                <Code2 className="h-6 w-6 text-emerald-700" aria-hidden="true" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gain-soft ring-1 ring-gain/25">
+                <Code2 className="h-6 w-6 text-gain" aria-hidden="true" />
               </div>
-              <h2 className="mt-4 text-lg font-semibold tracking-tight text-slate-900">Ready to trade</h2>
-              <p className="mt-1.5 max-w-sm text-center text-sm leading-relaxed text-slate-500">
+              <h2 className="mt-4 text-lg font-semibold tracking-tight text-ink">Ready to trade</h2>
+              <p className="mt-1.5 max-w-sm text-center text-sm leading-relaxed text-muted">
                 Connect your broker and start a session. Live charts and trade logs will appear here.
               </p>
               <button
                 type="button"
                 onClick={() => setView('broker')}
-                className="mt-6 flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30"
+                className="mt-6 flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 New session

@@ -1,3 +1,7 @@
+import { DataTable } from '../../components/ui/DataTable';
+import { Pagination } from '../../components/ui/Pagination';
+import { Tabs } from '../../components/ui/Tabs';
+import { usePagination } from '../../lib/usePagination';
 import { useEffect, useState } from 'react';
 import AccountErrorLog from './AccountErrorLog';
 import { ArrowLeft } from 'lucide-react';
@@ -55,52 +59,21 @@ function AccountList({ onOpenUser }: { onOpenUser: (userId: string) => void }) {
           <option value="">All brokers</option>
           {BROKER_OPTIONS.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
         </select>
-        {loading && <Spinner className="h-4 w-4 text-slate-400" />}
+        {loading && <Spinner className="h-4 w-4 text-muted" />}
       </div>
 
       {failed && <LoadError title="Could not load accounts" onRetry={() => setRetryTick((n) => n + 1)} />}
       {data && data.users.length === 0 && <EmptyState title="No accounts found" />}
 
-      {data && data.users.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          <table className="w-full min-w-[720px] text-left text-[13px]">
-            <thead className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-400">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Account</th>
-                <th className="px-3 py-2.5 font-medium">Broker</th>
-                <th className="px-3 py-2.5 text-right font-medium">Sessions</th>
-                <th className="px-3 py-2.5 text-right font-medium">Live now</th>
-                <th className="px-4 py-2.5 text-right font-medium">Last session</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {data.users.map((u) => (
-                <tr
-                  key={u._id}
-                  onClick={() => onOpenUser(u._id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') onOpenUser(u._id); }}
-                  tabIndex={0}
-                  className="cursor-pointer transition-colors hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
-                >
-                  <td className="px-4 py-2.5">
-                    <p className="font-semibold text-slate-900">{u.name}</p>
-                    <p className="text-[11px] text-slate-500">{u.email}</p>
-                  </td>
-                  <td className="px-3 py-2.5 text-slate-600">{brokerLabel(u.broker)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{u.session_count}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">
-                    {u.live_session_count > 0
-                      ? <span className="font-semibold text-emerald-700">{u.live_session_count}</span>
-                      : <span className="text-slate-400">0</span>}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-[12px] text-slate-500">{formatDateTime(u.last_session_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {data && <Pager page={page} limit={PAGE_SIZE} total={data.total} onPage={setPage} />}
+      {data && data.users.length > 0 && <DataTable caption="Accounts" minWidth={720} rows={data.users} rowKey={u => u._id} columns={[
+        { id: 'account', header: 'Account', cell: u => <div><button type="button" onClick={() => onOpenUser(u._id)} className="rounded-sm font-semibold text-ink hover:text-brand hover:underline">{u.name}</button><p className="mt-1 text-xs text-muted">{u.email}</p></div> },
+        { id: 'broker', header: 'Broker', cell: u => brokerLabel(u.broker) },
+        { id: 'sessions', header: 'Sessions', align: 'right', cell: u => u.session_count },
+        { id: 'live', header: 'Live now', align: 'right', cell: u => <span className={u.live_session_count ? 'font-semibold text-gain' : 'text-muted'}>{u.live_session_count}</span> },
+        { id: 'last', header: 'Last session', align: 'right', cell: u => formatDateTime(u.last_session_at) },
+      ]} />}
+
+      {data && <Pager page={page} limit={PAGE_SIZE} total={data.total} onPage={setPage} disabled={loading} />}
     </div>
   );
 }
@@ -109,6 +82,9 @@ function AccountDetail({ userId, onBack, onOpenSession }: { userId: string; onBa
   const [data, setData] = useState<{ user: AdminAccount; sessions: AdminSession[] } | null>(null);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<'sessions' | 'errors'>('sessions');
+  const [query, setQuery] = useState('');
+  const matchingSessions = (data?.sessions ?? []).filter(s => [s.configuration_name, s.python_session_id, sessionStatusLabel(s.status)].some(v => v?.toLowerCase().includes(query.trim().toLowerCase())));
+  const pagination = usePagination(matchingSessions, 25, `${userId}:${query}`);
   const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
@@ -128,71 +104,35 @@ function AccountDetail({ userId, onBack, onOpenSession }: { userId: string; onBa
         </button>
       </div>
 
-      {!data && !failed && <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400"><Spinner /> Loading account…</div>}
+      {!data && !failed && <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted"><Spinner /> Loading account…</div>}
       {!data && failed && <LoadError title="Could not load this account" onRetry={() => setRetryTick((n) => n + 1)} />}
 
       {data && (
         <>
-          <div className="rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
-            <p className="text-[15px] font-semibold text-slate-900">{data.user.name}</p>
-            <p className="text-[12px] text-slate-500">
+          <div className="rounded-xl border border-line/80 bg-surface px-5 py-4 shadow-sm">
+            <p className="text-[15px] font-semibold text-ink">{data.user.name}</p>
+            <p className="text-[12px] text-muted">
               {data.user.email} · {brokerLabel(data.user.broker)} · {data.user.isActive === false ? 'Inactive' : 'Active'}
               {data.user.lastLogin ? ` · last login ${formatDateTime(data.user.lastLogin)}` : ''}
             </p>
           </div>
 
-          <div role="tablist" aria-label="Account data" className="inline-flex gap-0.5 self-start rounded-lg bg-slate-200/60 p-0.5">
-            {([['sessions', 'Sessions'], ['errors', 'Error log (7 days)']] as const).map(([key, label]) => (
-              <button key={key} role="tab" aria-selected={view === key} onClick={() => setView(key)}
-                className={`rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
-                  view === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <Tabs label="Account data" value={view} onChange={setView} items={[{id:'sessions',label:'Sessions',count:data.sessions.length},{id:'errors',label:'Error log (7 days)'}]} />
 
-          {view === 'errors' && <AccountErrorLog userId={userId} onOpenSession={onOpenSession} />}
+          <div role="tabpanel" id="account-data-panel-errors" aria-labelledby="account-data-tab-errors" hidden={view !== 'errors'}>{view === 'errors' && <AccountErrorLog userId={userId} onOpenSession={onOpenSession} />}</div>
 
+          <div role="tabpanel" id="account-data-panel-sessions" aria-labelledby="account-data-tab-sessions" hidden={view !== 'sessions'}>
           {view === 'sessions' && data.sessions.length === 0 && <EmptyState title="No sessions yet" />}
-          {view === 'sessions' && data.sessions.length > 0 && (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-              <table className="w-full min-w-[640px] text-left text-[13px]">
-                <thead className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-400">
-                  <tr>
-                    <th className="px-4 py-2.5 font-medium">Started</th>
-                    <th className="px-3 py-2.5 font-medium">Strategy</th>
-                    <th className="px-3 py-2.5 font-medium">Status</th>
-                    <th className="px-4 py-2.5 font-medium">Session id</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {data.sessions.map((s) => {
-                    const openable = !!s.python_session_id;
-                    return (
-                      <tr
-                        key={s._id}
-                        onClick={() => openable && onOpenSession(s.python_session_id)}
-                        onKeyDown={(e) => { if (openable && e.key === 'Enter') onOpenSession(s.python_session_id); }}
-                        tabIndex={openable ? 0 : -1}
-                        className={openable ? 'cursor-pointer transition-colors hover:bg-slate-50 focus:bg-slate-50 focus:outline-none' : 'opacity-60'}
-                      >
-                        <td className="px-4 py-2.5 text-slate-700">{formatDateTime(s.created_at)}</td>
-                        <td className="px-3 py-2.5 text-slate-600">{s.configuration_name || '—'}</td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-slate-700">{sessionStatusLabel(s.status) || s.status}</span>
-                            {['live', 'simulation'].includes(s.phase) && ['trading_active', 'running', 'started', 'active', 'simulation_active'].includes(s.status) && <PhaseBadge phase={s.phase} />}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">{s.python_session_id || '—'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {view === 'sessions' && data.sessions.length > 0 && <>
+            <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search strategy, session or status…" aria-label="Search account sessions" className={`${inputClass} w-full`} />
+            <div><DataTable caption="Account sessions" rows={pagination.rows} rowKey={s => s._id} minWidth={680} emptyTitle="No sessions match this search" columns={[
+              { id:'started',header:'Started · IST',cell:s => s.python_session_id ? <button type="button" onClick={() => onOpenSession(s.python_session_id)} className="rounded-sm font-medium text-ink hover:text-brand hover:underline">{formatDateTime(s.created_at)}</button> : formatDateTime(s.created_at) },
+              { id:'strategy',header:'Strategy',cell:s => s.configuration_name || '—' },
+              { id:'status',header:'Status',cell:s => <div className="flex flex-wrap items-center gap-2">{sessionStatusLabel(s.status)}{['live','simulation'].includes(s.phase) && ['trading_active','running','started','active','simulation_active'].includes(s.status) && <PhaseBadge phase={s.phase} />}</div> },
+              { id:'session',header:'Session ID',cell:s => <span className="font-mono text-xs text-muted">{s.python_session_id || '—'}</span> },
+            ]} /><Pagination {...pagination} label="Account sessions" /></div>
+          </>}
+          </div>
         </>
       )}
     </div>

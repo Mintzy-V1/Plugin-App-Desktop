@@ -1,3 +1,5 @@
+import { DataTable } from '../../components/ui/DataTable';
+import { LoadError } from './adminFormat';
 import { useEffect, useState } from 'react';
 import { adminApi, type AdminKey, type AuditEntry } from '../../lib/adminApi';
 import { useToast } from '../../components/ui/Toast';
@@ -43,6 +45,8 @@ export default function AdminAuditPage() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ entries: AuditEntry[]; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     adminApi.listKeys().then((res) => setKeys(res.data.keys)).catch(() => {});
@@ -51,6 +55,7 @@ export default function AdminAuditPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setFailed(false);
     adminApi.listAudit({
       adminKeyId: who || undefined,
       from: from ? istDayStart(from) : undefined,
@@ -59,10 +64,10 @@ export default function AdminAuditPage() {
       limit: PAGE_SIZE,
     })
       .then((res) => { if (!cancelled) setData({ entries: res.data.entries, total: res.data.total }); })
-      .catch(() => { if (!cancelled) toast.error('Could not load the audit log'); })
+      .catch(() => { if (!cancelled) setFailed(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [who, from, to, page, toast]);
+  }, [who, from, to, page, toast, retry]);
 
   const resetPage = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(1); };
 
@@ -70,7 +75,7 @@ export default function AdminAuditPage() {
     <div className="page-stack">
       <div className="flex flex-wrap items-end gap-2">
         <div>
-          <label htmlFor="audit-who" className="block text-[11px] font-medium text-slate-500">Admin</label>
+          <label htmlFor="audit-who" className="block text-[11px] font-medium text-muted">Admin</label>
           <select id="audit-who" value={who} onChange={(e) => resetPage(setWho)(e.target.value)} className={`${inputClass} mt-1`}>
             <option value="">Everyone</option>
             <option value="master">Master key</option>
@@ -78,51 +83,28 @@ export default function AdminAuditPage() {
           </select>
         </div>
         <div>
-          <label htmlFor="audit-from" className="block text-[11px] font-medium text-slate-500">From</label>
+          <label htmlFor="audit-from" className="block text-[11px] font-medium text-muted">From</label>
           <input id="audit-from" type="date" value={from} onChange={(e) => resetPage(setFrom)(e.target.value)} className={`${inputClass} mt-1`} />
         </div>
         <div>
-          <label htmlFor="audit-to" className="block text-[11px] font-medium text-slate-500">To</label>
+          <label htmlFor="audit-to" className="block text-[11px] font-medium text-muted">To</label>
           <input id="audit-to" type="date" value={to} onChange={(e) => resetPage(setTo)(e.target.value)} className={`${inputClass} mt-1`} />
         </div>
-        {loading && <Spinner className="mb-2.5 h-4 w-4 text-slate-400" />}
+        {loading && <Spinner className="mb-2.5 h-4 w-4 text-muted" />}
       </div>
 
       {data && data.entries.length === 0 && <EmptyState title="No audit entries for these filters" />}
 
-      {data && data.entries.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          <table className="w-full min-w-[820px] text-left text-[13px]">
-            <thead className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-400">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">When (IST)</th>
-                <th className="px-3 py-2.5 font-medium">Who</th>
-                <th className="px-3 py-2.5 font-medium">What</th>
-                <th className="px-3 py-2.5 font-medium">Target</th>
-                <th className="px-3 py-2.5 text-right font-medium">Result</th>
-                <th className="px-4 py-2.5 font-medium">IP</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {data.entries.map((e) => (
-                <tr key={e._id}>
-                  <td className="whitespace-nowrap px-4 py-2 text-[12px] tabular-nums text-slate-600">
-                    {new Date(e.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </td>
-                  <td className="px-3 py-2 text-slate-800">
-                    {e.adminName || (e.role === 'master' ? 'Master' : <span className="text-slate-400">Not signed in</span>)}
-                  </td>
-                  <td className="px-3 py-2 text-slate-700">{describe(e)}</td>
-                  <td className="px-3 py-2 font-mono text-[11px] text-slate-500">{e.targetSessionId || e.targetUserId || '—'}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums text-[12px] ${e.status >= 400 ? 'text-red-600' : 'text-slate-500'}`}>{e.status}</td>
-                  <td className="px-4 py-2 font-mono text-[11px] text-slate-500">{e.ip || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {data && <Pager page={page} limit={PAGE_SIZE} total={data.total} onPage={setPage} />}
+      {failed && <LoadError title={data ? 'Audit log could not refresh. Shown entries may be out of date.' : 'Could not load the audit log'} onRetry={() => setRetry(n => n + 1)} />}
+      {data && data.entries.length > 0 && <DataTable caption="Audit entries" minWidth={820} rows={data.entries} rowKey={e => e._id} columns={[
+        { id: 'when', header: 'When · IST', cell: e => <span className="whitespace-nowrap">{new Date(e.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span> },
+        { id: 'who', header: 'Admin', cell: e => <span className="font-medium text-ink">{e.adminName || (e.role === 'master' ? 'Master' : 'Not signed in')}</span> },
+        { id: 'what', header: 'Action', cell: e => describe(e) },
+        { id: 'target', header: 'Target', cell: e => <span className="font-mono text-xs text-muted">{e.targetSessionId || e.targetUserId || '—'}</span> },
+        { id: 'result', header: 'Result', align: 'right', cell: e => <span className={e.status >= 400 ? 'text-loss' : 'text-secondary'}>{e.status}</span> },
+        { id: 'ip', header: 'IP address', cell: e => <span className="font-mono text-xs">{e.ip || '—'}</span> },
+      ]} />}
+      {data && <Pager page={page} limit={PAGE_SIZE} total={data.total} onPage={setPage} disabled={loading} />}
     </div>
   );
 }

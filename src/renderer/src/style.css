@@ -1,9 +1,106 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("./assets/fonts/PlusJakartaSans-Variable.ttf") format("truetype");
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("./assets/fonts/SourceSerif4-Variable.ttf") format("truetype");
+  font-weight: 200 900;
+  font-display: swap;
+}
+
 @theme {
+  --font-serif: "Source Serif 4", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --spacing-page-x: 1.5rem;
-  --spacing-page-y: 1.25rem;
+  --spacing-page-x: clamp(1rem, 2.5vw, 2.5rem);
+  --spacing-page-y: 1.75rem;
+}
+
+@theme inline {
+  --color-canvas: var(--ui-canvas);
+  --color-surface: var(--ui-surface);
+  --color-subtle: var(--ui-subtle);
+  --color-line: var(--ui-line);
+  --color-ink: var(--ui-ink);
+  --color-secondary: var(--ui-secondary);
+  --color-muted: var(--ui-muted);
+  --color-gain: var(--ui-gain);
+  --color-gain-soft: var(--ui-gain-soft);
+  --color-loss: var(--ui-loss);
+  --color-loss-soft: var(--ui-loss-soft);
+  --color-attention: var(--ui-attention);
+  --color-attention-soft: var(--ui-attention-soft);
+  --color-problem: var(--ui-problem);
+  --color-primary: var(--ui-primary);
+  --color-on-primary: var(--ui-on-primary);
+  --color-brand: var(--ui-brand);
+  --color-info: var(--ui-info);
+  --color-info-soft: var(--ui-info-soft);
+  --color-gain-action: #2f6b4f;
+  --color-loss-action: #a23b2a;
+  --color-attention-action: #846522;
+  --color-overlay: var(--ui-overlay);
+}
+
+:root {
+  color-scheme: light;
+  --ui-canvas: #f6f4ef;
+  --ui-surface: #ffffff;
+  --ui-subtle: #faf8f3;
+  --ui-line: #e6e0d3;
+  --ui-ink: #1d1b16;
+  --ui-secondary: #5b5548;
+  --ui-muted: #736c5e;
+  --ui-gain: #2f6b4f;
+  --ui-gain-soft: #e3efe7;
+  --ui-loss: #a23b2a;
+  --ui-loss-soft: #f9e1dc;
+  --ui-attention: #846522;
+  --ui-attention-soft: #fbf6ea;
+  --ui-problem: #fdf3f1;
+  --ui-primary: #24271f;
+  --ui-on-primary: #ffffff;
+  --ui-brand: #2f6b4f;
+  --ui-info: #385c7b;
+  --ui-info-soft: #edf2f6;
+  --ui-overlay: #14130f66;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --ui-canvas: #14130f;
+  --ui-surface: #1c1a15;
+  --ui-subtle: #1f1d17;
+  --ui-line: #2c2921;
+  --ui-ink: #ece6d8;
+  --ui-secondary: #a69e8b;
+  --ui-muted: #a09885;
+  --ui-gain: #7fc29b;
+  --ui-gain-soft: #1f3326;
+  --ui-loss: #e58a78;
+  --ui-loss-soft: #4a2620;
+  --ui-attention: #d9b866;
+  --ui-attention-soft: #231f15;
+  --ui-problem: #2a1915;
+  --ui-primary: #353a30;
+  --ui-on-primary: #ffffff;
+  --ui-brand: #7fc29b;
+  --ui-info: #afc7dd;
+  --ui-info-soft: #202a32;
+  --ui-overlay: #00000099;
+}
+
+@layer base {
+  body { background: var(--ui-canvas); color: var(--ui-ink); }
+  :focus-visible { outline: 2px solid var(--ui-brand); outline-offset: 3px; }
+  button:not(:disabled), [role="switch"]:not(:disabled) { cursor: pointer; }
+  input, select, textarea { accent-color: var(--ui-brand); }
+  ::selection { background: var(--ui-gain-soft); color: var(--ui-ink); }
 }
 
 html {
@@ -27,28 +124,24 @@ h1, h2, h3, h4, h5, h6 {
 .page-stack {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
+@layer components {
 .docs-page {
-  --docs-ink: #0f172a;
-  --docs-quiet: #64748b;
-  --docs-line: rgba(15, 23, 42, 0.08);
+  --docs-ink: var(--ui-ink);
+  --docs-quiet: var(--ui-secondary);
+  --docs-line: var(--ui-line);
 }
 
 .docs-hero {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(16, 185, 129, 0.14);
-  border-radius: 1.25rem;
-  background:
-    radial-gradient(1200px 280px at 100% -40%, rgba(16, 185, 129, 0.12), transparent 55%),
-    radial-gradient(700px 220px at -10% 120%, rgba(15, 23, 42, 0.04), transparent 50%),
-    #fff;
+  border: 1px solid var(--ui-line);
+  border-radius: 0.75rem;
+  background: var(--ui-surface);
   padding: 1.5rem 1.5rem 0;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.8) inset,
-    0 18px 40px -28px rgba(15, 23, 42, 0.28);
+  box-shadow: none;
 }
 
 .docs-tape {
@@ -56,41 +149,39 @@ h1, h2, h3, h4, h5, h6 {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.55rem;
-  margin: 1.25rem -1.5rem 0;
+  margin: 0.75rem -1.5rem 0;
   padding: 0.7rem 1.5rem;
   border-top: 1px solid var(--docs-line);
-  background: rgba(248, 250, 252, 0.85);
+  background: var(--ui-subtle);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--ui-muted);
 }
 
 .docs-tape-dot {
   width: 4px;
   height: 4px;
   border-radius: 999px;
-  background: #34d399;
+  background: var(--ui-brand);
 }
 
 .docs-index {
   padding: 0.85rem 0.7rem 0.85rem 0.55rem;
-  border: 1px solid rgba(15, 23, 42, 0.07);
-  border-radius: 1.15rem;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 10px 30px -22px rgba(15, 23, 42, 0.35);
+  border: 1px solid var(--ui-line);
+  border-radius: 0.75rem;
+  background: var(--ui-surface);
+  box-shadow: none;
   backdrop-filter: blur(10px);
 }
 
 .docs-sheet {
-  border: 1px solid rgba(15, 23, 42, 0.07);
-  border-radius: 1.15rem;
-  background: #fff;
+  border: 1px solid var(--ui-line);
+  border-radius: 0.75rem;
+  background: var(--ui-surface);
   padding: 1.6rem 1.55rem 1.7rem;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.7) inset,
-    0 14px 32px -24px rgba(15, 23, 42, 0.28);
+  box-shadow: none;
 }
 
 .docs-sheet-title {
@@ -123,7 +214,7 @@ h1, h2, h3, h4, h5, h6 {
   gap: 1.35rem;
   font-size: 14px;
   line-height: 1.7;
-  color: rgb(71 85 105);
+  color: var(--ui-secondary);
 }
 
 .docs-body > p,
@@ -157,7 +248,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 5px;
   height: 5px;
   border-radius: 999px;
-  background: #10b981;
+  background: var(--ui-brand);
 }
 
 .docs-body ul ul {
@@ -165,20 +256,22 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .docs-body ul ul li::before {
-  background: #94a3b8;
+  background: var(--ui-muted);
 }
 
 .docs-body strong {
   font-weight: 600;
-  color: rgb(15 23 42);
+  color: var(--ui-ink);
 }
 
 .form-card {
   border-radius: 1rem;
-  border: 1px solid rgb(226 232 240);
-  background: white;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-surface);
   padding: 1.5rem;
-  box-shadow: 0 10px 30px -12px rgb(15 23 42 / 0.08);
+  box-shadow: none;
+}
+
 }
 
 @keyframes fade-in {
@@ -214,3 +307,14 @@ h1, h2, h3, h4, h5, h6 {
     scroll-behavior: auto !important;
   }
 }
+
+@layer base {
+  table { font-variant-numeric: tabular-nums; }
+  th { white-space: nowrap; }
+  thead { background: var(--ui-subtle); }
+  tr:focus-visible { outline-offset: -2px; }
+  input::placeholder, textarea::placeholder { color: var(--ui-muted); }
+}
+
+/* Native hidden panels must stay hidden even when a reusable layout sets display. */
+[hidden] { display: none !important; }

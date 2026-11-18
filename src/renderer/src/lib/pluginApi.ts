@@ -188,23 +188,81 @@ export interface MonthReturn {
   key: string;
   label: string;
   pnl: number | null;
+  /** v2 stats onward. */
+  returnPct?: number | null;
+  tradingDays?: number;
+  winDays?: number;
 }
 
-/** Performance metrics computed on the backend and refreshed daily at 4:30 PM IST. */
+export interface DailyPerformance {
+  date: string;
+  pnl: number;
+  cumulative: number;
+  /** ≤ 0: distance below the running peak of cumulative P&L. */
+  drawdown: number;
+  drawdownPct: number | null;
+  returnPct: number | null;
+  symbols: number;
+}
+
+export interface WeekdayPerformance {
+  label: string;
+  pnl: number;
+  avgPnl: number | null;
+  days: number;
+  winRate: number | null;
+}
+
+export interface SymbolPerformance {
+  symbol: string;
+  pnl: number;
+  days: number;
+  winRate: number | null;
+}
+
+/**
+ * Account performance computed by the gateway from the same daily P&L as the
+ * monthly result. Fields marked optional arrive with stats version 2.
+ */
 export interface PerformanceStats {
+  version?: number;
   maxProfitScript: NamedAmount | null;
   maxLosingScript: NamedAmount | null;
   maxProfitDay: NamedAmount | null;
   maxLosingDay: NamedAmount | null;
+  bestMonth?: NamedAmount | null;
+  worstMonth?: NamedAmount | null;
   avgWinRate: number | null;
+  symbolWinRate?: number | null;
   maxDrawdownPct: number | null;
+  maxDrawdownAmount?: number | null;
+  maxDrawdownDate?: string | null;
+  currentDrawdownAmount?: number | null;
   avgRiskReward: number | null;
   overallReturnPct: number | null;
   totalPnl: number;
   startCapital: number | null;
+  latestEquity?: number | null;
+  grossProfit?: number | null;
+  grossLoss?: number | null;
+  profitFactor?: number | null;
+  avgWinDay?: number | null;
+  avgLossDay?: number | null;
+  expectancy?: number | null;
+  recoveryFactor?: number | null;
+  sharpeRatio?: number | null;
+  sortinoRatio?: number | null;
   maxWinStreak: number;
   maxLoseStreak: number;
+  currentStreak?: { type: 'win' | 'loss'; length: number } | null;
+  winningDays?: number;
+  losingDays?: number;
+  sessions?: number;
+  symbolsTraded?: number;
   months: MonthReturn[];
+  weekdays?: WeekdayPerformance[];
+  symbols?: SymbolPerformance[];
+  daily?: DailyPerformance[];
   tradingDays: number;
   asOfDate: string;
 }

@@ -42,13 +42,13 @@ export default function PluginSidebar({
 
   if (collapsed) {
     return (
-      <aside className="flex h-full w-12 shrink-0 flex-col items-center gap-1.5 border-r border-slate-200/70 bg-white py-2.5">
+      <aside className="flex h-full w-12 shrink-0 flex-col items-center gap-1.5 border-r border-line/70 bg-surface py-2.5">
         <button
           type="button"
           onClick={onToggle}
           aria-label="Open sessions panel"
           title="Sessions"
-          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+          className="rounded-lg p-2 text-muted transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30"
         >
           <PanelLeft className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -57,7 +57,7 @@ export default function PluginSidebar({
           onClick={onNewSession}
           aria-label="New session"
           title="New session"
-          className="rounded-lg bg-slate-900 p-2 text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30"
+          className="rounded-lg bg-primary p-2 text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
         </button>
@@ -66,12 +66,12 @@ export default function PluginSidebar({
           onClick={onSavedStrategies}
           aria-label="Saved strategies"
           title="Saved strategies"
-          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+          className="rounded-lg p-2 text-muted transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30"
         >
           <Bookmark className="h-4 w-4" aria-hidden="true" />
         </button>
         {activeCount > 0 && (
-          <span className="mt-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white" title={`${activeCount} live`}>
+          <span className="mt-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-gain-action px-1 text-[11px] font-bold text-on-primary" title={`${activeCount} live`}>
             {activeCount}
           </span>
         )}
@@ -80,11 +80,11 @@ export default function PluginSidebar({
   }
 
   return (
-    <aside className="flex h-full min-h-0 w-[240px] shrink-0 flex-col border-r border-slate-200/70 bg-white">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-2.5">
+    <aside className="flex h-full min-h-0 w-[240px] shrink-0 flex-col border-r border-line/70 bg-surface">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-2.5">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-slate-900">Sessions</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+          <p className="text-[13px] font-semibold text-ink">Sessions</p>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted">
             {activeCount > 0 ? `${activeCount} live` : 'Idle'}
           </p>
         </div>
@@ -93,17 +93,17 @@ export default function PluginSidebar({
           onClick={onToggle}
           aria-label="Collapse sessions panel"
           title="Collapse"
-          className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+          className="rounded-md p-1.5 text-muted transition-colors hover:bg-subtle hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30"
         >
           <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
-      <div className="space-y-1.5 border-b border-slate-100 p-2.5">
+      <div className="space-y-1.5 border-b border-line p-2.5">
         <button
           type="button"
           onClick={onNewSession}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-[13px] font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
           New session
@@ -111,9 +111,9 @@ export default function PluginSidebar({
         <button
           type="button"
           onClick={onSavedStrategies}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-secondary transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30"
         >
-          <Bookmark className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+          <Bookmark className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
           Saved strategies
         </button>
       </div>
@@ -121,11 +121,11 @@ export default function PluginSidebar({
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-2.5 py-2.5">
         <section>
           <div className="mb-2 flex items-center gap-1.5 px-1">
-            <span className={`h-1.5 w-1.5 rounded-full ${liveSessions.length > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden="true" />
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Live</h3>
+            <span className={`h-1.5 w-1.5 rounded-full ${liveSessions.length > 0 ? 'bg-gain-action' : 'bg-line'}`} aria-hidden="true" />
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">Live</h3>
           </div>
           {liveSessions.length === 0 ? (
-            <p className="px-1 text-[12px] text-slate-400">No active sessions</p>
+            <p className="px-1 text-[12px] text-muted">No active sessions</p>
           ) : (
             <div className="space-y-0.5">
               {liveSessions.map(s => {
@@ -136,17 +136,17 @@ export default function PluginSidebar({
                     key={s._id}
                     type="button"
                     onClick={() => onSelectSession(s)}
-                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30 ${
                       isActive
-                        ? 'bg-emerald-50 text-emerald-800'
-                        : 'text-slate-600 hover:bg-slate-50'
+                        ? 'bg-gain-soft text-gain'
+                        : 'text-secondary hover:bg-subtle'
                     }`}
                   >
                     <span className="truncate text-[12px] font-medium">{formatDate(s.created_at)}</span>
-                    <span className={`ml-2 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                    <span className={`ml-2 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
                       simulating
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-emerald-100 text-emerald-700'
+                        ? 'bg-attention-soft text-attention'
+                        : 'bg-gain-soft text-gain'
                     }`}>
                       {simulating ? (simulationStatusLabel(s.simulation_status) || 'Sim') : 'Live'}
                     </span>
@@ -159,11 +159,11 @@ export default function PluginSidebar({
 
         <section>
           <div className="mb-2 flex items-center gap-1.5 px-1">
-            <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Scheduled Session</h3>
+            <Clock className="h-3 w-3 text-attention" aria-hidden="true" />
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">Scheduled Session</h3>
           </div>
           {scheduledSessions.length === 0 ? (
-            <p className="px-1 text-[12px] text-slate-400">No scheduled sessions</p>
+            <p className="px-1 text-[12px] text-muted">No scheduled sessions</p>
           ) : (
             <div className="space-y-0.5">
               {scheduledSessions.map(s => {
@@ -173,14 +173,14 @@ export default function PluginSidebar({
                     key={s._id}
                     type="button"
                     onClick={() => onSelectSession(s)}
-                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/30 ${
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-attention/30 ${
                       isActive
-                        ? 'bg-amber-50 text-amber-900'
-                        : 'text-slate-600 hover:bg-slate-50'
+                        ? 'bg-attention-soft text-attention'
+                        : 'text-secondary hover:bg-subtle'
                     }`}
                   >
                     <span className="truncate text-[12px] font-medium">{formatDate(s.created_at)}</span>
-                    <span className="ml-2 shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700">
+                    <span className="ml-2 shrink-0 rounded bg-attention-soft px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-attention">
                       Scheduled
                     </span>
                   </button>
@@ -192,27 +192,27 @@ export default function PluginSidebar({
 
         <section>
           <div className="mb-2 flex items-center gap-1.5 px-1">
-            <History className="h-3 w-3 text-slate-400" aria-hidden="true" />
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">History</h3>
+            <History className="h-3 w-3 text-muted" aria-hidden="true" />
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">History</h3>
           </div>
           {pastSessions.length === 0 ? (
-            <p className="px-1 text-[12px] text-slate-400">No previous sessions</p>
+            <p className="px-1 text-[12px] text-muted">No previous sessions</p>
           ) : (
             <div className="space-y-0.5">
               {pastSessions.map(s => (
                 <div
                   key={s._id}
                   className={`group flex items-center gap-1 rounded-lg px-1.5 py-1 ${
-                    activeSessionId === s.python_session_id ? 'bg-emerald-50' : 'hover:bg-slate-50'
+                    activeSessionId === s.python_session_id ? 'bg-gain-soft' : 'hover:bg-subtle'
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => onSelectSession(s)}
-                    className="min-w-0 flex-1 rounded-md px-1 py-1.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+                    className="min-w-0 flex-1 rounded-md px-1 py-1.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30"
                   >
-                    <span className="block truncate text-[12px] font-medium text-slate-600">{formatDate(s.created_at)}</span>
-                    <span className="text-[10px] text-slate-400">{sessionStatusLabel(s.status)}</span>
+                    <span className="block truncate text-[12px] font-medium text-secondary">{formatDate(s.created_at)}</span>
+                    <span className="text-[11px] text-muted">{sessionStatusLabel(s.status)}</span>
                   </button>
                   <button
                     type="button"
@@ -220,7 +220,7 @@ export default function PluginSidebar({
                     disabled={deletingId === s._id}
                     aria-label={`Delete session from ${formatDate(s.created_at)}`}
                     title="Delete"
-                    className="shrink-0 rounded-md p-1.5 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30 group-hover:opacity-100 disabled:opacity-50"
+                    className="shrink-0 rounded-md p-1.5 text-muted opacity-0 transition-all hover:bg-loss-soft hover:text-loss focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-loss/30 group-hover:opacity-100 disabled:opacity-50"
                   >
                     {deletingId === s._id
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />

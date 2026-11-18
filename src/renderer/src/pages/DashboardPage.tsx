@@ -1,48 +1,24 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
-import { IndianRupee, TrendingUp, Wallet, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { FileSpreadsheet, Loader2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import UserAvatar from '../components/ui/UserAvatar';
+import { Tabs } from '../components/ui/Tabs';
+import { LoadError } from '../components/ui/Feedback';
 import { useToast } from '../components/ui/Toast';
 import { pluginApi } from '../lib/pluginApi';
 import type { TradingSession, PerformanceStats } from '../lib/pluginApi';
-import { sessionStatusLabel, sessionStatusBadgeClass, isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
+import { isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
 import { downloadSessionCsv } from '../lib/downloadSessionCsv';
 import { pickCash, readRememberedBrokerCash, rememberBrokerCash } from '../lib/brokerCash';
-import PerformanceStatsGrid, { MonthReturnsGrid } from '../components/plugin/PerformanceStatsGrid';
+import { MonthComparison } from '../components/dashboard/MonthComparison';
 import { brokerFromProfile, brokerLabel } from '../components/plugin/ConnectBrokerForm';
+import { EquityHero } from '../components/dashboard/EquityHero';
+import { KpiStrip } from '../components/dashboard/KpiStrip';
+import { DailyPnlChart, MonthlyBars } from '../components/dashboard/PnlBars';
+import { PnlCalendar, SymbolLeaderboard, WeekdayBreakdown } from '../components/dashboard/Breakdowns';
+import { Records } from '../components/dashboard/Records';
+import { SessionsTable } from '../components/dashboard/SessionsTable';
 
 type Tab = 'overview' | 'sessions' | 'returns';
-
-const SESSION_PAGE_SIZE = 10;
-
-function sessionPageItems(current: number, total: number): Array<number | 'gap'> {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const wanted = new Set([1, total, current - 1, current, current + 1]);
-  const nums = [...wanted].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
-  const items: Array<number | 'gap'> = [];
-  for (let i = 0; i < nums.length; i++) {
-    if (i > 0 && nums[i] - nums[i - 1] > 1) items.push('gap');
-    items.push(nums[i]);
-  }
-  return items;
-}
-
-const currencyFormat = (v?: number | null) =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(v ?? 0);
-
-const fmtDate = (ds: string) => {
-  const d = new Date(ds);
-  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
-};
-
-function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
-  return (
-    <svg className={`${className} animate-spin`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  );
-}
 
 function greetingForNow() {
   const hour = Number(
@@ -60,36 +36,28 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('overview');
   const [sessions, setSessions] = useState<TradingSession[]>([]);
-  const [monthlyPnl, setMonthlyPnl] = useState<number>(0);
-  const [equity, setEquity] = useState<number>(0);
-  const [cash, setCash] = useState<number>(() => readRememberedBrokerCash() ?? 0);
+  const [monthlyPnl, setMonthlyPnl] = useState<number | null>(null);
+  const [equity, setEquity] = useState<number | null>(null);
+  const [cash, setCash] = useState<number | null>(() => readRememberedBrokerCash());
   const [loading, setLoading] = useState(true);
   const [figuresLoading, setFiguresLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [figuresError, setFiguresError] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
-  const [sessionPage, setSessionPage] = useState(1);
-
-  const activeCount = sessions.filter(s => s.status === 'trading_active').length;
+  const activeCount = sessions.filter(s => isLiveSessionStatus(s.status)).length;
   const readyCount = sessions.filter(s => isConfigurableSessionStatus(s.status)).length;
-  const sessionPageCount = Math.max(1, Math.ceil(sessions.length / SESSION_PAGE_SIZE));
-  const safeSessionPage = Math.min(sessionPage, sessionPageCount);
-  const sessionFrom = sessions.length === 0 ? 0 : (safeSessionPage - 1) * SESSION_PAGE_SIZE + 1;
-  const sessionTo = Math.min(safeSessionPage * SESSION_PAGE_SIZE, sessions.length);
-  const pageSessions = sessions.slice((safeSessionPage - 1) * SESSION_PAGE_SIZE, safeSessionPage * SESSION_PAGE_SIZE);
-
-  useEffect(() => {
-    setSessionPage((p) => Math.min(p, Math.max(1, Math.ceil(sessions.length / SESSION_PAGE_SIZE) || 1)));
-  }, [sessions.length]);
 
   const fetchData = useCallback((silent = false) => {
     if (!silent) {
       setLoading(true);
       setFiguresLoading(true);
       setLoadError(false);
+      setFiguresError(false);
     }
     pluginApi.getSessions()
       .then((sRes) => {
+        setLoadError(false);
         const list = sRes.data.sessions || [];
         setSessions(list);
         setRefreshedAt(new Date());
@@ -100,9 +68,10 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
         pluginApi.getPnlAggregate(new Date().getFullYear(), new Date().getMonth() + 1)
           .then(async (pnlRes) => {
             const pnl = pnlRes.data as Record<string, unknown>;
-            setMonthlyPnl(Number(pnl?.monthly_total ?? 0));
+            setMonthlyPnl(pnl?.monthly_total != null ? Number(pnl.monthly_total) : null);
+            setFiguresError(false);
             const current = pnl?.current as Record<string, unknown> | undefined;
-            setEquity(Number(current?.total_equity ?? 0));
+            setEquity(current?.total_equity != null ? Number(current.total_equity) : null);
 
             const remembered = readRememberedBrokerCash();
             const fromAggregate = pickCash(current, pnl);
@@ -130,19 +99,21 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
             // Connected/live: broker cash from the session. After stop: latest log snapshot.
             const resolved = sessionIsOpen
-              ? (fromSession ?? remembered ?? fromAggregate ?? 0)
-              : ((fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null) ?? fromSession ?? remembered ?? 0);
+              ? (fromSession ?? remembered ?? fromAggregate ?? null)
+              : ((fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null) ?? fromSession ?? remembered ?? null);
             setCash(resolved);
             const toRemember = fromSession ?? (fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null);
             if (toRemember != null) rememberBrokerCash(toRemember);
             setFiguresLoading(false);
           })
           .catch(() => {
+            setFiguresError(true);
             setFiguresLoading(false);
           });
       })
       .catch(() => {
-        if (!silent) setLoadError(true);
+        setLoadError(true);
+        setFiguresLoading(false);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -163,6 +134,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
   const [perfStats, setPerfStats] = useState<PerformanceStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState(false);
   const [statsGen, setStatsGen] = useState(0);
 
   useEffect(() => {
@@ -171,9 +143,9 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
     setStatsLoading(true);
     pluginApi.getPerformanceStats()
       .then((res) => {
-        if (!cancelled) setPerfStats(res.data.stats ?? null);
+        if (!cancelled) { setPerfStats(res.data.stats ?? null); setStatsError(false); }
       })
-      .catch(() => { /* keep previous stats */ })
+      .catch(() => { if (!cancelled) setStatsError(true); })
       .finally(() => {
         if (!cancelled) setStatsLoading(false);
       });
@@ -181,6 +153,28 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
     // statsGen forces a refetch when the window is opened / focused.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, statsGen]);
+
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { exportDashboardXlsx } = await import('../lib/xlsx');
+      const filename = await exportDashboardXlsx({
+        stats: perfStats,
+        sessions,
+        monthlyPnl,
+        equity,
+        cash,
+        accountName: user?.name,
+        broker: user?.broker ? brokerLabel(brokerFromProfile(user.broker)) : undefined,
+      });
+      toast.success(`Exported ${filename}`);
+    } catch {
+      toast.error('Could not create the Excel file. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleDownload = async (sessionId?: string, status?: string) => {
     if (!sessionId) return;
@@ -210,305 +204,79 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   const firstName = (user?.name || '').split(' ')[0] || 'there';
 
   return (
-    <div className="page-stack">
-      <div role="tablist" aria-label="Dashboard sections" className="inline-flex gap-0.5 rounded-lg bg-slate-200/60 p-0.5">
-        {TABS.map(t => (
+    <div className="page-stack @container">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-secondary">{greetingForNow()}, {firstName}</p>
+          <h2 className="mt-1 font-serif text-[2rem] leading-tight tracking-tight text-ink">Your account at a glance</h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
-              tab === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
+            type="button"
+            onClick={() => setTab('sessions')}
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${activeCount > 0 ? 'border-gain/30 bg-gain-soft text-gain hover:border-gain/60' : 'border-line bg-surface text-secondary hover:text-ink'}`}
           >
-            {t.label}
+            <span className="relative flex h-2 w-2" aria-hidden="true">
+              {activeCount > 0 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gain opacity-60" />}
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${activeCount > 0 ? 'bg-gain' : readyCount > 0 ? 'bg-attention' : 'bg-muted/50'}`} />
+            </span>
+            {loading ? 'Checking sessions…' : activeCount > 0 ? `${activeCount} live session${activeCount > 1 ? 's' : ''}` : readyCount > 0 ? `${readyCount} ready to trade` : 'No live session'}
           </button>
-        ))}
-      </div>
-
-      {tab === 'overview' && (
-        <div className="animate-fade-in page-stack">
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
-            <UserAvatar name={user?.name || 'U'} size="md" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-medium text-slate-400">{greetingForNow()}</p>
-              <h2 className="truncate text-[17px] font-semibold tracking-tight text-slate-900">{firstName}</h2>
-              <p className="truncate text-[13px] text-slate-500">{user?.email}</p>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1.5">
-              {user?.broker && (
-                <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                  {brokerLabel(brokerFromProfile(user.broker))}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => fetchData()}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
-              >
-                <RefreshCw className="h-3 w-3" aria-hidden="true" />
-                {refreshedAt
-                  ? `Updated ${refreshedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
-                  : 'Refresh'}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <MetricCard
-              label="Cash in broker"
-              value={currencyFormat(cash)}
-              loading={figuresLoading}
-              icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
-              accent="emerald"
-            />
-            <MetricCard
-              label="Equity"
-              value={currencyFormat(equity)}
-              loading={figuresLoading}
-              icon={<IndianRupee className="h-4 w-4" aria-hidden="true" />}
-            />
-            <MetricCard
-              label="This month"
-              value={currencyFormat(monthlyPnl)}
-              valueClass={monthlyPnl >= 0 ? 'text-emerald-600' : 'text-red-600'}
-              loading={figuresLoading}
-              icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
-            />
-          </div>
-
-          <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <span className={`h-2 w-2 rounded-full ${activeCount > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden="true" />
-              <p className="text-[13px] text-slate-600">
-                {loading ? 'Checking sessions…' : activeCount > 0
-                  ? <><span className="font-semibold text-slate-900">{activeCount} live</span> trading session{activeCount > 1 ? 's' : ''}</>
-                  : readyCount > 0
-                    ? <><span className="font-semibold text-slate-900">{readyCount} ready</span> — broker connected, not trading yet</>
-                    : 'No live sessions'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setTab('sessions')}
-              className="text-[12px] font-semibold text-emerald-700 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
-            >
-              View all
-            </button>
-          </div>
-
-          <PerformanceStatsGrid
-            stats={perfStats}
-            loading={statsLoading}
-            onOpenMonths={() => setTab('returns')}
-          />
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting || (!perfStats && sessions.length === 0)}
+            title="Download performance, monthly, symbol and session data as an Excel workbook"
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden="true" />}
+            {exporting ? 'Preparing…' : 'Export to Excel'}
+          </button>
+          {user?.broker && <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-secondary">{brokerLabel(brokerFromProfile(user.broker))}</span>}
+          <button type="button" onClick={() => { fetchData(); setStatsGen(n => n + 1); }} title="Refresh" className="inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-xs text-muted hover:bg-subtle hover:text-ink">
+            <RefreshCw className={`h-3.5 w-3.5 ${loading || statsLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {refreshedAt ? `Updated ${refreshedAt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}` : 'Refresh'}
+          </button>
         </div>
-      )}
+      </header>
+      <Tabs label="Dashboard sections" items={TABS} value={tab} onChange={setTab} />
+      {loadError && <LoadError message="Session history could not be refreshed. Previously loaded sessions may be out of date." onRetry={() => fetchData()} />}
+      {statsError && <LoadError message="Performance could not be refreshed. Any figures shown are from the previous update." onRetry={() => setStatsGen(n => n + 1)} />}
+      {figuresError && <LoadError message="Balances and monthly result could not be refreshed. Any figures shown are from the previous update." onRetry={() => fetchData()} />}
 
-      {tab === 'sessions' && (
-        <div className="animate-fade-in">
-          {loading ? (
-            <DashboardSkeleton />
-          ) : loadError ? (
-            <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-8 text-center shadow-sm">
-              <p className="text-sm font-semibold text-slate-900">Couldn't load trading data</p>
-              <p className="mt-1 text-sm text-slate-500">Check your connection and try again.</p>
-              <button type="button" onClick={() => fetchData()}
-                className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30">
-                Retry
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-                <div>
-                  <h3 className="text-[13px] font-semibold text-slate-900">Sessions</h3>
-                  <p className="mt-0.5 text-[11px] text-slate-400">
-                    {sessions.length === 0
-                      ? 'No sessions on this account yet'
-                      : onOpenSession
-                        ? `${sessions.length} on this account · tap a row to open it`
-                        : `${sessions.length} on this account`}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleDownload(sessions[0]?.python_session_id, sessions[0]?.status)}
-                  disabled={!sessions[0]?.python_session_id || !!downloadingId}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-50"
-                >
-                  {downloadingId === sessions[0]?.python_session_id ? <Spinner className="h-3 w-3" /> : null}
-                  Download latest
-                </button>
-              </div>
-              {sessions.length === 0 ? (
-                <div className="px-4 py-8 text-center">
-                  <p className="text-sm font-medium text-slate-500">No trading sessions yet</p>
-                  <p className="mt-1 text-xs text-slate-400">Start one from Launch Terminal to see it here.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                        <th scope="col" className="px-5 py-2.5">Session</th>
-                        <th scope="col" className="px-5 py-2.5">Date</th>
-                        <th scope="col" className="px-5 py-2.5">Status</th>
-                        <th scope="col" className="px-5 py-2.5 text-right">CSV</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pageSessions.map(s => (
-                        <tr
-                          key={s._id}
-                          onClick={() => onOpenSession?.(s)}
-                          onKeyDown={(e) => {
-                            if (!onOpenSession) return;
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              onOpenSession(s);
-                            }
-                          }}
-                          tabIndex={onOpenSession ? 0 : undefined}
-                          aria-label={onOpenSession ? `Open session ${fmtDate(s.created_at)}` : undefined}
-                          className={`border-t border-slate-50 transition-colors hover:bg-slate-50/80 ${
-                            onOpenSession ? 'cursor-pointer' : ''
-                          }`}
-                        >
-                          <td className="px-5 py-3 font-mono text-xs text-slate-600" title={s.python_session_id}>
-                            {s.python_session_id?.length > 18
-                              ? `${s.python_session_id.slice(0, 8)}…${s.python_session_id.slice(-6)}`
-                              : s.python_session_id}
-                          </td>
-                          <td className="px-5 py-3 text-[13px] text-slate-600">{fmtDate(s.created_at)}</td>
-                          <td className="px-5 py-3">
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${sessionStatusBadgeClass(s.status)}`}>
-                              {sessionStatusLabel(s.status)}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3 text-right">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownload(s.python_session_id, s.status);
-                              }}
-                              disabled={!s.python_session_id || downloadingId === s.python_session_id}
-                              aria-label={`Download tradebook for ${fmtDate(s.created_at)}`}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-40"
-                            >
-                              {downloadingId === s.python_session_id ? (
-                                <Spinner className="h-3.5 w-3.5" />
-                              ) : (
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                              )}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {sessions.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
-                  <p className="text-[12px] text-slate-500">
-                    {sessionFrom}–{sessionTo} of {sessions.length}
-                  </p>
-                  {sessionPageCount > 1 && (
-                    <nav aria-label="Session pages" className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setSessionPage((p) => Math.max(1, p - 1))}
-                        disabled={safeSessionPage <= 1}
-                        aria-label="Previous page"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-40"
-                      >
-                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                      {sessionPageItems(safeSessionPage, sessionPageCount).map((item, idx) =>
-                        item === 'gap' ? (
-                          <span key={`gap-${idx}`} className="px-1 text-[12px] text-slate-400">…</span>
-                        ) : (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => setSessionPage(item)}
-                            aria-label={`Page ${item}`}
-                            aria-current={item === safeSessionPage ? 'page' : undefined}
-                            className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[12px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
-                              item === safeSessionPage
-                                ? 'bg-slate-900 text-white'
-                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                            }`}
-                          >
-                            {item}
-                          </button>
-                        ),
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setSessionPage((p) => Math.min(sessionPageCount, p + 1))}
-                        disabled={safeSessionPage >= sessionPageCount}
-                        aria-label="Next page"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:opacity-40"
-                      >
-                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </nav>
-                  )}
-                </div>
-              )}
-            </div>
+      <div role="tabpanel" id="dashboard-sections-panel-overview" aria-labelledby="dashboard-sections-tab-overview" hidden={tab !== 'overview'} className="animate-fade-in flex flex-col gap-4">
+          {tab === 'overview' && <>
+          {perfStats && !perfStats.daily && perfStats.tradingDays > 0 && (
+            <p role="status" className="rounded-xl border border-info/30 bg-info-soft px-4 py-3 text-xs text-info">
+              Detailed charts are being prepared for your account. Your headline figures are current; the charts fill in on the next refresh.
+            </p>
           )}
-        </div>
-      )}
-
-      {tab === 'returns' && (
-        <div className="animate-fade-in">
-          <MonthReturnsGrid stats={perfStats} loading={statsLoading} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MetricCard({ label, value, valueClass, loading, icon, accent }: {
-  label: string;
-  value: string;
-  valueClass?: string;
-  loading?: boolean;
-  icon?: ReactNode;
-  accent?: 'emerald';
-}) {
-  return (
-    <div className={`rounded-2xl border bg-white px-4 py-4 shadow-sm ${
-      accent === 'emerald' ? 'border-emerald-100' : 'border-slate-200/80'
-    }`}>
-      <div className="flex items-center gap-2 text-slate-400">
-        {icon}
-        <p className="text-[11px] font-medium uppercase tracking-wider">{label}</p>
+          <EquityHero stats={perfStats} loading={statsLoading} monthlyPnl={monthlyPnl} cash={cash} equity={equity} figuresLoading={figuresLoading} />
+          <KpiStrip stats={perfStats} loading={statsLoading} />
+          <div className="grid gap-4 @min-[1000px]:grid-cols-2">
+            <DailyPnlChart stats={perfStats} loading={statsLoading} />
+            <MonthlyBars stats={perfStats} loading={statsLoading} onOpenMonths={() => setTab('returns')} />
+          </div>
+          <div className="grid items-start gap-4 @min-[1000px]:grid-cols-[1.2fr_1fr]">
+            <SymbolLeaderboard stats={perfStats} loading={statsLoading} />
+            <div className="flex flex-col gap-4">
+              <PnlCalendar stats={perfStats} />
+              <WeekdayBreakdown stats={perfStats} />
+            </div>
+          </div>
+          <Records stats={perfStats} />
+          <p className="text-center text-[11px] text-muted">
+            Performance uses live trades only and refreshes every few minutes{perfStats?.asOfDate ? ` · as of ${perfStats.asOfDate}` : ''}.
+          </p>
+          </>}
       </div>
-      {loading ? (
-        <div className="mt-2.5 h-7 w-28 animate-pulse rounded bg-slate-100" />
-      ) : (
-        <p className={`mt-1.5 text-xl font-semibold tracking-tight ${valueClass || 'text-slate-900'}`}>{value}</p>
-      )}
-    </div>
-  );
-}
 
-function DashboardSkeleton() {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white" aria-busy="true" aria-label="Loading">
-      <div className="border-b border-slate-100 px-4 py-3">
-        <div className="h-3.5 w-28 animate-pulse rounded bg-slate-100" />
+      <div role="tabpanel" id="dashboard-sections-panel-sessions" aria-labelledby="dashboard-sections-tab-sessions" hidden={tab !== 'sessions'} className="animate-fade-in">
+        <SessionsTable sessions={sessions} loading={loading} loadError={loadError} onRetry={() => fetchData()} onOpenSession={onOpenSession} downloadingId={downloadingId} onDownload={handleDownload} />
       </div>
-      <div className="space-y-2.5 p-4">
-        {[0, 1, 2].map(i => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-50" />)}
+
+      <div role="tabpanel" id="dashboard-sections-panel-returns" aria-labelledby="dashboard-sections-tab-returns" hidden={tab !== 'returns'} className="animate-fade-in">
+          {tab === 'returns' && <MonthComparison stats={perfStats} loading={statsLoading} />}
       </div>
     </div>
   );

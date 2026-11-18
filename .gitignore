@@ -10,3 +10,6 @@ Thumbs.db
 .env
 .env.local
 .playwright-mcp/
+
+# Local design exploration
+.superpowers/

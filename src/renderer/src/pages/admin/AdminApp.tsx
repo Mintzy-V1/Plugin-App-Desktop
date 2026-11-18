@@ -7,18 +7,32 @@ import AdminAccountsPage from './AdminAccountsPage';
 import AdminSessionPage from './AdminSessionPage';
 import AdminKeysPage from './AdminKeysPage';
 import AdminAuditPage from './AdminAuditPage';
+import SettingsPage from '../SettingsPage';
 
 const VIEW_META: Record<AdminNavItem, { title: string; subtitle: string }> = {
   live: { title: 'Live sessions', subtitle: 'Every account trading, simulating or scheduled right now' },
   accounts: { title: 'Accounts', subtitle: 'All Mintzy accounts and their sessions' },
   keys: { title: 'Admin keys', subtitle: 'Create and revoke per-admin keys' },
   audit: { title: 'Audit log', subtitle: 'Who viewed what, and when' },
+  settings: { title: 'Settings', subtitle: 'Appearance and desktop preferences' },
 };
+
+const SIDEBAR_KEY = 'mintzy.admin.sidebar.collapsed';
 
 /** Admin shell. Remounted per admin identity so state never carries across sign-ins. */
 export default function AdminApp() {
   const { admin } = useAdmin();
   const [view, setView] = useState<AdminNavItem>('live');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; }
+  });
+  const toggleSidebar = () => {
+    setSidebarCollapsed(previous => {
+      const next = !previous;
+      try { localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0'); } catch { /* Keep working if storage is unavailable. */ }
+      return next;
+    });
+  };
   const [userId, setUserId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -55,19 +69,21 @@ export default function AdminApp() {
     content = <AdminAccountsPage userId={userId} onOpenUser={setUserId} onBack={() => setUserId(null)} onOpenSession={setSessionId} />;
   } else if (activeView === 'keys') {
     content = <AdminKeysPage />;
+  } else if (activeView === 'settings') {
+    content = <SettingsPage showBilling={false} />;
   } else {
     content = <AdminAuditPage />;
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f7f8fa]">
-      <AdminSidebar active={activeView} onNavigate={navigate} />
+    <div className="flex h-screen overflow-hidden bg-canvas">
+      <AdminSidebar active={activeView} onNavigate={navigate} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Navbar
           title={sessionId ? 'Session' : meta.title}
-          subtitle={sessionId ? 'Read-only view of this session' : meta.subtitle}
+          subtitle={sessionId ? 'Session overview · actions require the account key' : meta.subtitle}
           trailing={
-            <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+            <span className="rounded-md bg-subtle px-2 py-1 text-[11px] font-medium text-secondary">
               Signed in as {admin.name}
             </span>
           }

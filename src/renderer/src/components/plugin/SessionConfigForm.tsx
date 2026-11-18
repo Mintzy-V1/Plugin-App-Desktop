@@ -159,19 +159,19 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
   return (
     <div className="mx-auto w-full max-w-lg">
       <button type="button" onClick={onBack} disabled={busy}
-        className="mb-3 flex items-center rounded-lg text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50">
+        className="mb-3 flex items-center rounded-lg text-sm text-muted transition-colors hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50">
         <ArrowLeft className="mr-1 h-4 w-4" aria-hidden="true" /> Back
       </button>
 
       <div className="form-card">
         <div className="mb-5 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-info-soft text-info">
             <Settings2 className="h-6 w-6" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Configure Session</h2>
-          <p className="mt-1 text-sm text-slate-500">Set your trading parameters</p>
+          <h2 className="font-serif text-3xl text-ink">Configure Session</h2>
+          <p className="mt-1 text-sm text-muted">Set your trading parameters</p>
           {freeCash != null && (
-            <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+            <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gain-soft px-3 py-1 text-xs font-semibold text-gain">
               Broker free cash:{' '}
               {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(freeCash)}
             </p>
@@ -180,7 +180,7 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="saved-strategy" className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <label htmlFor="saved-strategy" className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
               <Bookmark className="h-3 w-3" aria-hidden="true" />
               Saved strategy
             </label>
@@ -189,7 +189,7 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
               value={selectedSavedId}
               disabled={savedLoading || busy}
               onChange={e => applySaved(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 disabled:opacity-60"
+              className="w-full rounded-xl border border-line bg-subtle px-3 py-2.5 text-sm font-medium text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:opacity-60"
             >
               <option value="">
                 {savedLoading ? 'Loading strategies…' : savedConfigs.length === 0 ? 'No saved strategies' : 'Configure manually'}
@@ -205,7 +205,7 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
               })}
             </select>
             {!savedLoading && savedConfigs.length > 0 && (
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-muted">
                 Pick a saved strategy to fill the form, then start — or edit the fields below first.
               </p>
             )}
@@ -236,33 +236,34 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
           />
 
           {error && (
-            <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">{error}</div>
+            <div role="alert" className="rounded-xl border border-loss/25 bg-loss-soft px-4 py-3 text-center text-sm font-medium text-loss">{error}</div>
           )}
 
           {isBeforeSimulationStart() && (
-            <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-center text-xs text-amber-800">
+            <div className="rounded-xl border border-attention/25 bg-attention-soft px-4 py-3 text-center text-xs text-attention">
               Before 10:30 AM IST the engine is held. Start now and trading will auto-start at 10:30 AM.
             </div>
           )}
 
           {startPreview.symbols.length > 0 && (
-            <div className="rounded-xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
-              Starting <span className="font-semibold text-slate-700">{startPreview.symbols.length} symbol{startPreview.symbols.length > 1 ? 's' : ''}</span>
+            <div className="rounded-xl bg-subtle px-4 py-3 text-center text-xs text-muted">
+              Starting <span className="font-semibold text-secondary">{startPreview.symbols.length} symbol{startPreview.symbols.length > 1 ? 's' : ''}</span>
               {alphas && alphas.symbols.length > 0 ? (
                 <> ({validStocks.length} manual + {alphas.symbols.length} auto)</>
               ) : null}
               {' '}with a total allocation of{' '}
-              <span className="font-semibold text-slate-700">
+              <span className="font-semibold text-secondary">
                 {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalCapital)}
               </span>{' '}on the {config.candle} candle
               {showLeverage && appliedLeverage != null && leverageConfigId ? (
-                <> · leverage <span className="font-semibold text-slate-700">{appliedLeverage}×</span></>
+                <> · leverage <span className="font-semibold text-secondary">{appliedLeverage}×</span></>
               ) : null}
             </div>
           )}
 
+          <div className="sticky bottom-0 z-10 space-y-2 border-t border-line bg-surface pb-1 pt-4">
           <button type="submit" disabled={busy}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50">
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-on-primary shadow-lg shadow-overlay/10 transition-all hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Starting…</> : isBeforeSimulationStart() ? <>Schedule 10:30 AM start <ArrowRight className="h-5 w-5" aria-hidden="true" /></> : <>Start Trading <ArrowRight className="h-5 w-5" aria-hidden="true" /></>}
           </button>
 
@@ -270,11 +271,12 @@ export default function SessionConfigForm({ sessionId, freeCash, onSuccess, onAb
             type="button"
             disabled={busy}
             onClick={() => setConfirmAbandon(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-secondary transition-colors hover:border-loss/25 hover:bg-loss-soft hover:text-loss focus:outline-none focus-visible:ring-2 focus-visible:ring-loss/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <XCircle className="h-4 w-4" aria-hidden="true" />
             Abandon session
           </button>
+          </div>
         </form>
       </div>
 

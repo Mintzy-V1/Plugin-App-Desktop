@@ -1,3 +1,6 @@
+import { DataTable } from '../../components/ui/DataTable';
+import { Pagination } from '../../components/ui/Pagination';
+import { usePagination } from '../../lib/usePagination';
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, KeyRound, Plus } from 'lucide-react';
 import { adminApi, type AdminKey } from '../../lib/adminApi';
@@ -18,13 +21,13 @@ function NewKeyPanel({ name, keyValue, onDone }: { name: string; keyValue: strin
   };
 
   return (
-    <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50/60 px-5 py-4">
-      <p className="text-[13px] font-semibold text-emerald-900">Key created for {name}</p>
-      <p className="mt-0.5 text-[12px] text-emerald-800">
+    <div role="status" className="rounded-xl border border-gain/25 bg-gain-soft px-5 py-4">
+      <p className="text-[13px] font-semibold text-gain">Key created for {name}</p>
+      <p className="mt-0.5 text-[12px] text-gain">
         Copy it now and share it with {name} securely. It won't be shown again; if it's lost, revoke it and create a new one.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 select-all break-all rounded-lg border border-emerald-200 bg-white px-3 py-2 font-mono text-[12px] text-slate-900">
+        <code className="min-w-0 flex-1 select-all break-all rounded-lg border border-gain/25 bg-surface px-3 py-2 font-mono text-[12px] text-ink">
           {keyValue}
         </code>
         <button type="button" onClick={copy} className={secondaryButtonClass}>
@@ -44,6 +47,10 @@ export default function AdminKeysPage() {
   const [email, setEmail] = useState('');
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<{ name: string; key: string } | null>(null);
+  const [query, setQuery] = useState('');
+  const [keyStatus, setKeyStatus] = useState('');
+  const matchingKeys = (keys ?? []).filter(k => (!keyStatus || (keyStatus === 'active' ? !k.revokedAt : !!k.revokedAt)) && [k.name, k.email, k.keyPrefix].some(v => v?.toLowerCase().includes(query.trim().toLowerCase())));
+  const pagination = usePagination(matchingKeys, 25, `${query}:${keyStatus}`);
   const [pendingRevoke, setPendingRevoke] = useState<AdminKey | null>(null);
   const [revoking, setRevoking] = useState(false);
 
@@ -92,13 +99,13 @@ export default function AdminKeysPage() {
 
   return (
     <div className="page-stack">
-      <form onSubmit={create} className="flex flex-wrap items-end gap-2 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
+      <form onSubmit={create} className="flex flex-wrap items-end gap-2 rounded-xl border border-line/80 bg-surface px-5 py-4 shadow-sm">
         <div className="min-w-[180px] flex-1">
-          <label htmlFor="key-name" className="block text-[11px] font-medium text-slate-500">Team member</label>
+          <label htmlFor="key-name" className="block text-[11px] font-medium text-muted">Team member</label>
           <input id="key-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Name" className={`${inputClass} mt-1 w-full`} />
         </div>
         <div className="min-w-[200px] flex-1">
-          <label htmlFor="key-email" className="block text-[11px] font-medium text-slate-500">Email (optional)</label>
+          <label htmlFor="key-email" className="block text-[11px] font-medium text-muted">Email (optional)</label>
           <input id="key-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className={`${inputClass} mt-1 w-full`} />
         </div>
         <button type="submit" disabled={creating} className={primaryButtonClass}>
@@ -108,54 +115,25 @@ export default function AdminKeysPage() {
 
       {created && <NewKeyPanel name={created.name} keyValue={created.key} onDone={() => setCreated(null)} />}
 
-      {!keys && !loadFailed && <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400"><Spinner /> Loading keys…</div>}
+      {!keys && !loadFailed && <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted"><Spinner /> Loading keys…</div>}
       {!keys && loadFailed && <LoadError title="Could not load admin keys" onRetry={load} />}
+      {keys && loadFailed && <LoadError title="Keys could not refresh. Shown access details may be out of date." onRetry={load} />}
       {keys && keys.length === 0 && <EmptyState title="No admin keys yet" body="Create one for each team member who needs admin access." />}
 
-      {keys && keys.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          <table className="w-full min-w-[720px] text-left text-[13px]">
-            <thead className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-slate-400">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Team member</th>
-                <th className="px-3 py-2.5 font-medium">Key</th>
-                <th className="px-3 py-2.5 font-medium">Created</th>
-                <th className="px-3 py-2.5 font-medium">Last used</th>
-                <th className="px-4 py-2.5 text-right font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {keys.map((k) => (
-                <tr key={k._id} className={k.revokedAt ? 'text-slate-400' : ''}>
-                  <td className="px-4 py-2.5">
-                    <p className={`font-semibold ${k.revokedAt ? 'text-slate-500' : 'text-slate-900'}`}>{k.name}</p>
-                    {k.email && <p className="text-[11px] text-slate-500">{k.email}</p>}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className="flex items-center gap-1.5 font-mono text-[12px] text-slate-600">
-                      <KeyRound className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" /> mzadm_{k.keyPrefix}_…
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 text-[12px] text-slate-600">{formatDateTime(k.createdAt)}</td>
-                  <td className="px-3 py-2.5 text-[12px] text-slate-600">
-                    {k.lastUsedAt ? `${formatDateTime(k.lastUsedAt)}${k.lastUsedIp ? ` · ${k.lastUsedIp}` : ''}` : 'Never'}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    {k.revokedAt ? (
-                      <span className="text-[12px]">Revoked {formatDateTime(k.revokedAt)}</span>
-                    ) : (
-                      <button type="button" onClick={() => setPendingRevoke(k)}
-                        className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30">
-                        Revoke
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {keys && keys.length > 0 && <>
+        <div className="flex flex-wrap gap-3 rounded-xl border border-line bg-surface p-4">
+          <input type="search" aria-label="Search admin keys" placeholder="Search team member or key prefix…" value={query} onChange={e => setQuery(e.target.value)} className={`${inputClass} min-w-48 flex-1`} />
+          <select aria-label="Filter key status" value={keyStatus} onChange={e => setKeyStatus(e.target.value)} className={inputClass}><option value="">All keys</option><option value="active">Active</option><option value="revoked">Revoked</option></select>
+          {(query || keyStatus) && <button type="button" onClick={() => {setQuery('');setKeyStatus('');}} className="text-xs text-gain">Clear filters</button>}
         </div>
-      )}
+        <div><DataTable caption="Admin keys" rows={pagination.rows} rowKey={k => k._id} minWidth={760} emptyTitle="No keys match these filters" columns={[
+          { id: 'member', header: 'Team member', cell: k => <div><p className={`font-semibold ${k.revokedAt ? 'text-muted' : 'text-ink'}`}>{k.name}</p>{k.email && <p className="mt-1 text-xs text-muted">{k.email}</p>}</div> },
+          { id: 'key', header: 'Key prefix', cell: k => <span className="flex items-center gap-2 font-mono text-xs"><KeyRound className="h-3.5 w-3.5" />mzadm_{k.keyPrefix}_…</span> },
+          { id: 'created', header: 'Created', cell: k => formatDateTime(k.createdAt) },
+          { id: 'used', header: 'Last used', cell: k => <div>{formatDateTime(k.lastUsedAt)}{k.lastUsedIp && <p className="mt-1 text-xs text-muted">{k.lastUsedIp}</p>}</div> },
+          { id: 'status', header: 'Access', align: 'right', cell: k => k.revokedAt ? <span className="text-xs text-muted">Revoked {formatDateTime(k.revokedAt)}</span> : <button type="button" onClick={() => setPendingRevoke(k)} className="rounded-lg border border-loss/25 px-3 py-1.5 text-xs font-semibold text-loss hover:bg-loss-soft">Revoke</button> },
+        ]} /><Pagination {...pagination} label="Keys" /></div>
+      </>}
 
       <ConfirmDialog
         open={!!pendingRevoke}

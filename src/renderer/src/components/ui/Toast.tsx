@@ -18,9 +18,9 @@ interface ToastApi {
 const ToastContext = createContext<ToastApi | undefined>(undefined);
 
 const KIND_STYLES: Record<ToastKind, { icon: typeof Info; iconClass: string }> = {
-  success: { icon: CheckCircle2, iconClass: 'text-emerald-500' },
-  error: { icon: AlertCircle, iconClass: 'text-red-500' },
-  info: { icon: Info, iconClass: 'text-blue-500' },
+  success: { icon: CheckCircle2, iconClass: 'text-brand' },
+  error: { icon: AlertCircle, iconClass: 'text-loss' },
+  info: { icon: Info, iconClass: 'text-brand' },
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -51,11 +51,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           const { icon: Icon, iconClass } = KIND_STYLES[t.kind];
           return (
             <div key={t.id} role="status"
-              className="animate-toast-in pointer-events-auto flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg shadow-slate-900/10">
+              className="animate-toast-in pointer-events-auto flex items-start gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-lg shadow-ink">
               <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClass}`} />
-              <p className="min-w-0 flex-1 text-sm font-medium text-slate-700">{t.message}</p>
+              <p className="min-w-0 flex-1 text-sm font-medium text-secondary">{t.message}</p>
               <button onClick={() => dismiss(t.id)} aria-label="Dismiss notification"
-                className="shrink-0 rounded-md p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+                className="shrink-0 rounded-md p-0.5 text-muted transition-colors hover:bg-subtle hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>

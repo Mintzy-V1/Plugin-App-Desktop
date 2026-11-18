@@ -13,18 +13,18 @@ export type ActionTone =
   | 'neutral';
 
 const TONE_CLASS: Record<ActionTone, string> = {
-  buy: 'bg-emerald-50 text-emerald-800 ring-emerald-100',
-  sell: 'bg-rose-50 text-rose-800 ring-rose-100',
-  sent: 'bg-sky-50 text-sky-800 ring-sky-100',
-  wait: 'bg-slate-100 text-slate-600 ring-slate-200/80',
-  'hold-long': 'bg-amber-50 text-amber-800 ring-amber-100',
-  'hold-short': 'bg-violet-50 text-violet-800 ring-violet-100',
-  hold: 'bg-amber-50 text-amber-800 ring-amber-100',
-  filled: 'bg-emerald-50 text-emerald-800 ring-emerald-100',
-  close: 'bg-slate-800 text-white ring-slate-800',
-  exit: 'bg-indigo-50 text-indigo-800 ring-indigo-100',
-  locked: 'bg-amber-100 text-amber-900 ring-amber-300',
-  neutral: 'bg-slate-100 text-slate-600 ring-slate-200/80',
+  buy: 'bg-gain-soft text-gain ring-gain/25',
+  sell: 'bg-loss-soft text-loss ring-loss/25',
+  sent: 'bg-info-soft text-info ring-brand/25',
+  wait: 'bg-subtle text-secondary ring-brand/80',
+  'hold-long': 'bg-attention-soft text-attention ring-attention/25',
+  'hold-short': 'bg-info-soft text-info ring-brand/25',
+  hold: 'bg-attention-soft text-attention ring-attention/25',
+  filled: 'bg-gain-soft text-gain ring-gain/25',
+  close: 'bg-primary text-on-primary ring-brand',
+  exit: 'bg-info-soft text-info ring-brand/25',
+  locked: 'bg-attention-soft text-attention ring-attention/25',
+  neutral: 'bg-subtle text-secondary ring-brand/80',
 };
 
 function normalizeKey(raw: string): string {

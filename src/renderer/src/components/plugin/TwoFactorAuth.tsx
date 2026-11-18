@@ -52,17 +52,17 @@ export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
   return (
     <div className="mx-auto w-full max-w-md">
       <button type="button" onClick={onBack}
-        className="mb-3 flex items-center rounded-lg text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30">
+        className="mb-3 flex items-center rounded-lg text-sm text-muted transition-colors hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30">
         <ArrowLeft className="mr-1 h-4 w-4" aria-hidden="true" /> Back
       </button>
 
       <div className="form-card">
         <div className="mb-5 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-attention-soft text-attention">
             <Shield className="h-6 w-6" aria-hidden="true" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Two-Factor Auth</h2>
-          <p className="mt-1 text-sm text-slate-500">Enter the 6-digit TOTP from your broker authenticator</p>
+          <h2 className="font-serif text-3xl text-ink">Two-Factor Auth</h2>
+          <p className="mt-1 text-sm text-muted">Enter the 6-digit TOTP from your broker authenticator</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -71,16 +71,16 @@ export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
             <input id="totp-code" type="text" inputMode="numeric" maxLength={6} placeholder="000000" value={totp}
               autoComplete="one-time-code" autoFocus disabled={loading}
               onChange={e => { setTotp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError(null); }}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-2xl font-bold tracking-[0.3em] text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15" />
-            <p className="mt-2 text-center text-[11px] text-slate-400">Codes expire every 30 seconds — use a fresh one</p>
+              className="w-full rounded-xl border border-line bg-subtle px-4 py-3 text-center text-2xl font-bold tracking-[0.3em] text-ink outline-none transition focus:border-gain focus:ring-2 focus:ring-gain/15" />
+            <p className="mt-2 text-center text-[11px] text-muted">Codes expire every 30 seconds — use a fresh one</p>
           </div>
 
           {error && (
-            <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">{error}</div>
+            <div role="alert" className="rounded-xl border border-loss/25 bg-loss-soft px-4 py-3 text-center text-sm font-medium text-loss">{error}</div>
           )}
 
           <button type="submit" disabled={loading || totp.length !== 6}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-50">
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-on-primary transition-all hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Verifying…</> : <>Verify <ArrowRight className="h-5 w-5" aria-hidden="true" /></>}
           </button>
         </form>

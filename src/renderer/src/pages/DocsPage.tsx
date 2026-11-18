@@ -66,24 +66,24 @@ export default function DocsPage() {
       <header className="docs-hero">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 max-w-2xl">
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gain">
               <BookOpen className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
               Desk guide
             </p>
-            <h1 className="mt-2.5 text-[28px] font-bold leading-[1.15] tracking-tight text-slate-900 sm:text-[32px]">
+            <h1 className="mt-2.5 font-serif text-[28px] leading-[1.15] tracking-tight text-ink sm:text-[32px]">
               {name}
             </h1>
-            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-slate-500">
+            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
               {linked
                 ? `The working manual for this terminal — connect, start, read logs, and stop without guesswork. Jump from the index; the chapter you are in stays marked as you scroll.`
                 : 'Sign in with a Mintzy API key that has a broker linked to see the matching connect steps.'}
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
-            <span className="inline-flex items-center rounded-full border border-emerald-200/80 bg-white/80 px-3 py-1 text-[12px] font-semibold text-emerald-800 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+            <span className="inline-flex items-center rounded-full border border-gain/25 bg-surface/80 px-3 py-1 text-[12px] font-semibold text-gain shadow-[0_1px_0_rgba(15,23,42,0.04)]">
               {name}
             </span>
-            <p className="text-[11px] font-medium tabular-nums text-slate-400">
+            <p className="text-[11px] font-medium tabular-nums text-muted">
               {sections.length} chapters
             </p>
           </div>
@@ -104,11 +104,11 @@ export default function DocsPage() {
           aria-label="Guide index"
           className="docs-index sticky top-0 hidden h-fit max-h-[calc(100vh-6rem)] w-[15.25rem] shrink-0 overflow-y-auto md:block"
         >
-          <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">On this page</p>
+          <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">On this page</p>
           <div className="relative mt-3">
-            <span className="pointer-events-none absolute left-[9px] top-2 bottom-2 w-px bg-slate-200/90" aria-hidden="true" />
+            <span className="pointer-events-none absolute left-[9px] top-2 bottom-2 w-px bg-line" aria-hidden="true" />
             <span
-              className="pointer-events-none absolute left-[9px] top-2 w-px bg-emerald-500 transition-[height] duration-300 ease-out"
+              className="pointer-events-none absolute left-[9px] top-2 w-px bg-gain-action transition-[height] duration-300 ease-out"
               style={{ height: `calc(${spinePct}% - 0.5rem)` }}
               aria-hidden="true"
             />
@@ -121,21 +121,21 @@ export default function DocsPage() {
                       href={`#${s.id}`}
                       aria-current={isActive ? 'location' : undefined}
                       onClick={jumpTo(s.id)}
-                      className={`group relative flex items-start gap-2.5 rounded-xl py-1.5 pr-2.5 pl-0 text-[12.5px] leading-snug transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 ${
+                      className={`group relative flex items-start gap-2.5 rounded-xl py-1.5 pr-2.5 pl-0 text-[12.5px] leading-snug transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30 ${
                         isActive
-                          ? 'font-semibold text-emerald-900'
-                          : 'font-medium text-slate-500 hover:text-slate-900'
+                          ? 'font-semibold text-gain'
+                          : 'font-medium text-muted hover:text-ink'
                       }`}
                     >
                       <span
-                        className={`relative z-[1] mt-[5px] ml-[5px] h-[9px] w-[9px] shrink-0 rounded-full border-2 bg-white transition-colors ${
+                        className={`relative z-[1] mt-[5px] ml-[5px] h-[9px] w-[9px] shrink-0 rounded-full border-2 bg-surface transition-colors ${
                           isActive
-                            ? 'border-emerald-600 bg-emerald-600 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]'
-                            : 'border-slate-300 group-hover:border-slate-400'
+                            ? 'border-gain bg-gain-action shadow-[0_0_0_3px_rgba(16,185,129,0.18)]'
+                            : 'border-line group-hover:border-line'
                         }`}
                         aria-hidden="true"
                       />
-                      <span className={`min-w-0 rounded-lg px-2 py-1 ${isActive ? 'bg-emerald-50' : 'group-hover:bg-slate-100/80'}`}>
+                      <span className={`min-w-0 rounded-lg px-2 py-1 ${isActive ? 'bg-gain-soft' : 'group-hover:bg-subtle'}`}>
                         <span className="sr-only">Chapter {i + 1}. </span>
                         {s.title}
                       </span>
@@ -159,8 +159,8 @@ export default function DocsPage() {
                   onClick={jumpTo(s.id)}
                   className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
                     isActive
-                      ? 'bg-emerald-700 text-white'
-                      : 'border border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800'
+                      ? 'bg-gain-action text-on-primary'
+                      : 'border border-line bg-surface text-secondary hover:border-gain/25 hover:bg-gain-soft hover:text-gain'
                   }`}
                 >
                   {s.title}

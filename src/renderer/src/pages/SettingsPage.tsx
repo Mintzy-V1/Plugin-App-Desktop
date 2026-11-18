@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Loader2, RefreshCw, Download } from 'lucide-react';
+import { PageHeader } from '../components/ui/PageHeader';
+import { Section } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { Toggle } from '../components/ui/Field';
+import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
 
 interface UpdateCheckResult {
@@ -26,7 +31,7 @@ interface MintzyBridge {
 
 const bridge = (window as unknown as { mintzy?: MintzyBridge }).mintzy;
 
-export default function SettingsPage() {
+export default function SettingsPage({ showBilling = true }: { showBilling?: boolean }) {
   const toast = useToast();
   const [autoLaunch, setAutoLaunch] = useState<boolean | null>(null);
   const [minimizeToTray, setMinimizeToTray] = useState<boolean | null>(null);
@@ -131,89 +136,36 @@ export default function SettingsPage() {
 
   return (
     <div className="page-stack">
-      {desktopUnavailable && (
-        <div className="rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
-          Desktop settings are only available in the installed app.
+      <PageHeader title="Workspace preferences" subtitle="Appearance, desktop preferences and app updates." />
+      <Section title="Appearance" description="Choose a theme, or follow your operating system.">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
+          <p className="text-sm text-secondary">Color theme</p><ThemeToggle />
         </div>
-      )}
-
-      <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white divide-y divide-slate-100">
-        <SettingRow
-          label="Auto-launch on startup"
-          description="Open Mintzy when you log into Windows"
-          checked={autoLaunch}
-          disabled={desktopUnavailable}
-          onToggle={toggleAutoLaunch}
-        />
-        <SettingRow
-          label="Minimize to tray"
-          description="Close (X) hides Mintzy in the system tray. Open it again from the tray icon, or turn this off so X fully quits the app."
-          checked={minimizeToTray}
-          disabled={desktopUnavailable}
-          onToggle={toggleMinimizeToTray}
-        />
-        <SettingRow
-          label="Desktop notifications"
-          description="Show system alerts for updates and important events"
-          checked={notifications}
-          disabled={desktopUnavailable}
-          onToggle={toggleNotifications}
-        />
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white divide-y divide-slate-100">
-        <div className="flex items-center justify-between gap-4 px-4 py-3.5">
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-slate-900">App updates</p>
-            <p className="mt-0.5 text-[12px] text-slate-500">
-              Check for a newer version if you missed a notification
-            </p>
-            {updateNote && (
-              <p className="mt-1.5 text-[12px] text-slate-600">{updateNote}</p>
-            )}
+      </Section>
+      {desktopUnavailable && <p className="rounded-lg bg-attention-soft px-4 py-3 text-sm text-attention">Desktop settings are only available in the installed app.</p>}
+      <Section title="Desktop preferences" description="Control how Mintzy works on your computer.">
+        <div className="divide-y divide-line">
+          <SettingRow label="Auto-launch on startup" description="Open Mintzy when you log into Windows" checked={autoLaunch} disabled={desktopUnavailable} onToggle={toggleAutoLaunch} />
+          <SettingRow label="Minimize to tray" description="Closing the window keeps Mintzy in the tray. Turn this off to quit the app when closing." checked={minimizeToTray} disabled={desktopUnavailable} onToggle={toggleMinimizeToTray} />
+          <SettingRow label="Desktop notifications" description="Show system alerts for updates and important events" checked={notifications} disabled={desktopUnavailable} onToggle={toggleNotifications} />
+        </div>
+      </Section>
+      <Section title="App updates" description="Keep your workspace up to date.">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
+          <div><p className="text-sm text-ink">Mintzy Plugin Desktop{version ? ` · v${version}` : ''}</p>
+            {updateNote && <p role="status" className="mt-2 text-xs text-secondary">{updateNote}</p>}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {updateReady && (
-              <button
-                type="button"
-                onClick={installUpdate}
-                disabled={installing}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {installing
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
-                {installing ? 'Installing…' : 'Install now'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={checkForUpdates}
-              disabled={!bridge?.app?.checkForUpdates || checkingUpdate}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {checkingUpdate
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
-              {checkingUpdate ? 'Checking…' : 'Check for updates'}
-            </button>
+          <div className="flex gap-2">
+            {updateReady && <Button onClick={installUpdate} disabled={installing} size="sm">
+              {installing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}{installing ? 'Installing…' : 'Install now'}
+            </Button>}
+            <Button variant="secondary" size="sm" onClick={checkForUpdates} disabled={!bridge?.app?.checkForUpdates || checkingUpdate}>
+              <RefreshCw className={`h-3.5 w-3.5 ${checkingUpdate ? 'animate-spin' : ''}`} />{checkingUpdate ? 'Checking…' : 'Check for updates'}
+            </Button>
           </div>
         </div>
-      </div>
-
-      <div className="rounded-xl border border-slate-200/80 bg-white px-4 py-3.5">
-        <p className="text-[13px] font-semibold text-slate-900">About</p>
-        <div className="mt-2 space-y-1 text-[12px] text-slate-500">
-          <p>Mintzy Plugin Desktop{version ? ` · v${version}` : ''}</p>
-          <p>
-            Manage billing on{' '}
-            <a href="https://mintzy.in" target="_blank" rel="noreferrer"
-              className="font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-800">
-              mintzy.in
-            </a>.
-          </p>
-        </div>
-      </div>
+      </Section>
+      {showBilling && <p className="px-1 text-xs text-muted">Manage billing on <a href="https://mintzy.in" target="_blank" rel="noreferrer" className="font-medium text-gain underline underline-offset-4">mintzy.in</a>.</p>}
     </div>
   );
 }
@@ -225,23 +177,8 @@ function SettingRow({ label, description, checked, disabled, onToggle }: {
   disabled?: boolean;
   onToggle: () => void;
 }) {
-  const isOn = checked === true;
-  const isLoading = checked === null;
-  return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3.5">
-      <div>
-        <p className="text-[13px] font-semibold text-slate-900">{label}</p>
-        <p className="mt-0.5 text-[12px] text-slate-500">{description}</p>
-      </div>
-      <button type="button" role="switch" aria-checked={isOn} aria-label={label}
-        disabled={disabled || isLoading} onClick={onToggle}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50 ${
-          isOn ? 'bg-emerald-600' : 'bg-slate-200'
-        }`}>
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm ring-1 ring-slate-200/50 transition-transform ${
-          isOn ? 'translate-x-[22px]' : 'translate-x-0.5'
-        }`} style={{ left: 0 }} />
-      </button>
-    </div>
-  );
+  return <div className="flex items-center justify-between gap-6 px-6 py-5">
+    <div><p className="text-sm font-medium text-ink">{label}</p><p className="mt-1 max-w-xl text-xs leading-relaxed text-secondary">{description}</p></div>
+    <Toggle label={label} checked={checked === true} disabled={disabled || checked === null} onChange={onToggle} />
+  </div>;
 }

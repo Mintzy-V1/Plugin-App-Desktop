@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('mintzy', {
     installUpdate: () => ipcRenderer.invoke('app:install-update'),
   },
   system: {
+    getTheme: () => ipcRenderer.invoke('system:get-theme'),
+    setTheme: (theme) => ipcRenderer.invoke('system:set-theme', theme),
     getAutoLaunch: () => ipcRenderer.invoke('system:get-auto-launch'),
     setAutoLaunch: (enable) => ipcRenderer.invoke('system:set-auto-launch', enable),
     getMinimizeToTray: () => ipcRenderer.invoke('system:get-minimize-to-tray'),

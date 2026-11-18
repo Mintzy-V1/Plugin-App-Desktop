@@ -10,6 +10,8 @@ interface ImportMeta {
 
 interface MintzyDesktopApi {
   system?: {
+    getTheme?: () => Promise<'system' | 'light' | 'dark'>;
+    setTheme?: (theme: 'system' | 'light' | 'dark') => Promise<{ success: boolean }>;
     showNotification?: (title: string, body: string) => void;
   };
   auth?: {

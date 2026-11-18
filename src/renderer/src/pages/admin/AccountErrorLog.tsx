@@ -69,26 +69,26 @@ export default function AccountErrorLog({ userId, onOpenSession }: { userId: str
         <button type="button" onClick={() => setTick((n) => n + 1)} className={secondaryButtonClass}>
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Refresh
         </button>
-        {loading && <Spinner className="h-4 w-4 text-slate-400" />}
-        <span className="ml-auto text-[12px] text-slate-500">Last 7 days · {total} event{total === 1 ? '' : 's'}</span>
+        {loading && <Spinner className="h-4 w-4 text-muted" />}
+        <span className="ml-auto text-[12px] text-muted">Last 7 days · {total} event{total === 1 ? '' : 's'}</span>
       </div>
 
       {failed && <LoadError title="Could not load this account's error log" onRetry={() => setTick((n) => n + 1)} />}
       {!failed && events && events.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center">
-          <p className="text-sm font-semibold text-slate-700">No errors in the last 7 days</p>
+        <div className="rounded-xl border border-dashed border-line bg-surface px-6 py-12 text-center">
+          <p className="text-sm font-semibold text-secondary">No errors in the last 7 days</p>
         </div>
       )}
 
       {groups.map((g) => (
         <section key={g.day} className="space-y-2">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{g.day}</h3>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">{g.day}</h3>
           {g.sessions.map((s) => (
             <div key={s.sessionId} className="space-y-1.5">
               <button
                 type="button"
                 onClick={() => s.sessionId !== 'unknown' && onOpenSession(s.sessionId)}
-                className="font-mono text-[11px] text-slate-500 hover:text-slate-900 hover:underline"
+                className="font-mono text-[11px] text-muted hover:text-ink hover:underline"
                 title="Open this session"
               >
                 Session {s.sessionId}
@@ -99,7 +99,7 @@ export default function AccountErrorLog({ userId, onOpenSession }: { userId: str
         </section>
       ))}
 
-      {total > PAGE_SIZE && <Pager page={page} limit={PAGE_SIZE} total={total} onPage={setPage} />}
+      {total > PAGE_SIZE && <Pager page={page} limit={PAGE_SIZE} total={total} onPage={setPage} disabled={loading} />}
     </div>
   );
 }
