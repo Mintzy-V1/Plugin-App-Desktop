@@ -67,29 +67,29 @@ export default function LeverageMultiplierControl({
 
   return (
     <div
-      className={`rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white ${
+      className={`rounded-xl border border-line bg-gradient-to-br from-subtle to-surface ${
         compact ? 'px-3 py-2.5' : 'px-4 py-3'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <label htmlFor={`${uid}-leverage`} className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <label htmlFor={`${uid}-leverage`} className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
             <Gauge className="h-3 w-3" aria-hidden="true" />
             Leverage
           </label>
-          <p className={`mt-0.5 text-xs text-slate-500 ${compact ? 'line-clamp-1' : ''}`}>
+          <p className={`mt-0.5 text-xs text-muted ${compact ? 'line-clamp-1' : ''}`}>
             Scale position size {MIN}×–{MAX}× for this strategy. Default is 1×.
           </p>
         </div>
         {applied != null && (
-          <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+          <span className="shrink-0 rounded-md bg-subtle px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-secondary">
             Live {applied}×
           </span>
         )}
       </div>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5" role="group" aria-label="Leverage multiplier">
+        <div className="inline-flex rounded-lg border border-line bg-surface p-0.5" role="group" aria-label="Leverage multiplier">
           {OPTIONS.map((n) => {
             const selected = normalized === n;
             return (
@@ -99,10 +99,10 @@ export default function LeverageMultiplierControl({
                 disabled={disabled || applying}
                 aria-pressed={selected}
                 onClick={() => onChange(n)}
-                className={`min-w-[2.25rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50 ${
+                className={`min-w-[2.25rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50 ${
                   selected
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    ? 'bg-primary text-on-primary shadow-sm'
+                    : 'text-secondary hover:bg-subtle hover:text-ink'
                 }`}
               >
                 {n}×
@@ -122,7 +122,7 @@ export default function LeverageMultiplierControl({
             value={normalized}
             disabled={disabled || applying}
             onChange={(e) => onChange(clampLeverage(e.target.value, normalized))}
-            className="w-14 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 disabled:opacity-50"
+            className="w-14 rounded-lg border border-line bg-surface px-2 py-1.5 text-center text-sm font-semibold text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:opacity-50"
             aria-label="Leverage multiplier"
           />
           <button
@@ -130,12 +130,12 @@ export default function LeverageMultiplierControl({
             onClick={() => void handleApply()}
             disabled={!canApply || !isDirty}
             title={!configurationId ? (unavailableHint || 'Select a saved strategy first') : undefined}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-45"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-45"
           >
             {applying ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             ) : justApplied ? (
-              <Check className="h-3.5 w-3.5 text-emerald-300" aria-hidden="true" />
+              <Check className="h-3.5 w-3.5 text-gain" aria-hidden="true" />
             ) : null}
             {applying ? 'Saving…' : justApplied ? 'Saved' : 'Set leverage'}
           </button>
@@ -143,15 +143,15 @@ export default function LeverageMultiplierControl({
       </div>
 
       {!configurationId && (
-        <p className="mt-2 text-[11px] text-amber-700">
+        <p className="mt-2 text-[11px] text-attention">
           {unavailableHint || 'Select or save a strategy first, then set leverage.'}
         </p>
       )}
       {configurationId && !isDirty && applied != null && (
-        <p className="mt-2 text-[11px] text-emerald-700">Leverage is set to {applied}× on this strategy.</p>
+        <p className="mt-2 text-[11px] text-gain">Leverage is set to {applied}× on this strategy.</p>
       )}
       {error && (
-        <p role="alert" className="mt-2 text-[11px] font-medium text-red-600">{error}</p>
+        <p role="alert" className="mt-2 text-[11px] font-medium text-loss">{error}</p>
       )}
     </div>
   );

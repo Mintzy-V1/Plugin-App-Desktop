@@ -54,54 +54,54 @@ export default function TradingConfigurationFields({ config, onChange, alphas, l
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <label htmlFor={`${uid}-candle`} className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Candle Interval</label>
+          <label htmlFor={`${uid}-candle`} className="text-[11px] font-semibold uppercase tracking-wider text-muted">Candle Interval</label>
           <select id={`${uid}-candle`} value={config.candle} onChange={e => onChange({ ...config, candle: e.target.value })}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15">
+            className="w-full rounded-xl border border-line bg-subtle px-3 py-2.5 text-sm font-medium text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/15">
             {CANDLE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <div className="space-y-1.5">
-          <label htmlFor={`${uid}-strategy`} className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Strategy</label>
+          <label htmlFor={`${uid}-strategy`} className="text-[11px] font-semibold uppercase tracking-wider text-muted">Strategy</label>
           <select id={`${uid}-strategy`} value={config.strategy} onChange={e => onChange({ ...config, strategy: e.target.value })}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15">
+            className="w-full rounded-xl border border-line bg-subtle px-3 py-2.5 text-sm font-medium text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/15">
             {STRATEGY_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
         </div>
       </div>
 
-      <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <label className="flex items-start gap-3 rounded-xl border border-line bg-subtle px-4 py-3">
         <input type="checkbox" checked={config.useBrokerCash} onChange={e => onChange({ ...config, useBrokerCash: e.target.checked })}
-          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+          className="mt-0.5 h-4 w-4 rounded border-line text-info focus:ring-brand" />
         <span>
-          <span className="block text-sm font-medium text-slate-700">Use available broker cash</span>
-          <span className="mt-0.5 block text-[11px] text-slate-500">Trades draw from your broker balance; per-stock capital below caps each symbol's allocation.</span>
+          <span className="block text-sm font-medium text-secondary">Use available broker cash</span>
+          <span className="mt-0.5 block text-[11px] text-muted">Trades draw from your broker balance; per-stock capital below caps each symbol's allocation.</span>
         </span>
       </label>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
             Manual allocation
           </span>
           <button type="button" onClick={addStock}
-            className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+            className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-semibold text-info transition-colors hover:text-info focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40">
             <Plus className="h-3 w-3" aria-hidden="true" /> Add
           </button>
         </div>
         {config.stocks.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-center">
-            <p className="text-xs text-slate-500">No manual tickers. Add one, or keep only auto-generated symbols.</p>
+          <div className="rounded-xl border border-dashed border-line bg-subtle px-4 py-5 text-center">
+            <p className="text-xs text-muted">No manual tickers. Add one, or keep only auto-generated symbols.</p>
             <button type="button" onClick={addStock}
-              className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+              className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-info hover:text-info focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40">
               <Plus className="h-3 w-3" aria-hidden="true" /> Add ticker
             </button>
           </div>
         ) : (
           config.stocks.map((stock, i) => (
-            <div key={i} className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white p-3">
+            <div key={i} className="flex items-start gap-2 rounded-xl border border-line bg-surface p-3">
               <div className="flex-1 space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                  <span className="rounded-md bg-subtle px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-secondary">
                     Manual
                   </span>
                 </div>
@@ -109,25 +109,25 @@ export default function TradingConfigurationFields({ config, onChange, alphas, l
                   excludeSymbols={selectedSymbols.filter(sym => sym !== stock.symbol)} />
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400" aria-hidden="true">₹</span>
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted" aria-hidden="true">₹</span>
                     <input type="number" placeholder="Capital" value={stock.capital} min={1} step="any"
                       aria-label={`Capital for ${stock.symbol || `stock ${i + 1}`} in rupees`}
                       onChange={e => updateStock(i, { capital: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-7 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+                      className="w-full rounded-lg border border-line bg-subtle py-2 pl-7 pr-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/15" />
                   </div>
                   <div className="relative">
                     <input type="number" placeholder="Stop loss" value={stock.stop_loss} min={0.1} max={100} step="any"
                       aria-label={`Stop loss percentage for ${stock.symbol || `stock ${i + 1}`}`}
                       onChange={e => updateStock(i, { stop_loss: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-3 pr-8 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400" aria-hidden="true">%</span>
+                      className="w-full rounded-lg border border-line bg-subtle py-2 pl-3 pr-8 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/15" />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted" aria-hidden="true">%</span>
                   </div>
                 </div>
               </div>
               <button type="button" onClick={() => removeStock(i)}
                 aria-label={`Remove ${stock.symbol || `stock ${i + 1}`} from allocation`}
                 title="Remove ticker"
-                className="mt-1 shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40">
+                className="mt-1 shrink-0 rounded-lg p-1.5 text-muted transition-colors hover:bg-loss-soft hover:text-loss focus:outline-none focus-visible:ring-2 focus-visible:ring-loss/40">
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
@@ -138,11 +138,11 @@ export default function TradingConfigurationFields({ config, onChange, alphas, l
       {autoSymbols.length > 0 && (
         <div className="space-y-2">
           <div>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
               Auto-generated allocation
             </span>
             {(alphas?.configName || alphas?.date) && (
-              <p className="mt-0.5 text-[11px] text-slate-500">
+              <p className="mt-0.5 text-[11px] text-muted">
                 {[alphas?.configName, alphas?.date].filter(Boolean).join(' · ')}
               </p>
             )}
@@ -150,25 +150,25 @@ export default function TradingConfigurationFields({ config, onChange, alphas, l
           {autoSymbols.map((stock: AutoGeneratedSymbol) => (
             <div
               key={`${stock.symbol}-${stock.rank ?? ''}`}
-              className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3"
+              className="rounded-xl border border-gain/25 bg-gain-soft p-3"
             >
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                <span className="rounded-md bg-gain-soft px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gain">
                   Auto-generated
                 </span>
                 {stock.rank != null && (
-                  <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                  <span className="rounded-md bg-surface/80 px-1.5 py-0.5 text-[11px] font-semibold text-secondary">
                     Rank {stock.rank}
                   </span>
                 )}
                 {stock.role && (
-                  <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-slate-600">
+                  <span className="rounded-md bg-surface/80 px-1.5 py-0.5 text-[11px] font-semibold capitalize text-secondary">
                     {stock.role}
                   </span>
                 )}
               </div>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{stock.symbol}</p>
-              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600">
+              <p className="mt-2 text-sm font-semibold text-ink">{stock.symbol}</p>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-secondary">
                 <span>Capital {inr(stock.capital)}</span>
                 <span>SL {stock.stop_loss}%</span>
                 {stock.base_multiplier != null && (
@@ -177,7 +177,7 @@ export default function TradingConfigurationFields({ config, onChange, alphas, l
               </div>
             </div>
           ))}
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-muted">
             Rank, role, and base multiplier stay on this screen. Start trading sends only ticker, capital, and stop loss.
           </p>
         </div>
