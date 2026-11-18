@@ -29,7 +29,7 @@ import { Tabs } from '../ui/Tabs';
 import { Pagination } from '../ui/Pagination';
 import { usePagination } from '../../lib/usePagination';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
-import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
+import { StopCircle, Download, RefreshCw, Loader2, WifiOff, Settings2, Clock, XCircle, Lock } from 'lucide-react';
 import { pluginApi } from '../../lib/pluginApi';
 import { useSessionDataSource } from '../../lib/sessionDataSource';
 import {
@@ -48,6 +48,7 @@ import SessionNotifications from './SessionNotifications';
 import { useSessionEvents } from '../../lib/useSessionEvents';
 import {
   sessionStatusLabel,
+  sessionStatusBadgeClass,
   resolveSessionStatus,
   isLiveSessionStatus,
   isTerminalSessionStatus,
@@ -427,15 +428,6 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     }
   };
 
-  const statusColor = (() => {
-    if (simRunning && !hasLiveCutoff) return 'text-attention';
-    const s = (sessionStatus || '').toLowerCase();
-    if (['trading_active', 'active', 'running', 'started'].includes(s)) return 'text-gain';
-    if (['stopped', 'completed', 'abandoned'].includes(s)) return 'text-muted';
-    if (['error', 'failed'].includes(s)) return 'text-loss';
-    return 'text-ink';
-  })();
-
   const filteredLogs = useMemo(() => {
     const q = logSearch.trim().toLowerCase();
     return displayLogs.map((log, index) => ({ log, index })).filter(({ log }) => !q || [log.symbol, log.action, log.signal].some(v => String(v).toLowerCase().includes(q)));
@@ -472,9 +464,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-line/80 bg-surface px-5 py-4 shadow-sm">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Free cash</p>
-          <p className="mt-0.5 flex items-center gap-1 text-[15px] font-semibold text-ink">
-            <IndianRupee className="h-3.5 w-3.5 text-gain" aria-hidden="true" />
-            {availableCash != null ? formatMoney(availableCash).replace(/^₹\s?/, '') : <span className="font-medium text-muted">—</span>}
+          <p className={`mt-1 text-lg font-semibold tracking-tight ${availableCash != null ? 'text-ink' : 'text-muted'}`}>
+            {availableCash != null ? formatMoney(availableCash) : '—'}
           </p>
         </div>
 
@@ -482,7 +473,9 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Status</p>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Session</p>
+            <span className="font-mono text-[11px] text-secondary" title={sessionId}>{sessionId.length > 18 ? `${sessionId.slice(0, 8)}…${sessionId.slice(-6)}` : sessionId}</span>
+            {readOnly && <span className="rounded-md bg-subtle px-1.5 py-0.5 text-[11px] font-semibold text-secondary">Read-only</span>}
             {simLabel && (
               <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${simulationStatusBadgeClass(simulationStatus)}`}>
                 Simulation · {simLabel}
@@ -494,13 +487,14 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
               </span>
             )}
           </div>
-          <p className={`mt-0.5 text-[15px] font-semibold capitalize ${statusColor}`}>
+          <p className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${sessionStatusBadgeClass(simRunning && !hasLiveCutoff ? 'simulation_active' : sessionStatus)}`}>
+            <span className={`h-1.5 w-1.5 rounded-full bg-current ${isLiveSessionStatus(effectiveStatus) ? 'animate-pulse' : 'opacity-70'}`} aria-hidden="true" />
             {simRunning && !hasLiveCutoff
               ? 'Simulating'
               : (sessionStatusLabel(sessionStatus) || 'Loading…')}
           </p>
           {lastUpdated && (
-            <p className="text-[11px] text-muted">
+            <p className="mt-1 text-[11px] text-muted">
               Updated {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </p>
           )}
