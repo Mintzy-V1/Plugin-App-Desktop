@@ -382,6 +382,84 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
   const placeholder = !hasFigures;
   const marketClosed = isAfterMarketCloseIST();
 
+  const positions = (
+<div className="rounded-xl border border-line/80 bg-surface p-4 shadow-sm">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <div>
+            <p className="text-[13px] font-semibold text-ink">Positions &amp; ticker results</p>
+            <p className="mt-0.5 text-[11px] text-muted">
+              {tickerList.length > 0
+                ? `${tickerList.length} symbol${tickerList.length === 1 ? '' : 's'} · tap a tile to plot it, or combine from the dropdown`
+                : 'Per-stock results appear here as soon as the engine reports them'}
+            </p>
+          </div>
+          {selectedSet && (
+            <button
+              type="button"
+              onClick={() => setSelectedTickers(null)}
+              className="text-[12px] font-semibold text-info hover:text-info focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-md px-1"
+            >
+              Select all
+            </button>
+          )}
+        </div>
+        {tickerList.length === 0 ? (
+          <p className="rounded-xl bg-subtle px-4 py-6 text-center text-sm text-muted">
+            No ticker results yet.
+          </p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {tickerList.map(([sym, data]) => {
+              const total = Number(data.realized_pnl ?? 0) + Number(data.unrealized_pnl ?? 0);
+              const positive = total >= 0;
+              const inScope = selectedSet == null || selectedSet.has(sym);
+              const solo = selectedSet?.size === 1 && selectedSet.has(sym);
+              const phase = tickerPhaseFor(sym, tickerPhases, pyramidFlow);
+              return (
+                <button
+                  key={sym}
+                  type="button"
+                  onClick={() => {
+                    if (solo) setSelectedTickers(null);
+                    else setSelectedTickers([sym]);
+                  }}
+                  aria-pressed={solo}
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
+                    solo
+                      ? 'border-brand/25 bg-info-soft'
+                      : inScope
+                        ? 'border-line bg-subtle hover:border-line'
+                        : 'border-line bg-surface opacity-50 hover:opacity-80'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <p className="truncate text-[13px] font-semibold text-ink">{sym}</p>
+                      <TickerPhaseBadge phase={phase} />
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {data.side && <TradeActionPill value={data.side} />}
+                      {data.qty != null && Number.isFinite(Number(data.qty)) && Number(data.qty) !== 0 && (
+                        <span className="text-[11px] text-muted">
+                          Qty {(() => {
+                            const q = Math.abs(Number(data.qty));
+                            return Number.isInteger(q) ? q : q.toLocaleString('en-IN');
+                          })()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className={`shrink-0 text-right text-[15px] font-semibold tabular-nums ${positive ? 'text-gain' : 'text-loss'}`}>
+                    {formatMoney(total)}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+  );
+
   return (
     <div className="page-stack">
       {stopped && (
@@ -486,81 +564,8 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
           )}
         </div>
 
-      <div className="rounded-xl border border-line/80 bg-surface p-4 shadow-sm">
-        <div className="mb-3 flex items-baseline justify-between gap-3">
-          <div>
-            <p className="text-[13px] font-semibold text-ink">Ticker P&amp;L</p>
-            <p className="mt-0.5 text-[11px] text-muted">
-              {tickerList.length > 0
-                ? `${tickerList.length} symbol${tickerList.length === 1 ? '' : 's'} · tap a tile to plot it, or combine from the dropdown`
-                : 'Per-stock results appear here as soon as the engine reports them'}
-            </p>
-          </div>
-          {selectedSet && (
-            <button
-              type="button"
-              onClick={() => setSelectedTickers(null)}
-              className="text-[12px] font-semibold text-info hover:text-info focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-md px-1"
-            >
-              Select all
-            </button>
-          )}
-        </div>
-        {tickerList.length === 0 ? (
-          <p className="rounded-xl bg-subtle px-4 py-6 text-center text-sm text-muted">
-            No ticker results yet.
-          </p>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {tickerList.map(([sym, data]) => {
-              const total = Number(data.realized_pnl ?? 0) + Number(data.unrealized_pnl ?? 0);
-              const positive = total >= 0;
-              const inScope = selectedSet == null || selectedSet.has(sym);
-              const solo = selectedSet?.size === 1 && selectedSet.has(sym);
-              const phase = tickerPhaseFor(sym, tickerPhases, pyramidFlow);
-              return (
-                <button
-                  key={sym}
-                  type="button"
-                  onClick={() => {
-                    if (solo) setSelectedTickers(null);
-                    else setSelectedTickers([sym]);
-                  }}
-                  aria-pressed={solo}
-                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
-                    solo
-                      ? 'border-brand/25 bg-info-soft'
-                      : inScope
-                        ? 'border-line bg-subtle hover:border-line'
-                        : 'border-line bg-surface opacity-50 hover:opacity-80'
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <p className="truncate text-[13px] font-semibold text-ink">{sym}</p>
-                      <TickerPhaseBadge phase={phase} />
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      {data.side && <TradeActionPill value={data.side} />}
-                      {data.qty != null && Number.isFinite(Number(data.qty)) && Number(data.qty) !== 0 && (
-                        <span className="text-[11px] text-muted">
-                          Qty {(() => {
-                            const q = Math.abs(Number(data.qty));
-                            return Number.isInteger(q) ? q : q.toLocaleString('en-IN');
-                          })()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <p className={`shrink-0 text-right text-[15px] font-semibold tabular-nums ${positive ? 'text-gain' : 'text-loss'}`}>
-                    {formatMoney(total)}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {positionsHost ? createPortal(positions, positionsHost) : positions}
+
     </div>
   );
 }
