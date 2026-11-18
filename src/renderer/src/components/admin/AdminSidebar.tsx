@@ -1,13 +1,13 @@
-import { IconActivity, IconUsers, IconKey, IconListDetails, IconLogout, IconShieldLock } from '@tabler/icons-react';
+import { Activity, Users, KeyRound, ListChecks, LogOut, ShieldCheck } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 
 export type AdminNavItem = 'live' | 'accounts' | 'keys' | 'audit';
 
-const NAV_ITEMS: { id: AdminNavItem; label: string; icon: typeof IconActivity; masterOnly?: boolean }[] = [
-  { id: 'live', label: 'Live sessions', icon: IconActivity },
-  { id: 'accounts', label: 'Accounts', icon: IconUsers },
-  { id: 'keys', label: 'Admin keys', icon: IconKey, masterOnly: true },
-  { id: 'audit', label: 'Audit log', icon: IconListDetails, masterOnly: true },
+const NAV_ITEMS: { id: AdminNavItem; label: string; icon: typeof Activity; masterOnly?: boolean }[] = [
+  { id: 'live', label: 'Live sessions', icon: Activity },
+  { id: 'accounts', label: 'Accounts', icon: Users },
+  { id: 'keys', label: 'Admin keys', icon: KeyRound, masterOnly: true },
+  { id: 'audit', label: 'Audit log', icon: ListChecks, masterOnly: true },
 ];
 
 export default function AdminSidebar({ active, onNavigate }: { active: AdminNavItem; onNavigate: (item: AdminNavItem) => void }) {
@@ -35,7 +35,7 @@ export default function AdminSidebar({ active, onNavigate }: { active: AdminNavI
               }`}
             >
               {isActive && <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-emerald-600" aria-hidden="true" />}
-              <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-500'}`} stroke={1.75} aria-hidden="true" />
+              <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-500'}`} strokeWidth={1.75} aria-hidden="true" />
               {label}
             </button>
           );
@@ -45,7 +45,7 @@ export default function AdminSidebar({ active, onNavigate }: { active: AdminNavI
       <div className="shrink-0 border-t border-slate-200/70 px-2 py-2">
         <div className="flex h-12 items-center gap-2.5 px-1">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white">
-            <IconShieldLock className="h-4 w-4" stroke={1.75} aria-hidden="true" />
+            <ShieldCheck className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-semibold text-slate-900">{admin?.name}</p>
@@ -58,7 +58,7 @@ export default function AdminSidebar({ active, onNavigate }: { active: AdminNavI
             title="Sign out"
             className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30"
           >
-            <IconLogout className="h-4 w-4" stroke={1.75} aria-hidden="true" />
+            <LogOut className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>
       </div>

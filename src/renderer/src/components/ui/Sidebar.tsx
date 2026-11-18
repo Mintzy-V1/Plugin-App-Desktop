@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
-  IconLayoutDashboard,
-  IconCpu,
-  IconSettings,
-  IconLogout,
-  IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarLeftExpand,
-  IconBook,
-} from '@tabler/icons-react';
+  LayoutDashboard,
+  Cpu,
+  Settings,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  BookOpen,
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { pluginApi } from '../../lib/pluginApi';
 import UserAvatar from './UserAvatar';
@@ -21,11 +21,11 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
-const NAV_ITEMS: { id: NavItem; label: string; icon: typeof IconCpu }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
-  { id: 'plugin',    label: 'Launch Terminal', icon: IconCpu },
-  { id: 'docs',      label: 'Documentation', icon: IconBook },
-  { id: 'settings',  label: 'Settings',  icon: IconSettings },
+const NAV_ITEMS: { id: NavItem; label: string; icon: typeof Cpu }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'plugin',    label: 'Launch Terminal', icon: Cpu },
+  { id: 'docs',      label: 'Documentation', icon: BookOpen },
+  { id: 'settings',  label: 'Settings',  icon: Settings },
 ];
 
 function useHasLiveSession() {
@@ -82,8 +82,8 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
                 className="ml-auto shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
               >
                 {collapsed
-                  ? <IconLayoutSidebarLeftExpand className="h-4 w-4" stroke={1.75} aria-hidden="true" />
-                  : <IconLayoutSidebarLeftCollapse className="h-4 w-4" stroke={1.75} aria-hidden="true" />}
+                  ? <PanelLeftOpen className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                  : <PanelLeftClose className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />}
               </button>
             </div>
           ) : (
@@ -121,7 +121,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
                 )}
                 <Icon
                   className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-500'}`}
-                  stroke={1.75}
+                  strokeWidth={1.75}
                   aria-hidden="true"
                 />
                 <span
@@ -165,7 +165,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
                 expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
               }`}
             >
-              <IconLogout className="h-4 w-4" stroke={1.75} aria-hidden="true" />
+              <LogOut className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             </button>
           </div>
           {!expanded && (
@@ -176,7 +176,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
               title="Log out"
               className="mt-0.5 flex h-10 w-full items-center justify-start rounded-lg px-2.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30"
             >
-              <IconLogout className="h-[18px] w-[18px]" stroke={1.75} aria-hidden="true" />
+              <LogOut className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />
             </button>
           )}
         </div>
