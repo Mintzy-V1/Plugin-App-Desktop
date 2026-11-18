@@ -1,69 +1,33 @@
 import {
   type TradeLogRow,
-  parseTradeTimeMs,
   parseInstantMs,
   pickStatus,
-  QTY_KEYS,
-  unwrapQuantity,
-  pickQuantity,
   isPlaceholderValue,
-  numOrNull,
-  isNumericZero,
-  readSymbolNetPnl,
-  pickRowPnl,
-  hasQuantity,
-  isPositiveQty,
-  hasExplicitQty,
-  applySymbolQuantities,
-  mergeLogQuantities,
   pickLivePnlSymbols,
   pricesFromLivePnl,
-  type QtySample,
-  qtyMapFromSymbols,
   buildQtyTimeline,
-  qtyAsOf,
-  applyHistoryQuantities,
-  type PnlSample,
-  pnlMapFromSymbols,
   buildPnlTimeline,
-  pnlAsOf,
-  applyHistoryPnl,
-  logRowKey,
-  scoreLogRow,
-  scoreLogs,
-  fillMissingLogFields,
-  carryForwardQuantities,
   mergeIncomingLogs,
   normalizeLogs,
   formatMoney,
   formatLogDate,
   formatLogTime,
-  rmsRowFromExit,
-  lastNonZeroLogPnl,
   withRmsLogRows,
   formatCell,
   formatQuantity,
   resolveSimulation,
   withPyramidSimCloseRows,
-  stampSimClosePrices,
   textIsClientManualExit,
-  isBuySellTone,
-  invertBuySell,
-  closingSideFromPrior,
-  lastCandleBeforeExit,
-  looksLikeBrokenExitRow,
-  applySymbolExitDisplay,
-  shouldRemapManualExitRow,
   remapBrokenSymbolExitRows,
   remapSquareOffLogRow,
   remapSimCloseExitRows,
-  lastStopBlockMs,
   remapManualStopExitRows,
   presentExitRows,
-  rowSide,
-  isPresentedExit,
   extractTradingSession
 } from '../../lib/liveSessionModel';
+import { Tabs } from '../ui/Tabs';
+import { Pagination } from '../ui/Pagination';
+import { usePagination } from '../../lib/usePagination';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
 import { pluginApi } from '../../lib/pluginApi';
@@ -74,10 +38,7 @@ import {
   extractSimClosePricesFromHistory,
   mergePyramidMaps,
   isSimClosePriceWindow,
-  isSimCloseIstLog,
-  isLastMorningSimIstLog,
-  isSessionSquareOffIstLog,
-  istWallClockMs,
+  isSimCloseIstLog
 } from '../../lib/pyramidPnl';
 import { shouldFetchPyramidPnl } from '../../lib/istClock';
 import { useToast } from '../ui/Toast';
@@ -93,32 +54,18 @@ import {
   isConfigurableSessionStatus,
   isSimulationRunningStatus,
   simulationStatusLabel,
-  simulationStatusBadgeClass,
+  simulationStatusBadgeClass
 } from '../../lib/sessionStatus';
 import { downloadSessionCsv } from '../../lib/downloadSessionCsv';
 import { pickCash, rememberBrokerCash } from '../../lib/brokerCash';
-import { formatTradeLabel, isWaitAction } from '../../lib/tradeSignals';
-import {
-  isLockedOutRecord,
-  lockMessageFor,
-  lockReasonText,
-  parseLockedOutSymbols,
-  resolveLockedOut,
-  type LockedOutSymbol,
-} from '../../lib/lockedOut';
+
+import { lockReasonText, parseLockedOutSymbols, resolveLockedOut, type LockedOutSymbol } from '../../lib/lockedOut';
 import LivePnlPanel from './LivePnlPanel';
 import TradeActionPill from './TradeActionPill';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import type { TradingSession } from '../../lib/pluginApi';
 import { formatCountdown, simulationStartMs } from '../../lib/istClock';
-import {
-  parseExitedSymbols,
-  rmsHitInWindow,
-  exitedSymbolPnl,
-  exitedSymbolTimeRaw,
-  isManualSymbolExit,
-  type ExitedSymbol,
-} from '../../lib/exitedSymbols';
+import { parseExitedSymbols, type ExitedSymbol } from '../../lib/exitedSymbols';
 
 interface Props {
   sessionId: string;
@@ -133,134 +80,6 @@ interface Props {
 }
 
 type Tab = 'logs' | 'pnl' | 'alerts';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop, onConfigure }: Props) {
   const toast = useToast();
