@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { FileSpreadsheet, Loader2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Tabs } from '../components/ui/Tabs';
 import { LoadError } from '../components/ui/Feedback';
@@ -154,6 +154,28 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, statsGen]);
 
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { exportDashboardXlsx } = await import('../lib/xlsx');
+      const filename = await exportDashboardXlsx({
+        stats: perfStats,
+        sessions,
+        monthlyPnl,
+        equity,
+        cash,
+        accountName: user?.name,
+        broker: user?.broker ? brokerLabel(brokerFromProfile(user.broker)) : undefined,
+      });
+      toast.success(`Exported ${filename}`);
+    } catch {
+      toast.error('Could not create the Excel file. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleDownload = async (sessionId?: string, status?: string) => {
     if (!sessionId) return;
     setDownloadingId(sessionId);
@@ -199,6 +221,16 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
               <span className={`relative inline-flex h-2 w-2 rounded-full ${activeCount > 0 ? 'bg-gain' : readyCount > 0 ? 'bg-attention' : 'bg-muted/50'}`} />
             </span>
             {loading ? 'Checking sessions…' : activeCount > 0 ? `${activeCount} live session${activeCount > 1 ? 's' : ''}` : readyCount > 0 ? `${readyCount} ready to trade` : 'No live session'}
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting || (!perfStats && sessions.length === 0)}
+            title="Download performance, monthly, symbol and session data as an Excel workbook"
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden="true" />}
+            {exporting ? 'Preparing…' : 'Export to Excel'}
           </button>
           {user?.broker && <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-secondary">{brokerLabel(brokerFromProfile(user.broker))}</span>}
           <button type="button" onClick={() => { fetchData(); setStatsGen(n => n + 1); }} title="Refresh" className="inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-xs text-muted hover:bg-subtle hover:text-ink">

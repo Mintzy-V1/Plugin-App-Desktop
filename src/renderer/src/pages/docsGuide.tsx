@@ -323,6 +323,9 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
       body: (
         <>
           <p>Home screen after sign-in. It answers “how is trading doing, and why?” The header shows your greeting, a live-session pill, your {name} broker and <strong>Updated …</strong>, which reloads everything. The app also refreshes about every 20 seconds and when you bring the window forward. The top bar shows the IST time and whether the NSE regular session is open (exchange holidays are not shown).</p>
+          <Sub title="Export to Excel">
+            <p><strong>Export to Excel</strong> in the header downloads a workbook named <em>Mintzy-performance-&lt;date&gt;.xlsx</em>. The Summary sheet holds the headline figures, key metrics and records on one printable page; the other sheets hold the daily P&amp;L series, month-over-month comparison, symbols, weekdays and your session history (times in IST). Every column can be filtered and sorted.</p>
+          </Sub>
           <Sub title="Live-session pill">
             <p>Green with a pulsing dot: N sessions are trading or simulating. Amber “N ready to trade”: {name} is connected but you have not pressed Start Trading. Grey: nothing is connected. Click it to open the Sessions tab.</p>
           </Sub>
