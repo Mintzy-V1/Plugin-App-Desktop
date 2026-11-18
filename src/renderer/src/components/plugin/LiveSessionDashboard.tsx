@@ -40,7 +40,15 @@ import {
   formatLogTime,
   rmsRowFromExit,
   lastNonZeroLogPnl,
-  textIsClientManualExit
+  formatCell,
+  formatQuantity,
+  resolveSimulation,
+  stampSimClosePrices,
+  textIsClientManualExit,
+  isBuySellTone,
+  invertBuySell,
+  closingSideFromPrior,
+  looksLikeBrokenExitRow
 } from '../../lib/liveSessionModel';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
@@ -263,33 +271,11 @@ function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[], liveAt: numb
   return [...patched, ...extra].sort((a, b) => (a.timeMs ?? 0) - (b.timeMs ?? 0));
 }
 
-function formatCell(v: string | number, asMoney = false) {
-  if (isPlaceholderValue(v)) return '—';
-  const n = Number(v);
-  if (asMoney && Number.isFinite(n)) return formatMoney(n);
-  if (Number.isFinite(n) && asMoney === false && typeof v === 'number') return n.toFixed(2);
-  return String(v);
-}
 
-function formatQuantity(v: string | number, action?: string, signal?: string) {
-  if (isPlaceholderValue(v)) return '—';
-  const n = Number(v);
-  if (Number.isFinite(n) && n === 0 && (isWaitAction(action) || isWaitAction(signal))) return '—';
-  if (!Number.isFinite(n)) return String(v);
-  return Number.isInteger(n) ? String(n) : n.toLocaleString('en-IN');
-}
 
-/**
- * Simulation/live per row. Prefer the record's `simulation_logs` field; older
- * logs without it fall back to the timestamp cutoff before simulation_live_started_at.
- */
-function resolveSimulation(log: TradeLogRow, liveCutoff: { hasLiveCutoff: boolean; liveStartedAtMs: number | null }): boolean {
-  if (log.simulation !== null) return log.simulation;
-  return liveCutoff.hasLiveCutoff
-    && liveCutoff.liveStartedAtMs != null
-    && log.timeMs != null
-    && log.timeMs < liveCutoff.liveStartedAtMs;
-}
+
+
+
 
 /**
  * Display-only 12:59 IST sim-close rows: copy the last sim block (e.g. 11:45)
@@ -385,47 +371,15 @@ function withPyramidSimCloseRows(
   return stampSimClosePrices([...before, ...injected, ...after], pricesBySymbol);
 }
 
-/** 12:59 price is the sim-close mark. A copied morning-candle price is cleared. */
-function stampSimClosePrices(
-  logs: TradeLogRow[],
-  prices: Record<string, number>,
-): TradeLogRow[] {
-  const lastCandle = new Map<string, number>();
-  return logs.map((row) => {
-    const key = String(row.symbol || '').toUpperCase();
-    if (!key || key === '-' || row.rmsHit || !isSimCloseIstLog(row.timeMs)) {
-      const n = Number(row.price);
-      if (key && key !== '-' && Number.isFinite(n) && n !== 0) lastCandle.set(key, n);
-      return row;
-    }
-    const mark = prices[key];
-    if (mark != null && Number.isFinite(mark) && mark !== 0) return { ...row, price: mark };
-    const candle = lastCandle.get(key);
-    const current = Number(row.price);
-    if (!Number.isFinite(current) || current === 0 || (candle != null && current === candle)) {
-      return { ...row, price: '-' };
-    }
-    return row;
-  });
-}
 
 
 
-function isBuySellTone(raw: string | number | null | undefined): boolean {
-  const { tone } = formatTradeLabel(raw);
-  return tone === 'buy' || tone === 'sell' || tone === 'hold-long' || tone === 'hold-short';
-}
 
-function invertBuySell(raw: string | number | null | undefined): string | null {
-  const { tone } = formatTradeLabel(raw);
-  if (tone === 'buy' || tone === 'hold-long') return 'Sell';
-  if (tone === 'sell' || tone === 'hold-short') return 'Buy';
-  return null;
-}
 
-function closingSideFromPrior(prior: TradeLogRow): string | null {
-  return invertBuySell(prior.signal) ?? invertBuySell(prior.action);
-}
+
+
+
+
 
 function lastCandleBeforeExit(
   logs: TradeLogRow[],
@@ -446,19 +400,7 @@ function lastCandleBeforeExit(
   return best;
 }
 
-/**
- * Engine manual-exit snapshots often look like the old square-off shape:
- * side in Action (or both columns dashed) and Change 0 / —.
- */
-function looksLikeBrokenExitRow(row: TradeLogRow): boolean {
-  if (row.rmsHit) return false;
-  const signalEmpty = isPlaceholderValue(row.signal);
-  const actionEmpty = isPlaceholderValue(row.action);
-  const changeEmptyOrZero = isPlaceholderValue(row.change) || isNumericZero(row.change);
-  if (actionEmpty && changeEmptyOrZero) return true;
-  if (signalEmpty && isBuySellTone(row.action) && changeEmptyOrZero) return true;
-  return false;
-}
+
 
 function applySymbolExitDisplay(
   row: TradeLogRow,

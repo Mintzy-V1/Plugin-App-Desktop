@@ -681,6 +681,88 @@ export function lastNonZeroLogPnl(logs: TradeLogRow[], symbol: string, minMs: nu
   return last;
 }
 
+export function formatCell(v: string | number, asMoney = false) {
+  if (isPlaceholderValue(v)) return '—';
+  const n = Number(v);
+  if (asMoney && Number.isFinite(n)) return formatMoney(n);
+  if (Number.isFinite(n) && asMoney === false && typeof v === 'number') return n.toFixed(2);
+  return String(v);
+}
+
+export function formatQuantity(v: string | number, action?: string, signal?: string) {
+  if (isPlaceholderValue(v)) return '—';
+  const n = Number(v);
+  if (Number.isFinite(n) && n === 0 && (isWaitAction(action) || isWaitAction(signal))) return '—';
+  if (!Number.isFinite(n)) return String(v);
+  return Number.isInteger(n) ? String(n) : n.toLocaleString('en-IN');
+}
+
+/**
+ * Simulation/live per row. Prefer the record's `simulation_logs` field; older
+ * logs without it fall back to the timestamp cutoff before simulation_live_started_at.
+ */
+export function resolveSimulation(log: TradeLogRow, liveCutoff: { hasLiveCutoff: boolean; liveStartedAtMs: number | null }): boolean {
+  if (log.simulation !== null) return log.simulation;
+  return liveCutoff.hasLiveCutoff
+    && liveCutoff.liveStartedAtMs != null
+    && log.timeMs != null
+    && log.timeMs < liveCutoff.liveStartedAtMs;
+}
+
+/** 12:59 price is the sim-close mark. A copied morning-candle price is cleared. */
+export function stampSimClosePrices(
+  logs: TradeLogRow[],
+  prices: Record<string, number>,
+): TradeLogRow[] {
+  const lastCandle = new Map<string, number>();
+  return logs.map((row) => {
+    const key = String(row.symbol || '').toUpperCase();
+    if (!key || key === '-' || row.rmsHit || !isSimCloseIstLog(row.timeMs)) {
+      const n = Number(row.price);
+      if (key && key !== '-' && Number.isFinite(n) && n !== 0) lastCandle.set(key, n);
+      return row;
+    }
+    const mark = prices[key];
+    if (mark != null && Number.isFinite(mark) && mark !== 0) return { ...row, price: mark };
+    const candle = lastCandle.get(key);
+    const current = Number(row.price);
+    if (!Number.isFinite(current) || current === 0 || (candle != null && current === candle)) {
+      return { ...row, price: '-' };
+    }
+    return row;
+  });
+}
+
 export function textIsClientManualExit(row: TradeLogRow): boolean {
   return /manual\s*exit/i.test(`${row.action ?? ''} ${row.signal ?? ''}`);
+}
+
+export function isBuySellTone(raw: string | number | null | undefined): boolean {
+  const { tone } = formatTradeLabel(raw);
+  return tone === 'buy' || tone === 'sell' || tone === 'hold-long' || tone === 'hold-short';
+}
+
+export function invertBuySell(raw: string | number | null | undefined): string | null {
+  const { tone } = formatTradeLabel(raw);
+  if (tone === 'buy' || tone === 'hold-long') return 'Sell';
+  if (tone === 'sell' || tone === 'hold-short') return 'Buy';
+  return null;
+}
+
+export function closingSideFromPrior(prior: TradeLogRow): string | null {
+  return invertBuySell(prior.signal) ?? invertBuySell(prior.action);
+}
+
+/**
+ * Engine manual-exit snapshots often look like the old square-off shape:
+ * side in Action (or both columns dashed) and Change 0 / —.
+ */
+export function looksLikeBrokenExitRow(row: TradeLogRow): boolean {
+  if (row.rmsHit) return false;
+  const signalEmpty = isPlaceholderValue(row.signal);
+  const actionEmpty = isPlaceholderValue(row.action);
+  const changeEmptyOrZero = isPlaceholderValue(row.change) || isNumericZero(row.change);
+  if (actionEmpty && changeEmptyOrZero) return true;
+  if (signalEmpty && isBuySellTone(row.action) && changeEmptyOrZero) return true;
+  return false;
 }
