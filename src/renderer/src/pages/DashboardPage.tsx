@@ -13,6 +13,8 @@ import { downloadSessionCsv } from '../lib/downloadSessionCsv';
 import { pickCash, readRememberedBrokerCash, rememberBrokerCash } from '../lib/brokerCash';
 import PerformanceStatsGrid, { MonthReturnsGrid } from '../components/plugin/PerformanceStatsGrid';
 import { brokerFromProfile, brokerLabel } from '../components/plugin/ConnectBrokerForm';
+import { EquityHero } from '../components/dashboard/EquityHero';
+import { KpiStrip } from '../components/dashboard/KpiStrip';
 
 type Tab = 'overview' | 'sessions' | 'returns';
 
@@ -213,15 +215,8 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
               <button type="button" onClick={() => fetchData()} className="flex items-center gap-2 rounded-md py-2 text-xs text-muted"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />{refreshedAt ? `Updated ${refreshedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : 'Refresh'}</button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 @min-[900px]:grid-cols-[1.5fr_1fr_1fr]">
-            <div className="col-span-2 rounded-xl border border-line bg-surface px-6 py-7 @min-[900px]:col-span-1">
-              <p className="text-xs font-medium uppercase tracking-[0.15em] text-muted">This month’s result</p>
-              {figuresLoading ? <div className="mt-4 h-12 w-48 animate-pulse rounded bg-subtle" /> : <p className={`mt-3 font-serif text-5xl tracking-tight tabular-nums ${monthlyPnl == null ? 'text-muted' : monthlyPnl >= 0 ? 'text-gain' : 'text-loss'}`}>{monthlyPnl != null && Number.isFinite(monthlyPnl) ? currencyFormat(monthlyPnl) : '—'}</p>}
-              <p className="mt-3 text-xs text-secondary">{new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
-            </div>
-            <MetricCard label="Cash in broker" value={cash != null && Number.isFinite(cash) ? currencyFormat(cash) : '—'} loading={figuresLoading} icon={<Wallet className="h-4 w-4" aria-hidden="true" />} />
-            <MetricCard label="Equity" value={equity != null && Number.isFinite(equity) ? currencyFormat(equity) : '—'} loading={figuresLoading} icon={<IndianRupee className="h-4 w-4" aria-hidden="true" />} />
-          </div>
+          <EquityHero stats={perfStats} loading={statsLoading} monthlyPnl={monthlyPnl} cash={cash} equity={equity} figuresLoading={figuresLoading} />
+          <KpiStrip stats={perfStats} loading={statsLoading} />
 
           <div className="flex items-center justify-between rounded-xl border border-line/80 bg-surface px-5 py-3.5 shadow-sm">
             <div className="flex items-center gap-2.5">
