@@ -681,6 +681,75 @@ export function lastNonZeroLogPnl(logs: TradeLogRow[], symbol: string, minMs: nu
   return last;
 }
 
+export function withRmsLogRows(logs: TradeLogRow[], exits: ExitedSymbol[], liveAt: number | null = null): TradeLogRow[] {
+  if (exits.length === 0) return logs;
+  const extra: TradeLogRow[] = [];
+  let patched = logs;
+  for (const ex of exits) {
+    const ms = parseTradeTimeMs(exitedSymbolTimeRaw(ex));
+    const key = ex.symbol.toUpperCase();
+    const fromExit = exitedSymbolPnl(ex);
+    const exitIsLive = liveAt != null && ms != null && ms >= liveAt;
+    const heldPnl = (fromExit != null && fromExit !== 0)
+      ? fromExit
+      : lastNonZeroLogPnl(logs, key, exitIsLive ? liveAt : null);
+    const matchIdx = patched.findIndex((l) => {
+      if (String(l.symbol || '').toUpperCase() !== key) return false;
+      if (l.rmsHit) return true;
+      if (l.timeMs != null && ms != null && l.timeMs >= ms - 5000 && (l.timeMs - ms) < 30 * 60 * 1000) return true;
+      return false;
+    });
+    if (matchIdx >= 0) {
+      const row = patched[matchIdx];
+      let next = row;
+      if (
+        looksLikeBrokenExitRow(row)
+        || row.manualExit
+        || textIsClientManualExit(row)
+        || (isManualSymbolExit(ex) && formatTradeLabel(row.action).tone === 'exit')
+      ) {
+        const prior = lastCandleBeforeExit(logs, key, row.timeMs ?? ms);
+        next = applySymbolExitDisplay(row, ex, prior);
+      }
+      if (isManualSymbolExit(ex) || row.manualExit || textIsClientManualExit(row)) {
+        const rowIsExit = row.manualExit
+          || textIsClientManualExit(row)
+          || looksLikeBrokenExitRow(row)
+          || formatTradeLabel(row.action).tone === 'exit'
+          || formatTradeLabel(next.action).tone === 'exit';
+        if (rowIsExit) next = { ...next, manualExit: true };
+      }
+      if (
+        (isPlaceholderValue(next.pnl) || isNumericZero(next.pnl))
+        && heldPnl != null
+        && heldPnl !== 0
+      ) {
+        next = { ...next, pnl: heldPnl };
+      }
+      if (next !== row) {
+        if (patched === logs) patched = logs.slice();
+        patched[matchIdx] = next;
+      }
+      continue;
+    }
+    const injected = rmsRowFromExit(ex, ms);
+    const manual = isManualSymbolExit(ex);
+    extra.push({
+      ...injected,
+      manualExit: manual || undefined,
+      action: manual ? 'EXIT/MANUAL EXIT' : injected.action,
+      signal: manual
+        ? (invertBuySell(lastCandleBeforeExit(logs, key, ms)?.signal)
+          ?? invertBuySell(lastCandleBeforeExit(logs, key, ms)?.action)
+          ?? '—')
+        : injected.signal,
+      pnl: heldPnl ?? injected.pnl,
+    });
+  }
+  if (extra.length === 0) return patched;
+  return [...patched, ...extra].sort((a, b) => (a.timeMs ?? 0) - (b.timeMs ?? 0));
+}
+
 export function formatCell(v: string | number, asMoney = false) {
   if (isPlaceholderValue(v)) return '—';
   const n = Number(v);
@@ -842,6 +911,23 @@ export function remapBrokenSymbolExitRows(logs: TradeLogRow[], exits: ExitedSymb
     const prior = lastCandleBeforeExit(logs, String(row.symbol || ''), row.timeMs ?? null);
     return applySymbolExitDisplay(row, ex, prior);
   });
+}
+
+/**
+ * 14:50 / 15:00 IST square-off: engine puts the side in Action and a 0% change.
+ * Show that side in Signal; Action and Change are dashes.
+ */
+export function remapSquareOffLogRow(row: TradeLogRow): TradeLogRow {
+  if (row.rmsHit || !isSessionSquareOffIstLog(row.timeMs)) return row;
+  if (looksLikeBrokenExitRow(row) && isPlaceholderValue(row.action) && isPlaceholderValue(row.signal)) {
+    return { ...row, action: 'EXIT', change: '-' };
+  }
+  return {
+    ...row,
+    signal: isPlaceholderValue(row.action) ? row.signal : row.action,
+    action: '-',
+    change: '-',
+  };
 }
 
 export function rowSide(row: TradeLogRow): string | null {
