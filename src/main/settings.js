@@ -3,7 +3,7 @@ const path = require('path');
 const { app } = require('electron');
 
 const SETTINGS_FILE = 'app-settings.json';
-const DEFAULTS = { minimizeToTray: true, notificationsEnabled: true };
+const DEFAULTS = { minimizeToTray: true, notificationsEnabled: true, theme: 'system' };
 
 function getPath() {
   return path.join(app.getPath('userData'), SETTINGS_FILE);

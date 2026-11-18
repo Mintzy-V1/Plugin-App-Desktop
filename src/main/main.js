@@ -1,5 +1,5 @@
 const {
-  app, BrowserWindow, ipcMain, powerMonitor, Notification, shell
+  app, BrowserWindow, ipcMain, powerMonitor, Notification, shell, nativeTheme
 } = require('electron');
 const path = require('path');
 const { initWindowState, saveWindowState } = require('./window-state');
@@ -48,8 +48,7 @@ if (!gotTheLock) {
       show: false,
       title: 'Mintzy Plugin',
       icon: iconPath || undefined,
-      // Match the renderer's light slate background so there is no dark flash on launch.
-      backgroundColor: '#f8fafc',
+      backgroundColor: (getSettings().theme === 'dark' || (getSettings().theme !== 'light' && nativeTheme.shouldUseDarkColors)) ? '#14130f' : '#f6f4ef',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
@@ -147,6 +146,19 @@ if (!gotTheLock) {
     ipcMain.handle('system:set-minimize-to-tray', async (_event, enable) => {
       setSetting('minimizeToTray', Boolean(enable));
       return { success: true };
+    });
+
+    ipcMain.handle('system:get-theme', async () => {
+      const theme = getSettings().theme;
+      return ['system', 'light', 'dark'].includes(theme) ? theme : 'system';
+    });
+
+    ipcMain.handle('system:set-theme', async (_event, theme) => {
+      if (!['system', 'light', 'dark'].includes(theme)) {
+        throw new Error('Invalid theme preference');
+      }
+      setSetting('theme', theme);
+      return { success: getSettings().theme === theme };
     });
 
     ipcMain.handle('system:get-notifications', async () => {
