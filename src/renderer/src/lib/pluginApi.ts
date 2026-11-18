@@ -291,7 +291,8 @@ export const pluginApi = {
   },
 
   stopTrading(sessionId: string) {
-    return api.post(`${getBase()}/stop/${sessionId}`);
+    // Stop squares off first; the gateway allows 150s for it
+    return api.post(`${getBase()}/stop/${sessionId}`, undefined, { timeout: 160000 });
   },
 
   stopSession(sessionId: string) {
