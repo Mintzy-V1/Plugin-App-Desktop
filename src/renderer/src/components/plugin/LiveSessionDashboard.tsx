@@ -2,7 +2,15 @@ import {
   type TradeLogRow,
   parseTradeTimeMs,
   parseInstantMs,
-  pickStatus
+  pickStatus,
+  QTY_KEYS,
+  unwrapQuantity,
+  pickQuantity,
+  isPlaceholderValue,
+  numOrNull,
+  isNumericZero,
+  readSymbolNetPnl,
+  pickRowPnl
 } from '../../lib/liveSessionModel';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
@@ -82,87 +90,21 @@ type Tab = 'logs' | 'pnl' | 'alerts';
 
 
 
-const QTY_KEYS = [
-  'net_qty', 'NetQty', 'netqty', 'position_qty',
-  'Quantity', 'quantity', 'QTY', 'Qty', 'qty',
-];
 
-function unwrapQuantity(value: unknown): string | number | null {
-  if (value == null || value === '' || value === '-') return null;
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed || trimmed === '-') return null;
-    const n = Number(trimmed.replace(/,/g, ''));
-    return Number.isFinite(n) ? n : trimmed;
-  }
-  if (typeof value === 'object') {
-    const o = value as Record<string, unknown>;
-    if (o.$numberInt != null) return unwrapQuantity(o.$numberInt);
-    if (o.$numberDouble != null) return unwrapQuantity(o.$numberDouble);
-    if (o.$numberLong != null) return unwrapQuantity(o.$numberLong);
-    for (const key of QTY_KEYS) {
-      if (key in o) {
-        const nested = unwrapQuantity(o[key]);
-        if (nested != null) return nested;
-      }
-    }
-  }
-  return null;
-}
 
-function pickQuantity(r: Record<string, unknown> | null | undefined): string | number {
-  if (!r) return '-';
-  for (const key of QTY_KEYS) {
-    const v = unwrapQuantity(r[key]);
-    if (v != null) return v;
-  }
-  return '-';
-}
 
-function isPlaceholderValue(v: unknown): boolean {
-  return v == null || v === '' || v === '-' || v === '—' || v === '--';
-}
 
-function numOrNull(v: unknown): number | null {
-  if (v == null || v === '' || v === '-') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
 
-function isNumericZero(v: unknown): boolean {
-  return numOrNull(v) === 0;
-}
 
-/** Realized + unrealized when both exist. A flat book writes P&L=0; realized still holds the exit profit. */
-function readSymbolNetPnl(row: Record<string, unknown> | null | undefined): number | null {
-  if (!row) return null;
-  const realized = numOrNull(
-    row.symbol_realized_pnl ?? row.realized_pnl ?? row.portfolio_realized_pnl,
-  );
-  const unrealized = numOrNull(
-    row.symbol_unrealized_pnl
-    ?? row.unrealized_pnl
-    ?? row.live_unrealized_pnl
-    ?? row.portfolio_unrealized_pnl,
-  );
-  if (realized != null && unrealized != null) return realized + unrealized;
-  const marked = numOrNull(
-    row.final_pnl ?? row.symbol_pnl ?? row.total_pnl ?? row['P&L'] ?? row.PnL ?? row.pnl,
-  );
-  if (realized != null && realized !== 0) return realized;
-  if (unrealized != null && unrealized !== 0) return unrealized;
-  if (marked != null && marked !== 0) return marked;
-  if (realized != null) return realized;
-  if (unrealized != null) return unrealized;
-  if (marked != null) return marked;
-  return null;
-}
 
-function pickRowPnl(r: Record<string, unknown>): string | number {
-  const net = readSymbolNetPnl(r);
-  return net != null ? net : '-';
-}
+
+
+
+
+
+
+
+
 
 function hasQuantity(v: string | number | null | undefined): boolean {
   return v != null && v !== '' && v !== '-';
