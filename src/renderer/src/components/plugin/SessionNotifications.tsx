@@ -1,3 +1,5 @@
+import { Pagination } from '../ui/Pagination';
+import { usePagination } from '../../lib/usePagination';
 import { useState } from 'react';
 import { BellOff, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import { SEVERITY_LABEL, SEVERITY_STYLE, type SessionEvent } from '../../lib/sessionEvents';
@@ -45,36 +47,39 @@ function RawBlock({ event }: { event: SessionEvent }) {
     }
   };
   return (
-    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-950">
-      <div className="flex items-center justify-between border-b border-slate-800 px-3 py-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">raw</span>
-        <button type="button" onClick={copy} className="flex items-center gap-1 text-[11px] font-medium text-slate-300 hover:text-white">
+    <div className="mt-2 rounded-lg border border-line bg-subtle">
+      <div className="flex items-center justify-between border-b border-line px-3 py-1.5">
+        <span className="font-mono text-[11px] uppercase tracking-wider text-muted">raw</span>
+        <button type="button" onClick={copy} className="flex items-center gap-1 text-[11px] font-medium text-muted hover:text-ink">
           <Copy className="h-3 w-3" aria-hidden="true" /> {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="max-h-72 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words text-slate-200">{text}</pre>
+      <pre className="max-h-72 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words text-muted">{text}</pre>
     </div>
   );
 }
 
 export default function SessionNotifications({ events, raw, expired, expiresAt, loaded, unread }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [severity, setSeverity] = useState('');
+  const matchingEvents = events.filter(e => !severity || e.severity === severity);
+  const pagination = usePagination(matchingEvents, 25, severity);
 
   if (expired) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
-        <BellOff className="mx-auto h-5 w-5 text-slate-300" aria-hidden="true" />
-        <p className="mt-2 text-sm font-medium text-slate-600">Notifications for this session have expired</p>
-        <p className="mt-1 text-xs text-slate-400">They are kept for 48 hours after a session ends.</p>
+      <div className="rounded-xl border border-dashed border-line bg-surface px-6 py-10 text-center">
+        <BellOff className="mx-auto h-5 w-5 text-muted" aria-hidden="true" />
+        <p className="mt-2 text-sm font-medium text-secondary">Notifications for this session have expired</p>
+        <p className="mt-1 text-xs text-muted">They are kept for 48 hours after a session ends.</p>
       </div>
     );
   }
 
   if (loaded && events.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
-        <p className="text-sm font-medium text-slate-600">No notifications</p>
-        <p className="mt-1 text-xs text-slate-400">
+      <div className="rounded-xl border border-dashed border-line bg-surface px-6 py-10 text-center">
+        <p className="text-sm font-medium text-secondary">No notifications</p>
+        <p className="mt-1 text-xs text-muted">
           Problems with your broker, orders or Mintzy's services during this session will show up here.
         </p>
       </div>
@@ -82,40 +87,41 @@ export default function SessionNotifications({ events, raw, expired, expiresAt, 
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+    <div className="rounded-xl border border-line/80 bg-surface">
+      {!raw && events.length > 1 && <div className="flex items-center justify-between gap-3 border-b border-line p-4"><p className="text-sm font-medium text-ink">Session notifications</p><select aria-label="Filter notification severity" value={severity} onChange={e => setSeverity(e.target.value)} className="rounded-lg border border-line bg-surface px-3 py-2 text-xs text-ink"><option value="">All severities</option><option value="critical">Critical</option><option value="error">Error</option><option value="warning">Warning</option><option value="info">Info</option></select></div>}
       {!raw && expiresAt && (
-        <p className="border-b border-slate-100 bg-slate-50/80 px-4 py-2 text-[11px] text-slate-500">
+        <p className="border-b border-line bg-subtle px-4 py-2 text-[11px] text-muted">
           Kept until {formatIst(expiresAt)} IST (48 hours after the session ended).
         </p>
       )}
-      <ul className="divide-y divide-slate-100">
-        {events.map((e) => {
+      <ul className="divide-y divide-line">
+        {(raw ? events : pagination.rows).map((e) => {
           const style = SEVERITY_STYLE[e.severity];
           const isOpen = !!open[e.event_id];
           const isUnread = unread.has(e.event_id);
           return (
-            <li key={e.event_id} className={`border-l-4 px-4 py-3 ${style.accent} ${isUnread ? 'bg-amber-50/40' : ''}`}>
+            <li key={e.event_id} className={`border-l-4 px-4 py-3 ${style.accent} ${isUnread ? 'bg-attention-soft' : ''}`}>
               <div className="flex flex-wrap items-center gap-2">
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ${style.chip}`}>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ${style.chip}`}>
                   {SEVERITY_LABEL[e.severity]}
                 </span>
-                <span className="text-[13px] font-semibold text-slate-900">{e.title}</span>
+                <span className="text-[13px] font-semibold text-ink">{e.title}</span>
                 {e.symbol && (
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-600">{e.symbol}</span>
+                  <span className="rounded bg-subtle px-1.5 py-0.5 font-mono text-[11px] font-semibold text-secondary">{e.symbol}</span>
                 )}
                 {e.count > 1 && (
-                  <span className="text-[11px] font-medium text-slate-500" title="How many times this happened">×{e.count}</span>
+                  <span className="text-[11px] font-medium text-muted" title="How many times this happened">×{e.count}</span>
                 )}
                 {raw && !e.user_visible && (
-                  <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">Admin only</span>
+                  <span className="rounded bg-subtle px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-secondary">Admin only</span>
                 )}
-                <span className="ml-auto text-[11px] text-slate-400">
+                <span className="ml-auto text-[11px] text-muted">
                   {e.count > 1 ? `${formatIst(e.first_at)} – ${formatIst(e.last_at)}` : formatIst(e.last_at)}
                 </span>
               </div>
-              {e.message && <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{e.message}</p>}
-              {e.action && <p className="mt-1 text-[12px] leading-relaxed text-slate-500"><span className="font-semibold">What you can do:</span> {e.action}</p>}
-              <div className="mt-1.5 flex items-center gap-3 text-[11px] text-slate-400">
+              {e.message && <p className="mt-1 text-[13px] leading-relaxed text-secondary">{e.message}</p>}
+              {e.action && <p className="mt-1 text-[12px] leading-relaxed text-muted"><span className="font-semibold">What you can do:</span> {e.action}</p>}
+              <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted">
                 <span className="font-mono">Ref {e.event_id}</span>
                 {raw && (
                   <span className="font-mono">{e.code}</span>
@@ -124,7 +130,7 @@ export default function SessionNotifications({ events, raw, expired, expiresAt, 
                   <button
                     type="button"
                     onClick={() => setOpen((prev) => ({ ...prev, [e.event_id]: !isOpen }))}
-                    className="flex items-center gap-0.5 font-semibold text-slate-600 hover:text-slate-900"
+                    className="flex items-center gap-0.5 font-semibold text-secondary hover:text-ink"
                     aria-expanded={isOpen}
                   >
                     {isOpen ? <ChevronDown className="h-3 w-3" aria-hidden="true" /> : <ChevronRight className="h-3 w-3" aria-hidden="true" />}
@@ -137,6 +143,8 @@ export default function SessionNotifications({ events, raw, expired, expiresAt, 
           );
         })}
       </ul>
+      {!raw && loaded && matchingEvents.length === 0 && <p className="p-8 text-center text-sm text-muted">No notifications match this severity.</p>}
+      {!raw && events.length > 25 && <Pagination {...pagination} label="Notifications" />}
     </div>
   );
 }

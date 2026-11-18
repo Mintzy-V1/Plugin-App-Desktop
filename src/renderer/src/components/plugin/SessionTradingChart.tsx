@@ -17,8 +17,7 @@ import {
 } from 'lightweight-charts';
 import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react';
 
-const GREEN = '#10b981';
-const RED = '#ef4444';
+const themeColor = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(`--ui-${name}`).trim();
 const IST = 'Asia/Kolkata';
 
 export interface ChartLinePoint {
@@ -168,30 +167,32 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
     const el = hostRef.current;
     if (!el) return;
 
+    const GREEN = themeColor('gain');
+    const RED = themeColor('loss');
     const chart = createChart(el, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: themeColor('surface') },
+        textColor: themeColor('secondary'),
         fontFamily: 'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif',
         fontSize: 11,
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: '#f1f5f9' },
-        horzLines: { color: '#f1f5f9' },
+        vertLines: { color: themeColor('line') },
+        horzLines: { color: themeColor('line') },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#94a3b8', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#0f172a' },
-        horzLine: { color: '#94a3b8', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#0f172a' },
+        vertLine: { color: themeColor('muted'), width: 1, style: LineStyle.Dashed, labelBackgroundColor: themeColor('primary') },
+        horzLine: { color: themeColor('muted'), width: 1, style: LineStyle.Dashed, labelBackgroundColor: themeColor('primary') },
       },
       rightPriceScale: {
-        borderColor: '#e2e8f0',
+        borderColor: themeColor('line'),
         scaleMargins: { top: 0.12, bottom: 0.12 },
       },
       timeScale: {
-        borderColor: '#e2e8f0',
+        borderColor: themeColor('line'),
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 0,
@@ -243,11 +244,11 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
       : chart.addSeries(BaselineSeries, {
           baseValue: { type: 'price', price: 0 },
           topLineColor: GREEN,
-          topFillColor1: 'rgba(16, 185, 129, 0.28)',
-          topFillColor2: 'rgba(16, 185, 129, 0.02)',
+          topFillColor1: `${GREEN}40`,
+          topFillColor2: `${GREEN}05`,
           bottomLineColor: RED,
-          bottomFillColor1: 'rgba(239, 68, 68, 0.28)',
-          bottomFillColor2: 'rgba(239, 68, 68, 0.02)',
+          bottomFillColor1: `${RED}40`,
+          bottomFillColor2: `${RED}05`,
           lineWidth: 2,
           priceFormat,
         });
@@ -259,11 +260,25 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
       createSeriesMarkers(series, [{
         time: asUtc(liveAt),
         position: 'aboveBar',
-        color: '#d97706',
+        color: themeColor('attention'),
         shape: 'arrowDown',
         text: 'Live',
       }]);
     }
+
+    const applyTheme = () => {
+      const gain = themeColor('gain'), loss = themeColor('loss');
+      chart.applyOptions({
+        layout: { background: { type: ColorType.Solid, color: themeColor('surface') }, textColor: themeColor('secondary') },
+        grid: { vertLines: { color: themeColor('line') }, horzLines: { color: themeColor('line') } },
+        rightPriceScale: { borderColor: themeColor('line') }, timeScale: { borderColor: themeColor('line') },
+        crosshair: { vertLine: { color: themeColor('muted'), labelBackgroundColor: themeColor('primary') }, horzLine: { color: themeColor('muted'), labelBackgroundColor: themeColor('primary') } },
+      });
+      if (mode === 'candle') (series as ISeriesApi<'Candlestick'>).applyOptions({ upColor: gain, downColor: loss, borderUpColor: gain, borderDownColor: loss, wickUpColor: gain, wickDownColor: loss });
+      else (series as ISeriesApi<'Baseline'>).applyOptions({ topLineColor: gain, topFillColor1: `${gain}40`, topFillColor2: `${gain}05`, bottomLineColor: loss, bottomFillColor1: `${loss}40`, bottomFillColor2: `${loss}05` });
+    };
+    const themeObserver = new MutationObserver(applyTheme);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
     const ts = chart.timeScale();
     ts.fitContent();
@@ -271,6 +286,7 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
     ts.subscribeVisibleLogicalRangeChange(onRangeChange);
 
     return () => {
+      themeObserver.disconnect();
       ts.unsubscribeVisibleLogicalRangeChange(onRangeChange);
       seriesRef.current = null;
       chart.remove();
@@ -353,7 +369,7 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
       <div
         className={
           expanded
-            ? 'fixed inset-0 z-50 flex flex-col bg-white p-4'
+            ? 'fixed inset-0 z-50 flex flex-col bg-surface p-4'
             : undefined
         }
       >
@@ -364,7 +380,7 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
             disabled={!hasData}
             title="Zoom in"
             aria-label="Zoom in"
-            className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-40"
+            className="rounded-md border border-line p-1.5 text-muted transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-40"
           >
             <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -374,7 +390,7 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
             disabled={!hasData}
             title="Zoom out"
             aria-label="Zoom out"
-            className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-40"
+            className="rounded-md border border-line p-1.5 text-muted transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-40"
           >
             <ZoomOut className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -385,7 +401,7 @@ export default function SessionTradingChart({ mode, line, candles, liveAt }: Pro
             title={expanded ? 'Exit full chart' : 'Expand chart'}
             aria-label={expanded ? 'Exit full chart' : 'Expand chart'}
             aria-pressed={expanded}
-            className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-40"
+            className="rounded-md border border-line p-1.5 text-muted transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-40"
           >
             {expanded
               ? <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
