@@ -210,7 +210,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   const firstName = (user?.name || '').split(' ')[0] || 'there';
 
   return (
-    <div className="page-stack">
+    <div className="page-stack @container">
       <div role="tablist" aria-label="Dashboard sections" className="inline-flex gap-0.5 rounded-lg bg-line p-0.5">
         {TABS.map(t => (
           <button
@@ -229,53 +229,21 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
       {tab === 'overview' && (
         <div className="animate-fade-in page-stack">
-          <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-5 py-4 shadow-sm">
-            <UserAvatar name={user?.name || 'U'} size="md" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-medium text-muted">{greetingForNow()}</p>
-              <h2 className="truncate text-[17px] font-semibold tracking-tight text-ink">{firstName}</h2>
-              <p className="truncate text-[13px] text-muted">{user?.email}</p>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1.5">
-              {user?.broker && (
-                <span className="rounded-md bg-subtle px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-secondary">
-                  {brokerLabel(brokerFromProfile(user.broker))}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => fetchData()}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-gain"
-              >
-                <RefreshCw className="h-3 w-3" aria-hidden="true" />
-                {refreshedAt
-                  ? `Updated ${refreshedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
-                  : 'Refresh'}
-              </button>
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
+            <div><p className="text-sm text-secondary">{greetingForNow()}, {firstName}</p><h2 className="mt-1 font-serif text-3xl text-ink">Your account at a glance</h2></div>
+            <div className="flex items-center gap-4">
+              {user?.broker && <span className="rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-secondary">{brokerLabel(brokerFromProfile(user.broker))}</span>}
+              <button type="button" onClick={() => fetchData()} className="flex items-center gap-2 rounded-md py-2 text-xs text-muted"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />{refreshedAt ? `Updated ${refreshedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : 'Refresh'}</button>
             </div>
           </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <MetricCard
-              label="Cash in broker"
-              value={currencyFormat(cash)}
-              loading={figuresLoading}
-              icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
-              accent="emerald"
-            />
-            <MetricCard
-              label="Equity"
-              value={currencyFormat(equity)}
-              loading={figuresLoading}
-              icon={<IndianRupee className="h-4 w-4" aria-hidden="true" />}
-            />
-            <MetricCard
-              label="This month"
-              value={currencyFormat(monthlyPnl)}
-              valueClass={monthlyPnl >= 0 ? 'text-gain' : 'text-loss'}
-              loading={figuresLoading}
-              icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
-            />
+          <div className="grid grid-cols-2 gap-4 @min-[900px]:grid-cols-[1.5fr_1fr_1fr]">
+            <div className="col-span-2 rounded-xl border border-line bg-surface px-6 py-7 @min-[900px]:col-span-1">
+              <p className="text-xs font-medium uppercase tracking-[0.15em] text-muted">This month’s result</p>
+              {figuresLoading ? <div className="mt-4 h-12 w-48 animate-pulse rounded bg-subtle" /> : <p className={`mt-3 font-serif text-5xl tracking-tight tabular-nums ${monthlyPnl == null ? 'text-muted' : monthlyPnl >= 0 ? 'text-gain' : 'text-loss'}`}>{monthlyPnl != null && Number.isFinite(monthlyPnl) ? currencyFormat(monthlyPnl) : '—'}</p>}
+              <p className="mt-3 text-xs text-secondary">{new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
+            </div>
+            <MetricCard label="Cash in broker" value={cash != null && Number.isFinite(cash) ? currencyFormat(cash) : '—'} loading={figuresLoading} icon={<Wallet className="h-4 w-4" aria-hidden="true" />} />
+            <MetricCard label="Equity" value={equity != null && Number.isFinite(equity) ? currencyFormat(equity) : '—'} loading={figuresLoading} icon={<IndianRupee className="h-4 w-4" aria-hidden="true" />} />
           </div>
 
           <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-5 py-3.5 shadow-sm">
