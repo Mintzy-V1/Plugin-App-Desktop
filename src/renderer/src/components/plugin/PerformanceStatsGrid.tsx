@@ -1,3 +1,4 @@
+import { StatTile as SharedStatTile } from '../ui/StatTile';
 import type { PerformanceStats } from '../../lib/pluginApi';
 
 const money = (n: number) => {
@@ -9,8 +10,8 @@ const pct = (n: number) =>
   `${n.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 
 function tone(n: number | null | undefined) {
-  if (n == null || n === 0) return 'text-slate-900';
-  return n > 0 ? 'text-emerald-600' : 'text-red-600';
+  if (n == null || n === 0) return 'text-ink';
+  return n > 0 ? 'text-gain' : 'text-loss';
 }
 
 function StatTile({
@@ -24,13 +25,7 @@ function StatTile({
   hint?: string;
   valueClass?: string;
 }) {
-  return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-sm">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{label}</p>
-      <p className={`mt-1.5 text-[15px] font-semibold tracking-tight ${valueClass || 'text-slate-900'}`}>{value}</p>
-      {hint ? <p className="mt-0.5 truncate text-[11px] text-slate-400">{hint}</p> : null}
-    </div>
-  );
+  return <SharedStatTile label={label} value={<span className={`text-2xl ${valueClass || 'text-ink'}`}>{value}</span>} delta={hint} />;
 }
 
 export default function PerformanceStatsGrid({
@@ -44,9 +39,9 @@ export default function PerformanceStatsGrid({
 }) {
   if (loading && !stats) {
     return (
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading performance">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-busy="true" aria-label="Loading performance">
         {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i} className="h-[88px] animate-pulse rounded-2xl bg-slate-100" />
+          <div key={i} className="h-[88px] animate-pulse rounded-xl bg-subtle" />
         ))}
       </div>
     );
@@ -59,8 +54,8 @@ export default function PerformanceStatsGrid({
     <div className="page-stack">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h3 className="text-[13px] font-semibold text-slate-900">Performance</h3>
-          <p className="mt-0.5 text-[11px] text-slate-400">
+          <h3 className="text-[13px] font-semibold text-ink">Performance</h3>
+          <p className="mt-0.5 text-[11px] text-muted">
             {loading
               ? 'Loading performance…'
               : s
@@ -71,13 +66,13 @@ export default function PerformanceStatsGrid({
         <button
           type="button"
           onClick={onOpenMonths}
-          className="text-[12px] font-semibold text-emerald-700 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+          className="text-[12px] font-semibold text-gain hover:text-gain focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30"
         >
           Month over month
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatTile
           label="Max profit script"
           value={s?.maxProfitScript ? money(s.maxProfitScript.value) : dash}
@@ -139,23 +134,23 @@ export function MonthReturnsGrid({ stats, loading }: { stats: PerformanceStats |
   return (
     <div className="page-stack">
       <div>
-        <h3 className="text-[13px] font-semibold text-slate-900">Month over month</h3>
-        <p className="mt-0.5 text-[11px] text-slate-400">
+        <h3 className="text-[13px] font-semibold text-ink">Month over month</h3>
+        <p className="mt-0.5 text-[11px] text-muted">
           Last 12 months from your first trade. Months with no trading show —.
         </p>
       </div>
       {loading && months.length === 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true">
           {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-subtle" />
           ))}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {months.map((m) => (
-            <div key={m.key} className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-sm">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{m.label}</p>
-              <p className={`mt-1.5 text-[16px] font-semibold tracking-tight ${m.pnl == null ? 'text-slate-300' : tone(m.pnl)}`}>
+            <div key={m.key} className="rounded-xl border border-line/80 bg-surface px-4 py-3.5 shadow-sm">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted">{m.label}</p>
+              <p className={`mt-3 font-serif text-2xl tracking-tight tabular-nums ${m.pnl == null ? 'text-muted' : tone(m.pnl)}`}>
                 {m.pnl == null ? '—' : money(m.pnl)}
               </p>
             </div>

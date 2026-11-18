@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
-import { IndianRupee, TrendingUp, Wallet, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { IndianRupee, Wallet, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import UserAvatar from '../components/ui/UserAvatar';
+import { Tabs } from '../components/ui/Tabs';
+import { Pagination } from '../components/ui/Pagination';
+import { usePagination } from '../lib/usePagination';
+import { LoadError } from '../components/ui/Feedback';
 import { useToast } from '../components/ui/Toast';
 import { pluginApi } from '../lib/pluginApi';
 import type { TradingSession, PerformanceStats } from '../lib/pluginApi';
@@ -12,20 +15,6 @@ import PerformanceStatsGrid, { MonthReturnsGrid } from '../components/plugin/Per
 import { brokerFromProfile, brokerLabel } from '../components/plugin/ConnectBrokerForm';
 
 type Tab = 'overview' | 'sessions' | 'returns';
-
-const SESSION_PAGE_SIZE = 10;
-
-function sessionPageItems(current: number, total: number): Array<number | 'gap'> {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const wanted = new Set([1, total, current - 1, current, current + 1]);
-  const nums = [...wanted].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
-  const items: Array<number | 'gap'> = [];
-  for (let i = 0; i < nums.length; i++) {
-    if (i > 0 && nums[i] - nums[i - 1] > 1) items.push('gap');
-    items.push(nums[i]);
-  }
-  return items;
-}
 
 const currencyFormat = (v?: number | null) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(v ?? 0);
@@ -60,36 +49,32 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('overview');
   const [sessions, setSessions] = useState<TradingSession[]>([]);
-  const [monthlyPnl, setMonthlyPnl] = useState<number>(0);
-  const [equity, setEquity] = useState<number>(0);
-  const [cash, setCash] = useState<number>(() => readRememberedBrokerCash() ?? 0);
+  const [monthlyPnl, setMonthlyPnl] = useState<number | null>(null);
+  const [equity, setEquity] = useState<number | null>(null);
+  const [cash, setCash] = useState<number | null>(() => readRememberedBrokerCash());
   const [loading, setLoading] = useState(true);
   const [figuresLoading, setFiguresLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [figuresError, setFiguresError] = useState(false);
+  const [sessionSearch, setSessionSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
-  const [sessionPage, setSessionPage] = useState(1);
-
   const activeCount = sessions.filter(s => s.status === 'trading_active').length;
   const readyCount = sessions.filter(s => isConfigurableSessionStatus(s.status)).length;
-  const sessionPageCount = Math.max(1, Math.ceil(sessions.length / SESSION_PAGE_SIZE));
-  const safeSessionPage = Math.min(sessionPage, sessionPageCount);
-  const sessionFrom = sessions.length === 0 ? 0 : (safeSessionPage - 1) * SESSION_PAGE_SIZE + 1;
-  const sessionTo = Math.min(safeSessionPage * SESSION_PAGE_SIZE, sessions.length);
-  const pageSessions = sessions.slice((safeSessionPage - 1) * SESSION_PAGE_SIZE, safeSessionPage * SESSION_PAGE_SIZE);
-
-  useEffect(() => {
-    setSessionPage((p) => Math.min(p, Math.max(1, Math.ceil(sessions.length / SESSION_PAGE_SIZE) || 1)));
-  }, [sessions.length]);
+  const filteredSessions = sessions.filter(s => (!statusFilter || s.status === statusFilter) && [s.python_session_id, s.configuration_name, sessionStatusLabel(s.status)].some(value => value?.toLowerCase().includes(sessionSearch.trim().toLowerCase())));
+  const history = usePagination(filteredSessions, 10, `${sessionSearch}:${statusFilter}`);
 
   const fetchData = useCallback((silent = false) => {
     if (!silent) {
       setLoading(true);
       setFiguresLoading(true);
       setLoadError(false);
+      setFiguresError(false);
     }
     pluginApi.getSessions()
       .then((sRes) => {
+        setLoadError(false);
         const list = sRes.data.sessions || [];
         setSessions(list);
         setRefreshedAt(new Date());
@@ -100,9 +85,10 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
         pluginApi.getPnlAggregate(new Date().getFullYear(), new Date().getMonth() + 1)
           .then(async (pnlRes) => {
             const pnl = pnlRes.data as Record<string, unknown>;
-            setMonthlyPnl(Number(pnl?.monthly_total ?? 0));
+            setMonthlyPnl(pnl?.monthly_total != null ? Number(pnl.monthly_total) : null);
+            setFiguresError(false);
             const current = pnl?.current as Record<string, unknown> | undefined;
-            setEquity(Number(current?.total_equity ?? 0));
+            setEquity(current?.total_equity != null ? Number(current.total_equity) : null);
 
             const remembered = readRememberedBrokerCash();
             const fromAggregate = pickCash(current, pnl);
@@ -130,19 +116,21 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
             // Connected/live: broker cash from the session. After stop: latest log snapshot.
             const resolved = sessionIsOpen
-              ? (fromSession ?? remembered ?? fromAggregate ?? 0)
-              : ((fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null) ?? fromSession ?? remembered ?? 0);
+              ? (fromSession ?? remembered ?? fromAggregate ?? null)
+              : ((fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null) ?? fromSession ?? remembered ?? null);
             setCash(resolved);
             const toRemember = fromSession ?? (fromAggregate != null && fromAggregate !== 0 ? fromAggregate : null);
             if (toRemember != null) rememberBrokerCash(toRemember);
             setFiguresLoading(false);
           })
           .catch(() => {
+            setFiguresError(true);
             setFiguresLoading(false);
           });
       })
       .catch(() => {
-        if (!silent) setLoadError(true);
+        setLoadError(true);
+        setFiguresLoading(false);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -163,6 +151,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
   const [perfStats, setPerfStats] = useState<PerformanceStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState(false);
   const [statsGen, setStatsGen] = useState(0);
 
   useEffect(() => {
@@ -171,9 +160,9 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
     setStatsLoading(true);
     pluginApi.getPerformanceStats()
       .then((res) => {
-        if (!cancelled) setPerfStats(res.data.stats ?? null);
+        if (!cancelled) { setPerfStats(res.data.stats ?? null); setStatsError(false); }
       })
-      .catch(() => { /* keep previous stats */ })
+      .catch(() => { if (!cancelled) setStatsError(true); })
       .finally(() => {
         if (!cancelled) setStatsLoading(false);
       });
@@ -211,24 +200,12 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
   return (
     <div className="page-stack @container">
-      <div role="tablist" aria-label="Dashboard sections" className="inline-flex gap-0.5 rounded-lg bg-line p-0.5">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gain ${
-              tab === t.id ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-secondary'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Dashboard sections" items={TABS} value={tab} onChange={setTab} />
+      {loadError && <LoadError message="Session history could not be refreshed. Previously loaded sessions may be out of date." onRetry={() => fetchData()} />}
+      {statsError && <LoadError message="Performance could not be refreshed. Any figures shown are from the previous update." onRetry={() => setStatsGen(n => n + 1)} />}
+      {figuresError && <LoadError message="Balances and monthly result could not be refreshed. Any figures shown are from the previous update." onRetry={() => fetchData()} />}
 
-      {tab === 'overview' && (
-        <div className="animate-fade-in page-stack">
+      <div role="tabpanel" id="dashboard-sections-panel-overview" aria-labelledby="dashboard-sections-tab-overview" hidden={tab !== 'overview'} className="animate-fade-in page-stack">
           <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
             <div><p className="text-sm text-secondary">{greetingForNow()}, {firstName}</p><h2 className="mt-1 font-serif text-3xl text-ink">Your account at a glance</h2></div>
             <div className="flex items-center gap-4">
@@ -246,7 +223,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
             <MetricCard label="Equity" value={equity != null && Number.isFinite(equity) ? currencyFormat(equity) : '—'} loading={figuresLoading} icon={<IndianRupee className="h-4 w-4" aria-hidden="true" />} />
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-5 py-3.5 shadow-sm">
+          <div className="flex items-center justify-between rounded-xl border border-line/80 bg-surface px-5 py-3.5 shadow-sm">
             <div className="flex items-center gap-2.5">
               <span className={`h-2 w-2 rounded-full ${activeCount > 0 ? 'bg-gain-action' : 'bg-line'}`} aria-hidden="true" />
               <p className="text-[13px] text-secondary">
@@ -260,7 +237,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
             <button
               type="button"
               onClick={() => setTab('sessions')}
-              className="text-[12px] font-semibold text-gain hover:text-gain focus:outline-none focus-visible:ring-2 focus-visible:ring-gain"
+              className="text-[12px] font-semibold text-gain hover:text-gain focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30"
             >
               View all
             </button>
@@ -271,24 +248,22 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
             loading={statsLoading}
             onOpenMonths={() => setTab('returns')}
           />
-        </div>
-      )}
+      </div>
 
-      {tab === 'sessions' && (
-        <div className="animate-fade-in">
+      <div role="tabpanel" id="dashboard-sections-panel-sessions" aria-labelledby="dashboard-sections-tab-sessions" hidden={tab !== 'sessions'} className="animate-fade-in">
           {loading ? (
             <DashboardSkeleton />
           ) : loadError ? (
-            <div className="rounded-xl border border-line bg-surface px-4 py-8 text-center shadow-sm">
+            <div className="rounded-xl border border-line/80 bg-surface px-4 py-8 text-center shadow-sm">
               <p className="text-sm font-semibold text-ink">Couldn't load trading data</p>
               <p className="mt-1 text-sm text-muted">Check your connection and try again.</p>
               <button type="button" onClick={() => fetchData()}
-                className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-line">
+                className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30">
                 Retry
               </button>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-line/80 bg-surface shadow-sm">
               <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
                 <div>
                   <h3 className="text-[13px] font-semibold text-ink">Sessions</h3>
@@ -304,7 +279,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                   type="button"
                   onClick={() => handleDownload(sessions[0]?.python_session_id, sessions[0]?.status)}
                   disabled={!sessions[0]?.python_session_id || !!downloadingId}
-                  className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-semibold text-secondary transition-colors hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-gain disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-semibold text-secondary transition-colors hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30 disabled:opacity-50"
                 >
                   {downloadingId === sessions[0]?.python_session_id ? <Spinner className="h-3 w-3" /> : null}
                   Download latest
@@ -316,6 +291,11 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                   <p className="mt-1 text-xs text-muted">Start one from Launch Terminal to see it here.</p>
                 </div>
               ) : (
+                <><div className="flex flex-wrap gap-3 border-b border-line p-4">
+                  <input type="search" aria-label="Search session history" placeholder="Search strategy or session…" value={sessionSearch} onChange={e => setSessionSearch(e.target.value)} className="min-w-48 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" />
+                  <select aria-label="Filter session status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"><option value="">All statuses</option>{[...new Set(sessions.map(s => s.status))].map(status => <option key={status} value={status}>{sessionStatusLabel(status)}</option>)}</select>
+                  {(sessionSearch || statusFilter) && <button type="button" onClick={() => {setSessionSearch('');setStatusFilter('');}} className="text-xs font-medium text-gain">Clear filters</button>}
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead>
@@ -327,7 +307,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                       </tr>
                     </thead>
                     <tbody>
-                      {pageSessions.map(s => (
+                      {history.rows.map(s => (
                         <tr
                           key={s._id}
                           onClick={() => onOpenSession?.(s)}
@@ -345,6 +325,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                           }`}
                         >
                           <td className="px-5 py-3 font-mono text-xs text-secondary" title={s.python_session_id}>
+                            {s.configuration_name && <p className="mb-1 font-sans text-sm font-medium text-ink">{s.configuration_name}</p>}
                             {s.python_session_id?.length > 18
                               ? `${s.python_session_id.slice(0, 8)}…${s.python_session_id.slice(-6)}`
                               : s.python_session_id}
@@ -364,7 +345,7 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                               }}
                               disabled={!s.python_session_id || downloadingId === s.python_session_id}
                               aria-label={`Download tradebook for ${fmtDate(s.created_at)}`}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-gain-soft hover:text-gain focus:outline-none focus-visible:ring-2 focus-visible:ring-gain disabled:opacity-40"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-gain-soft hover:text-gain focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30 disabled:opacity-40"
                             >
                               {downloadingId === s.python_session_id ? (
                                 <Spinner className="h-3.5 w-3.5" />
@@ -379,67 +360,17 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </div></>
               )}
-              {sessions.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
-                  <p className="text-[12px] text-muted">
-                    {sessionFrom}–{sessionTo} of {sessions.length}
-                  </p>
-                  {sessionPageCount > 1 && (
-                    <nav aria-label="Session pages" className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setSessionPage((p) => Math.max(1, p - 1))}
-                        disabled={safeSessionPage <= 1}
-                        aria-label="Previous page"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-gain disabled:opacity-40"
-                      >
-                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                      {sessionPageItems(safeSessionPage, sessionPageCount).map((item, idx) =>
-                        item === 'gap' ? (
-                          <span key={`gap-${idx}`} className="px-1 text-[12px] text-muted">…</span>
-                        ) : (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => setSessionPage(item)}
-                            aria-label={`Page ${item}`}
-                            aria-current={item === safeSessionPage ? 'page' : undefined}
-                            className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[12px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gain ${
-                              item === safeSessionPage
-                                ? 'bg-primary text-on-primary'
-                                : 'text-secondary hover:bg-subtle hover:text-ink'
-                            }`}
-                          >
-                            {item}
-                          </button>
-                        ),
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setSessionPage((p) => Math.min(sessionPageCount, p + 1))}
-                        disabled={safeSessionPage >= sessionPageCount}
-                        aria-label="Next page"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-gain disabled:opacity-40"
-                      >
-                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </nav>
-                  )}
-                </div>
-              )}
+              {sessions.length > 0 && <Pagination page={history.page} pageSize={history.pageSize} total={history.total} onPage={history.onPage} onPageSize={history.onPageSize} label="Sessions" />}
+              {sessions.length > 0 && filteredSessions.length === 0 && <p className="p-8 text-center text-sm text-muted">No sessions match these filters.</p>}
             </div>
           )}
-        </div>
-      )}
+      </div>
 
-      {tab === 'returns' && (
-        <div className="animate-fade-in">
+      <div role="tabpanel" id="dashboard-sections-panel-returns" aria-labelledby="dashboard-sections-tab-returns" hidden={tab !== 'returns'} className="animate-fade-in">
           <MonthReturnsGrid stats={perfStats} loading={statsLoading} />
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -453,8 +384,8 @@ function MetricCard({ label, value, valueClass, loading, icon, accent }: {
   accent?: 'emerald';
 }) {
   return (
-    <div className={`rounded-xl border bg-surface px-4 py-4 shadow-sm ${
-      accent === 'emerald' ? 'border-gain/25' : 'border-line'
+    <div className={`rounded-xl border bg-surface px-6 py-7 ${
+      accent === 'emerald' ? 'border-gain/25' : 'border-line/80'
     }`}>
       <div className="flex items-center gap-2 text-muted">
         {icon}
@@ -463,7 +394,7 @@ function MetricCard({ label, value, valueClass, loading, icon, accent }: {
       {loading ? (
         <div className="mt-2.5 h-7 w-28 animate-pulse rounded bg-subtle" />
       ) : (
-        <p className={`mt-1.5 text-xl font-semibold tracking-tight ${valueClass || 'text-ink'}`}>{value}</p>
+        <p className={`mt-4 font-serif text-3xl tracking-tight tabular-nums ${valueClass || 'text-ink'}`}>{value}</p>
       )}
     </div>
   );
@@ -471,7 +402,7 @@ function MetricCard({ label, value, valueClass, loading, icon, accent }: {
 
 function DashboardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface" aria-busy="true" aria-label="Loading">
+    <div className="overflow-hidden rounded-xl border border-line/80 bg-surface" aria-busy="true" aria-label="Loading">
       <div className="border-b border-line px-4 py-3">
         <div className="h-3.5 w-28 animate-pulse rounded bg-subtle" />
       </div>
