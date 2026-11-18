@@ -17,7 +17,12 @@ import {
   applySymbolQuantities,
   mergeLogQuantities,
   pickLivePnlSymbols,
-  type QtySample
+  pricesFromLivePnl,
+  type QtySample,
+  qtyMapFromSymbols,
+  buildQtyTimeline,
+  qtyAsOf,
+  type PnlSample
 } from '../../lib/liveSessionModel';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
@@ -125,86 +130,15 @@ type Tab = 'logs' | 'pnl' | 'alerts';
 
 
 
-/** LTP/mark from a live-pnl payload — used only while still in simulation. */
-function pricesFromLivePnl(raw: unknown): Record<string, number> {
-  const symbols = pickLivePnlSymbols(raw);
-  if (!symbols) return {};
-  const out: Record<string, number> = {};
-  for (const [sym, data] of Object.entries(symbols)) {
-    const row = data && typeof data === 'object' ? data as Record<string, unknown> : null;
-    if (!row) continue;
-    const n = numOrNull(
-      row.ltp
-      ?? row.LTP
-      ?? row.last_traded_price
-      ?? row.last_price
-      ?? row.curr_price
-      ?? row.mark_price
-      ?? row.close_price
-      ?? row.last
-      ?? (row.tick && typeof row.tick === 'object' ? (row.tick as Record<string, unknown>).ltp : undefined)
-      ?? (row.quote && typeof row.quote === 'object' ? (row.quote as Record<string, unknown>).ltp : undefined),
-    );
-    if (n != null && n !== 0) out[sym.toUpperCase()] = n;
-  }
-  return out;
-}
 
 
 
-function qtyMapFromSymbols(raw: unknown): Map<string, string | number> {
-  const bySym = new Map<string, string | number>();
-  const symbols = pickLivePnlSymbols(raw);
-  if (!symbols) return bySym;
-  for (const [sym, data] of Object.entries(symbols)) {
-    const qty = pickQuantity(
-      data && typeof data === 'object' ? data as Record<string, unknown> : null,
-    );
-    if (isPositiveQty(qty)) bySym.set(sym.toUpperCase(), qty);
-  }
-  return bySym;
-}
 
-/** Time-ordered qty samples from `/trading/live-pnl/:id/history`. */
-function buildQtyTimeline(raw: unknown): QtySample[] {
-  let snapshots: unknown[] = [];
-  if (Array.isArray(raw)) snapshots = raw;
-  else if (raw && typeof raw === 'object') {
-    const o = raw as Record<string, unknown>;
-    if (Array.isArray(o.snapshots)) snapshots = o.snapshots;
-    else if (o.data && typeof o.data === 'object' && Array.isArray((o.data as Record<string, unknown>).snapshots)) {
-      snapshots = (o.data as Record<string, unknown>).snapshots as unknown[];
-    }
-  }
 
-  const samples: QtySample[] = [];
-  for (const item of snapshots) {
-    if (!item || typeof item !== 'object') continue;
-    const snap = item as Record<string, unknown>;
-    const ts = parseInstantMs(snap.sampled_at)
-      ?? parseInstantMs(snap.source_ts)
-      ?? parseInstantMs((snap.data as Record<string, unknown> | undefined)?.ts);
-    if (ts == null) continue;
-    const bySym = qtyMapFromSymbols(snap.data ?? snap);
-    if (bySym.size === 0) continue;
-    samples.push({ ts, bySym });
-  }
-  samples.sort((a, b) => a.ts - b.ts);
-  return samples;
-}
 
-function qtyAsOf(timeline: QtySample[], symbol: string, timeMs: number | null): string | number | null {
-  if (timeline.length === 0) return null;
-  const key = symbol.toUpperCase();
-  let last: string | number | null = null;
-  for (const sample of timeline) {
-    if (timeMs != null && sample.ts > timeMs) break;
-    const q = sample.bySym.get(key);
-    if (q != null && isPositiveQty(q)) last = q;
-  }
-  if (last != null) return last;
-  return null;
-}
+
+
+
 
 function applyHistoryQuantities(logs: TradeLogRow[], timeline: QtySample[]): TradeLogRow[] {
   if (timeline.length === 0) return logs;
@@ -215,10 +149,7 @@ function applyHistoryQuantities(logs: TradeLogRow[], timeline: QtySample[]): Tra
   });
 }
 
-interface PnlSample {
-  ts: number;
-  bySym: Map<string, number>;
-}
+
 
 function pnlMapFromSymbols(raw: unknown): Map<string, number> {
   const bySym = new Map<string, number>();
