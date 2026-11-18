@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { Pagination } from '../ui/Pagination';
+import { usePagination } from '../../lib/usePagination';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, Plus, Loader2, Bookmark, PencilLine, Save, Trash2 } from 'lucide-react';
 import { pluginApi, supportsLeverageMultiplier } from '../../lib/pluginApi';
 import type { SavedConfig } from '../../lib/pluginApi';
@@ -43,9 +45,13 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
   const showLeverage = supportsLeverageMultiplier();
   const [configs, setConfigs] = useState<SavedConfig[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const matchingConfigs = configs.filter(c => [c.name, c.description, ...summarizeConfiguration(c.configuration).symbols].some(v => v?.toLowerCase().includes(search.trim().toLowerCase())));
+  const pagination = usePagination(matchingConfigs, 10, search);
   const [loadError, setLoadError] = useState(false);
 
   const [editorMode, setEditorMode] = useState<EditorMode>('idle');
+  const editorRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<TradingConfigurationDraft>(createDefaultConfig());
   const [alphas, setAlphas] = useState<AlphasInfo | null>(null);
@@ -78,6 +84,13 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
     () => configs.find(c => configId(c) === editingId) ?? null,
     [configs, editingId],
   );
+
+  useEffect(() => {
+    if (editorMode === 'idle') return;
+    const heading = editorRef.current?.querySelector<HTMLElement>('h3');
+    heading?.focus({ preventScroll: true });
+    if (window.innerWidth < 1280) editorRef.current?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }, [editorMode, editingId]);
 
   const resetEditor = () => {
     setEditorMode('idle');
@@ -216,47 +229,48 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
   return (
     <div className="mx-auto w-full max-w-4xl">
       <button type="button" onClick={onBack}
-        className="mb-3 flex items-center rounded-lg text-sm text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40">
+        className="mb-3 flex items-center rounded-lg text-sm text-muted transition-colors hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40">
         <ArrowLeft className="mr-1 h-4 w-4" aria-hidden="true" /> Back
       </button>
 
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Saved Strategies</h2>
-          <p className="mt-1 text-sm text-slate-500">View, edit, or create reusable trading setups</p>
+          <h2 className="text-lg font-bold text-ink">Saved Strategies</h2>
+          <p className="mt-1 text-sm text-muted">View, edit, or create reusable trading setups</p>
         </div>
         <button type="button" onClick={handleCreate}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30">
+          className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30">
           <Plus className="h-3.5 w-3.5" aria-hidden="true" /> New strategy
         </button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-2">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="space-y-3">
+          <input type="search" aria-label="Search saved strategies" placeholder="Search strategy or symbol…" value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink" />
           {loading ? (
             <div className="space-y-2" aria-busy="true" aria-label="Loading saved strategies">
-              {[0, 1, 2].map(i => <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}
+              {[0, 1, 2].map(i => <div key={i} className="h-24 animate-pulse rounded-xl bg-subtle" />)}
             </div>
           ) : loadError ? (
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center">
-              <p className="text-sm text-slate-500">Couldn't load saved strategies.</p>
+            <div className="rounded-xl border border-line bg-surface px-4 py-6 text-center">
+              <p className="text-sm text-muted">Couldn't load saved strategies.</p>
               <button type="button" onClick={() => void fetchConfigs()}
-                className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30">
+                className="mt-3 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30">
                 Retry
               </button>
             </div>
           ) : configs.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-8 text-center">
-              <Bookmark className="mx-auto h-6 w-6 text-slate-300" aria-hidden="true" />
-              <p className="mt-2 text-sm font-medium text-slate-500">No saved strategies yet</p>
-              <p className="mt-1 text-xs text-slate-400">Create one to reuse it for future sessions.</p>
+            <div className="rounded-xl border border-dashed border-line bg-subtle px-4 py-8 text-center">
+              <Bookmark className="mx-auto h-6 w-6 text-muted" aria-hidden="true" />
+              <p className="mt-2 text-sm font-medium text-muted">No saved strategies yet</p>
+              <p className="mt-1 text-xs text-muted">Create one to reuse it for future sessions.</p>
               <button type="button" onClick={handleCreate}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800">
+                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-on-primary transition-colors hover:bg-primary">
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Create first strategy
               </button>
             </div>
           ) : (
-            configs.map((c) => {
+            pagination.rows.map((c) => {
               const id = configId(c);
               const summary = summarizeConfiguration(c.configuration);
               const isActive = editingId === id && editorMode === 'edit';
@@ -266,41 +280,41 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
                   key={id || c.name}
                   className={`rounded-xl border p-3.5 transition-shadow ${
                     isActive
-                      ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
-                      : 'border-slate-200 bg-white hover:shadow-sm'
+                      ? 'border-brand bg-gain-soft text-ink shadow-sm'
+                      : 'border-line bg-surface hover:shadow-sm'
                   }`}
                 >
                   <div className="min-w-0">
-                    <p className={`truncate text-sm font-semibold ${isActive ? 'text-white' : 'text-slate-900'}`}>{c.name}</p>
-                    <p className={`mt-0.5 line-clamp-2 text-xs ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
+                    <p className={`truncate text-sm font-semibold ${isActive ? 'text-ink' : 'text-ink'}`}>{c.name}</p>
+                    <p className={`mt-0.5 line-clamp-2 text-xs ${isActive ? 'text-muted' : 'text-muted'}`}>
                       {c.description || 'No description'}
                     </p>
-                    <div className={`mt-2.5 flex flex-wrap gap-1.5 text-[11px] font-semibold ${isActive ? 'text-slate-200' : 'text-slate-600'}`}>
-                      <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-white/10' : 'bg-slate-100'}`}>
+                    <div className={`mt-2.5 flex flex-wrap gap-1.5 text-[11px] font-semibold ${isActive ? 'text-muted' : 'text-secondary'}`}>
+                      <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-subtle' : 'bg-subtle'}`}>
                         {summary.symbolCount} manual
                       </span>
                       {summary.autoSymbolCount > 0 && (
-                        <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-emerald-400/20 text-emerald-100' : 'bg-emerald-50 text-emerald-700'}`}>
+                        <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-gain-soft text-gain' : 'bg-gain-soft text-gain'}`}>
                           {summary.autoSymbolCount} auto
                         </span>
                       )}
-                      <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-white/10' : 'bg-slate-100'}`}>
+                      <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-subtle' : 'bg-subtle'}`}>
                         {summary.strategyLabel}
                       </span>
-                      <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-white/10' : 'bg-slate-100'}`}>
+                      <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-subtle' : 'bg-subtle'}`}>
                         {summary.candle}
                       </span>
                       {showLeverage && (
                         <span className={`rounded-md px-2 py-0.5 ${
                           isActive
-                            ? 'bg-amber-400/20 text-amber-100'
-                            : lev != null ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-500'
+                            ? 'bg-attention-soft text-attention'
+                            : lev != null ? 'bg-attention-soft text-attention' : 'bg-subtle text-muted'
                         }`}>
                           {lev != null ? `${lev}× leverage` : '1× default'}
                         </span>
                       )}
                       {summary.symbols.length > 0 && (
-                        <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-white/10' : 'bg-slate-100'}`}>
+                        <span className={`rounded-md px-2 py-0.5 ${isActive ? 'bg-subtle' : 'bg-subtle'}`}>
                           {summary.symbols.slice(0, 4).join(', ')}
                           {summary.symbols.length > 4 ? ` +${summary.symbols.length - 4}` : ''}
                         </span>
@@ -310,10 +324,10 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button type="button" onClick={() => handleEdit(c)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
                         isActive
-                          ? 'border border-white/20 bg-white/10 text-white hover:bg-white/15'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          ? 'border border-line bg-subtle text-ink hover:bg-subtle'
+                          : 'border border-line bg-surface text-secondary hover:bg-subtle'
                       }`}>
                       <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
                       {isActive ? 'Editing' : 'View / Edit'}
@@ -322,20 +336,20 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
                       <button type="button"
                         onClick={() => onUseConfig(id, c.configuration as Record<string, unknown>)}
                         disabled={quickStarting}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50 ${
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50 ${
                           isActive
-                            ? 'bg-white text-slate-900 hover:bg-slate-100'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                            ? 'bg-surface text-ink hover:bg-subtle'
+                            : 'bg-primary text-on-primary hover:bg-primary'
                         }`}>
                         {quickStarting && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
                         Quick Start
                       </button>
                     )}
                     <button type="button" onClick={() => setPendingDelete(c)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 ${
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-loss/40 ${
                         isActive
-                          ? 'border border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20'
-                          : 'border border-slate-200 text-red-600 hover:bg-red-50'
+                          ? 'border border-loss/30 bg-loss-soft text-loss hover:bg-loss-soft'
+                          : 'border border-line text-loss hover:bg-loss-soft'
                       }`}>
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                       Delete
@@ -345,16 +359,18 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
               );
             })
           )}
+          {!loading && !loadError && configs.length > 0 && matchingConfigs.length === 0 && <p className="p-6 text-center text-sm text-muted">No strategies match this search.</p>}
+          {!loading && configs.length > 0 && <Pagination {...pagination} label="Strategies" />}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+        <div ref={editorRef} className="h-fit scroll-mt-6 rounded-xl border border-line bg-surface p-5">
+          <div className="mb-4 flex items-start justify-between gap-3 border-b border-line pb-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">
                 {editorMode === 'edit' ? 'Edit strategy' : editorMode === 'create' ? 'New strategy' : 'Editor'}
               </p>
-              <h3 className="mt-0.5 truncate text-base font-bold text-slate-900">{editorTitle}</h3>
-              <p className="mt-1 text-xs text-slate-500">
+              <h3 tabIndex={-1} className="mt-0.5 truncate font-serif text-2xl text-ink">{editorTitle}</h3>
+              <p className="mt-1 text-xs text-muted">
                 {editorMode === 'idle'
                   ? 'Select a saved strategy to view and edit it, or create a new one.'
                   : 'Same trading fields used when starting a live session.'}
@@ -362,36 +378,36 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
             </div>
             {editorMode !== 'idle' && (
               <button type="button" onClick={resetEditor}
-                className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50">
+                className="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-secondary transition-colors hover:bg-subtle">
                 Cancel
               </button>
             )}
           </div>
 
           {editorMode === 'idle' ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-12 text-center">
-              <Save className="mx-auto h-8 w-8 text-slate-300" aria-hidden="true" />
-              <p className="mx-auto mt-3 max-w-xs text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-line bg-subtle px-4 py-12 text-center">
+              <Save className="mx-auto h-8 w-8 text-muted" aria-hidden="true" />
+              <p className="mx-auto mt-3 max-w-xs text-sm text-muted">
                 Open a saved strategy to view its symbols and risk settings, or create a new setup.
               </p>
             </div>
           ) : (
             <div className="space-y-3">
               <div>
-                <label htmlFor="strategy-name" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <label htmlFor="strategy-name" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted">
                   Strategy name
                 </label>
                 <input id="strategy-name" type="text" placeholder="e.g. Morning momentum"
                   value={name} onChange={e => setName(e.target.value)} disabled={saving}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 disabled:opacity-60" />
+                  className="w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:opacity-60" />
               </div>
               <div>
-                <label htmlFor="strategy-description" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <label htmlFor="strategy-description" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted">
                   Description
                 </label>
                 <textarea id="strategy-description" rows={2} placeholder="Optional notes"
                   value={description} onChange={e => setDescription(e.target.value)} disabled={saving}
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 disabled:opacity-60" />
+                  className="w-full resize-none rounded-xl border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:opacity-60" />
               </div>
 
               <TradingConfigurationFields
@@ -410,13 +426,13 @@ export default function SavedStrategiesView({ sessionId, onUseConfig, onBack, qu
               />
 
               {saveError && (
-                <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">
+                <div role="alert" className="rounded-xl border border-loss/25 bg-loss-soft px-4 py-3 text-center text-sm font-medium text-loss">
                   {saveError}
                 </div>
               )}
 
               <button type="button" onClick={() => void handleSave()} disabled={saving || !name.trim()}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 disabled:opacity-50">
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-50">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
                 {editorMode === 'edit' ? 'Update strategy' : 'Save strategy'}
               </button>

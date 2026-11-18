@@ -56,34 +56,34 @@ export default function TickerSelector({ value, onChange, excludeSymbols = [] }:
       <button type="button" onClick={() => { setOpen(!open); setQuery(''); }}
         role="combobox" aria-expanded={open} aria-controls={listboxId} aria-haspopup="listbox"
         aria-label={value ? `Symbol: ${value}` : 'Select symbol'}
-        className={`flex w-full items-center justify-between rounded-xl border bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
-          open ? 'border-blue-500 ring-2 ring-blue-500/15' : 'border-slate-200 hover:border-slate-300'
-        } ${value ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+        className={`flex w-full items-center justify-between rounded-xl border bg-subtle px-3 py-2.5 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-brand/40 ${
+          open ? 'border-brand ring-2 ring-brand/15' : 'border-line hover:border-line'
+        } ${value ? 'text-ink font-medium' : 'text-muted'}`}>
         {value || 'Select symbol'}
-        <Search className="h-4 w-4 text-slate-400" aria-hidden="true" />
+        <Search className="h-4 w-4 text-muted" aria-hidden="true" />
       </button>
 
       {open && (
-        <div className="animate-scale-in absolute left-0 right-0 top-[calc(100%+4px)] z-30 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_40px_rgba(15,23,42,0.16)]">
-          <div className="border-b border-slate-100 p-2">
+        <div className="animate-scale-in absolute left-0 right-0 top-[calc(100%+4px)] z-30 overflow-hidden rounded-xl border border-line bg-surface shadow-[0_20px_40px_rgba(15,23,42,0.16)]">
+          <div className="border-b border-line p-2">
             <input type="text" placeholder="Search symbols..." value={query} autoFocus
               aria-label="Search symbols" onKeyDown={onSearchKeyDown}
               onChange={e => setQuery(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+              className="w-full rounded-xl border border-line bg-subtle px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/15" />
           </div>
           <div ref={listRef} id={listboxId} role="listbox" className="max-h-48 overflow-y-auto p-1">
             {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-center text-xs text-slate-400">No symbols match "{query}"</p>
+              <p className="px-3 py-4 text-center text-xs text-muted">No symbols match "{query}"</p>
             ) : filtered.map((t, i) => (
               <button key={t} type="button" role="option" aria-selected={t === value}
                 onClick={() => select(t)} onMouseEnter={() => setHighlighted(i)}
                 className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                  t === value ? 'bg-blue-50 font-semibold text-blue-700'
-                    : i === highlighted ? 'bg-slate-100 text-slate-900'
-                    : 'text-slate-700'
+                  t === value ? 'bg-info-soft font-semibold text-info'
+                    : i === highlighted ? 'bg-subtle text-ink'
+                    : 'text-secondary'
                 }`}>
                 <span>{t}</span>
-                {t === value && <Check className="h-4 w-4 text-blue-600" aria-hidden="true" />}
+                {t === value && <Check className="h-4 w-4 text-info" aria-hidden="true" />}
               </button>
             ))}
           </div>
