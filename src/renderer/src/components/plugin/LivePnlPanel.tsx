@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom';
+import { SessionResult } from './SessionResult';
 export type { SymbolRow } from '../../lib/livePnlModel';
 export type { LogTickerHint } from '../../lib/livePnlModel';
 export { livePnlPollMs } from '../../lib/livePnlModel';
@@ -57,6 +59,8 @@ import SessionTradingChart from './SessionTradingChart';
 
 
 interface Props {
+  summaryHost?: HTMLElement | null;
+  positionsHost?: HTMLElement | null;
   sessionId: string;
   logRows?: LogTickerHint[];
   /** Epoch ms when simulation handed off to live trading. */
@@ -157,7 +161,7 @@ function TickerPhaseBadge({ phase }: { phase: 'live' | 'simulation' }) {
 
 
 
-export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simCloseRows, readOnly = false }: Props) {
+export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simCloseRows, readOnly = false, summaryHost, positionsHost }: Props) {
   const source = useSessionDataSource();
   const pyramidFlow = source.supportsPyramidPnl();
   const [totalPnl, setTotalPnl] = useState(0);
@@ -489,33 +493,7 @@ export default function LivePnlPanel({ sessionId, logRows, liveStartedAtMs, simC
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm" aria-live="off">
-        <div className="grid grid-cols-3 divide-x divide-slate-100">
-          <div className={`px-5 py-4 ${placeholder ? '' : bgColor}`}>
-            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total P&amp;L</p>
-            <p className={`mt-1 text-xl font-semibold tracking-tight ${placeholder ? 'text-slate-300' : trendColor}`}>
-              {placeholder ? '—' : formatMoney(scopedCards.total)}
-            </p>
-            {selectedSet && (
-              <p className="mt-0.5 truncate text-[11px] text-slate-400">{scopeLabel}</p>
-            )}
-          </div>
-          <div className="px-5 py-4">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Booked</p>
-            <p className={`mt-1 text-xl font-semibold tracking-tight ${placeholder ? 'text-slate-300' : scopedCards.realized >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {placeholder ? '—' : formatMoney(scopedCards.realized)}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-400">Already closed trades</p>
-          </div>
-          <div className="px-5 py-4">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Open</p>
-            <p className={`mt-1 text-xl font-semibold tracking-tight ${placeholder ? 'text-slate-300' : scopedCards.unrealized >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {placeholder ? '—' : formatMoney(scopedCards.unrealized)}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-400">Still in the market</p>
-          </div>
-        </div>
-      </div>
+      {summaryHost ? createPortal(<SessionResult total={placeholder ? '—' : formatMoney(scopedCards.total)} booked={placeholder ? '—' : formatMoney(scopedCards.realized)} open={placeholder ? '—' : formatMoney(scopedCards.unrealized)} positive={isPositive} bookedPositive={scopedCards.realized >= 0} openPositive={scopedCards.unrealized >= 0} scope={scopeLabel} unavailable={placeholder} />, summaryHost) : <SessionResult total={placeholder ? '—' : formatMoney(scopedCards.total)} booked={placeholder ? '—' : formatMoney(scopedCards.realized)} open={placeholder ? '—' : formatMoney(scopedCards.unrealized)} positive={isPositive} bookedPositive={scopedCards.realized >= 0} openPositive={scopedCards.unrealized >= 0} scope={scopeLabel} unavailable={placeholder} />}
 
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
