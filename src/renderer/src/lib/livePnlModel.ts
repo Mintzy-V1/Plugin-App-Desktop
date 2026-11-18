@@ -131,6 +131,80 @@ export function alignBucketStart(ts: number, bucketMs: number): number {
   return Math.floor((ts + IST_OFFSET_MS) / bucketMs) * bucketMs - IST_OFFSET_MS;
 }
 
+export function candlesFromSegment(
+  points: PnlPoint[],
+  bucketMs: number,
+  spanForLabel: number,
+): CandlePoint[] {
+  if (points.length === 0) return [];
+  const buckets = new Map<number, PnlPoint[]>();
+  for (const p of points) {
+    const key = alignBucketStart(p.ts, bucketMs);
+    const list = buckets.get(key);
+    if (list) list.push(p);
+    else buckets.set(key, [p]);
+  }
+
+  return Array.from(buckets.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([bucketStart, samples]) => {
+      const ordered = [...samples].sort((a, b) => a.ts - b.ts);
+      const totals = ordered.map((s) => s.total);
+      const open = ordered[0].total;
+      const close = ordered[ordered.length - 1].total;
+      return {
+        ts: bucketStart,
+        label: formatAxisTick(bucketStart, spanForLabel),
+        open,
+        high: Math.max(...totals),
+        low: Math.min(...totals),
+        close,
+        total: close,
+        isSwitch: false,
+      };
+    });
+}
+
+/** Bucket P&L samples into fixed-width OHLC candles on a single IST-aligned clock. */
+export function bucketForCandles(points: PnlPoint[], liveAt: number | null = null): CandlePoint[] {
+  if (points.length === 0) return [];
+  const span = Math.max(points[points.length - 1].ts - points[0].ts, 1);
+  const bucketMs = span > 4 * 3600 * 1000 ? 5 * 60 * 1000 : 60 * 1000;
+
+  const sim = liveAt != null ? points.filter((p) => p.ts < liveAt) : points;
+  const live = liveAt != null ? points.filter((p) => p.ts >= liveAt) : [];
+  const simCandles = candlesFromSegment(sim, bucketMs, span);
+  const liveCandles = candlesFromSegment(live, bucketMs, span);
+
+  if (liveAt != null && simCandles.length > 0) {
+    simCandles[simCandles.length - 1] = { ...simCandles[simCandles.length - 1], isSwitch: true };
+  } else if (liveAt != null && liveCandles.length > 0) {
+    liveCandles[0] = { ...liveCandles[0], isSwitch: true };
+  }
+
+  return [...simCandles, ...liveCandles];
+}
+
+export function formatAxisTick(ts: number, spanMs: number) {
+  const d = new Date(ts);
+  if (spanMs > 14 * 3600 * 1000) {
+    return d.toLocaleString('en-IN', {
+      timeZone: IST,
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+  return d.toLocaleTimeString('en-IN', {
+    timeZone: IST,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 export function formatMoney(n: number) {
   const sign = n > 0 ? '+' : n < 0 ? '−' : '';
   return `${sign}₹${Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -140,6 +214,18 @@ export const POSITION_QTY_KEYS = [
   'net_qty', 'NetQty', 'netqty', 'position_qty',
   'qty', 'quantity', 'Quantity', 'QTY', 'Qty',
 ];
+
+/** Open position. An explicit 0 is flat — do not replace it with filled/traded/order qty. */
+export function pickPositionQty(row: Record<string, unknown> | null | undefined): number | undefined {
+  if (!row) return undefined;
+  for (const key of POSITION_QTY_KEYS) {
+    if (!(key in row)) continue;
+    const n = Number(row[key]);
+    if (!Number.isFinite(n)) continue;
+    return n;
+  }
+  return undefined;
+}
 
 export function symbolNet(row: SymbolRow | undefined): { realized: number; unrealized: number; total: number } {
   if (!row) return { realized: 0, unrealized: 0, total: 0 };
