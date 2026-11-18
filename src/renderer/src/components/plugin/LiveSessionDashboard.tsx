@@ -34,9 +34,11 @@ import {
   fillMissingLogFields,
   carryForwardQuantities,
   mergeIncomingLogs,
+  normalizeLogs,
   formatMoney,
   formatLogDate,
   formatLogTime,
+  rmsRowFromExit,
   lastNonZeroLogPnl,
   textIsClientManualExit
 } from '../../lib/liveSessionModel';
@@ -180,63 +182,6 @@ type Tab = 'logs' | 'pnl' | 'alerts';
 
 
 
-function normalizeLogs(raw: unknown): TradeLogRow[] {
-  let rows: unknown[] = [];
-  if (Array.isArray(raw)) rows = raw;
-  else if (raw && typeof raw === 'object') {
-    const o = raw as Record<string, unknown>;
-    if (Array.isArray(o.rows)) rows = o.rows;
-    else if (Array.isArray(o.logs)) rows = o.logs;
-    else if (Array.isArray(o.data)) rows = o.data;
-  }
-
-  return rows.map((item) => {
-    const r = (item && typeof item === 'object' ? item : {}) as Record<string, any>;
-    const timeRaw = r.timestamp ?? r.time ?? r.Timestamp ?? r.Time;
-    const timeMs = parseTradeTimeMs(timeRaw);
-    const chartTimeMs = parseTradeTimeMs(r.logged_at ?? r.loggedAt ?? r.Logged_At) ?? timeMs;
-    let time = '-';
-    if (timeMs != null) {
-      time = `${formatLogDate(timeMs)} ${formatLogTime(timeMs)}`;
-    } else if (timeRaw != null) {
-      time = String(timeRaw);
-    }
-
-    const simRaw = r.simulation_logs ?? r.simulationLogs ?? r.is_simulation;
-    const lockedOut = isLockedOutRecord(r);
-    const lockReason = lockedOut ? String(r.lock_reason ?? r.lockReason ?? '').toUpperCase() : undefined;
-    const symbolText = String(r.Symbol ?? r.symbol ?? '-');
-
-    return {
-      time,
-      timeMs,
-      chartTimeMs,
-      symbol: String(r.Symbol ?? r.symbol ?? '-'),
-      signal: String(r.Signal ?? r.signal ?? r.side ?? r.Side ?? '-'),
-      action: String(r.Action_Status ?? r.Action ?? r.action ?? r.action_status ?? r.status ?? '-'),
-      quantity: pickQuantity(r),
-      price: r.Price ?? r.price ?? r.curr_price ?? '-',
-      change: r['Change(%)'] ?? r.Change ?? r.change ?? r.return_pct ?? '-',
-      pnl: pickRowPnl(r),
-      capital: r['Total_Capital'] ?? r.TotalCapital ?? r.total_capital ?? r.capital ?? r.cash_balance ?? r.portfolio_cash_balance ?? '-',
-      return_pct: r['Return(%)'] ?? r.Return ?? r.return_pct ?? r.return ?? '-',
-      simulation: typeof simRaw === 'boolean'
-        ? simRaw
-        : simRaw === 'true' || simRaw === 1
-          ? true
-          : simRaw === 'false' || simRaw === 0
-            ? false
-            : null,
-      ...(lockedOut
-        ? {
-          lockedOut: true,
-          lockReason,
-          lockMessage: String(r.lock_message ?? r.lockMessage ?? '').trim() || lockMessageFor(symbolText, lockReason),
-        }
-        : {}),
-    };
-  });
-}
 
 
 
@@ -244,33 +189,8 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
 
 
 
-function rmsRowFromExit(
-  ex: ExitedSymbol,
-  timeMs: number | null,
-  extras?: Pick<TradeLogRow, 'capital' | 'simulation'>,
-): TradeLogRow {
-  const time = timeMs != null
-    ? `${formatLogDate(timeMs)} ${formatLogTime(timeMs)}`
-    : (ex.exit_time || '-');
-  const pnl = exitedSymbolPnl(ex);
-  return {
-    time,
-    timeMs,
-    chartTimeMs: timeMs,
-    symbol: ex.symbol,
-    signal: ex.entry_side || '-',
-    action: 'Hit RMS',
-    quantity: ex.qty ?? '-',
-    price: ex.exit_price ?? ex.entry_price ?? '-',
-    change: '-',
-    pnl: pnl ?? '-',
-    capital: extras?.capital ?? '-',
-    return_pct: '-',
-    simulation: extras?.simulation ?? null,
-    rmsHit: true,
-    rmsReason: ex.exit_reason,
-  };
-}
+
+
 
 
 
