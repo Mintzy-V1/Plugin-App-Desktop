@@ -86,6 +86,9 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
   const source = useSessionDataSource();
   const canControl = !source.viewOnly;
   const [tab, setTab] = useState<Tab>('logs');
+  const [summaryHost, setSummaryHost] = useState<HTMLDivElement | null>(null);
+  const [positionsHost, setPositionsHost] = useState<HTMLDivElement | null>(null);
+  const [logSearch, setLogSearch] = useState('');
   // Engine errors for this session: popup (owner, running session), toast for warnings,
   // and the Notifications tab (raw details for admins)
   const sessionEvents = useSessionEvents(sessionId, {
@@ -433,8 +436,15 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
     return 'text-ink';
   })();
 
+  const filteredLogs = useMemo(() => {
+    const q = logSearch.trim().toLowerCase();
+    return displayLogs.map((log, index) => ({ log, index })).filter(({ log }) => !q || [log.symbol, log.action, log.signal].some(v => String(v).toLowerCase().includes(q)));
+  }, [displayLogs, logSearch]);
+  const logPages = usePagination(filteredLogs, 50, logSearch);
+
   return (
-    <div className="page-stack">
+    <div className="page-stack @container">
+      <div ref={setSummaryHost} />
       {isScheduled && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-attention/25 bg-attention-soft px-5 py-3.5 shadow-sm">
           <Clock className="h-4 w-4 shrink-0 text-attention" aria-hidden="true" />
@@ -551,24 +561,10 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
         </div>
       )}
 
-      <div role="tablist" aria-label="Session data" className="inline-flex gap-0.5 rounded-lg bg-line p-0.5">
-        {(['logs', 'pnl', 'alerts'] as Tab[]).map(t => (
-          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30 ${
-              tab === t ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-secondary'
-            }`}>
-            {t === 'logs' ? 'Trade logs' : t === 'pnl' ? 'Live P&L' : 'Notifications'}
-            {t === 'alerts' && unreadCount > 0 && (
-              <span className="min-w-[18px] rounded-full bg-loss-action px-1.5 text-center text-[11px] font-bold leading-[18px] text-on-primary"
-                aria-label={`${unreadCount} new`}>
-                {unreadCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <div ref={setPositionsHost} />
+      <Tabs label="Session data" value={tab} onChange={setTab} items={[{ id: 'logs', label: 'Trade logs' }, { id: 'pnl', label: 'Live P&L' }, { id: 'alerts', label: 'Notifications', count: unreadCount }]} />
 
-      <div hidden={tab !== 'alerts'}>
+      <div role="tabpanel" id="session-data-panel-alerts" aria-labelledby="session-data-tab-alerts" hidden={tab !== 'alerts'}>
         <SessionNotifications
           events={sessionEvents.events}
           raw={!canControl}
@@ -598,9 +594,11 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
       )}
 
       {/* Keep both panes mounted so Live P&L history/polling survives tab switches. */}
-      <div hidden={tab !== 'pnl'}>
+      <div role="tabpanel" id="session-data-panel-pnl" aria-labelledby="session-data-tab-pnl" hidden={tab !== 'pnl'}>
         <LivePnlPanel
           key={sessionId}
+          summaryHost={summaryHost}
+          positionsHost={positionsHost}
           sessionId={sessionId}
           logRows={logs}
           liveStartedAtMs={liveStartedAtMs}
@@ -611,7 +609,8 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
         />
       </div>
 
-      <div hidden={tab !== 'logs'}>
+      <div role="tabpanel" id="session-data-panel-logs" aria-labelledby="session-data-tab-logs" hidden={tab !== 'logs'}>
+        <div className="mb-3 flex flex-wrap items-center gap-3"><input type="search" value={logSearch} onChange={e => setLogSearch(e.target.value)} placeholder="Filter symbol, signal or action…" aria-label="Search trade logs" className="min-w-48 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" /><span className="text-xs text-muted">{filteredLogs.length} matching rows</span>{logSearch && <button type="button" onClick={() => setLogSearch('')} className="text-xs text-gain">Clear filter</button>}</div>
         <div className="rounded-xl border border-line/80 bg-surface shadow-sm">
           {loading && logs.length === 0 && displayLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-muted">
@@ -652,7 +651,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                   </tr>
                 </thead>
                 <tbody>
-                  {displayLogs.map((log, i) => {
+                  {logPages.rows.map(({ log, index: i }) => {
                     const pnlNum = Number(log.pnl);
                     const changeNum = Number(log.change);
                     const pnlColor = Number.isFinite(pnlNum) ? (pnlNum >= 0 ? 'text-gain' : 'text-loss') : 'text-secondary';
@@ -677,7 +676,7 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                             log.rmsHit
                               ? 'bg-loss-soft hover:bg-loss-soft'
                               : log.lockedOut
-                                ? 'bg-attention-soft shadow-[inset_3px_0_0_0_rgb(251,191,36)] hover:bg-attention-soft'
+                                ? 'bg-attention-soft shadow-[inset_3px_0_0_0_var(--ui-attention)] hover:bg-attention-soft'
                                 : isSimTrade
                                 ? 'bg-subtle hover:bg-subtle'
                                 : 'hover:bg-subtle'
@@ -740,11 +739,13 @@ export default function LiveSessionDashboard({ sessionId, initialStatus, initial
                       </Fragment>
                     );
                   })}
+                  {filteredLogs.length === 0 && <tr><td colSpan={9} className="p-8 text-center text-sm text-muted">No trades match this filter.</td></tr>}
                 </tbody>
               </table>
             </div>
           )}
         </div>
+        <Pagination {...logPages} label="Trade rows" />
       </div>
 
       <ConfirmDialog open={!!confirming}
