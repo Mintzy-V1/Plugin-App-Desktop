@@ -398,3 +398,83 @@ export function inferLiveStartedAt(explicit: number | null | undefined, logs?: L
   if (liveTimes.length === 0) return null;
   return Math.min(...liveTimes);
 }
+
+export function parseSessionLiveStart(raw: unknown): number | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const session = (o.session && typeof o.session === 'object' ? o.session : o) as Record<string, unknown>;
+  const ms = parseChartTimeMs(session.simulation_live_started_at);
+  return ms != null && isPlausibleTs(ms) ? ms : null;
+}
+
+export function resolveLogSimulation(row: LogTickerHint, liveAt: number | null): boolean {
+  if (row.simulation === true) return true;
+  if (row.simulation === false) return false;
+  return liveAt != null && row.timeMs != null && row.timeMs < liveAt;
+}
+
+/** Live if the ticker has any post-pyramid log; otherwise it stayed in simulation. */
+export function tickerPhaseMap(
+  logs: LogTickerHint[] | undefined,
+  liveAt: number | null,
+): Record<string, 'live' | 'simulation'> {
+  const out: Record<string, 'live' | 'simulation'> = {};
+  if (!logs?.length) return out;
+  for (const row of logs) {
+    const sym = String(row.symbol || '').toUpperCase();
+    if (!sym || sym === '-') continue;
+    if (!resolveLogSimulation(row, liveAt)) out[sym] = 'live';
+    else if (out[sym] !== 'live') out[sym] = 'simulation';
+  }
+  return out;
+}
+
+export function tickerPhaseFor(
+  symbol: string,
+  phases: Record<string, 'live' | 'simulation'>,
+  pyramidFlow: boolean,
+): 'live' | 'simulation' {
+  if (phases[symbol] === 'live') return 'live';
+  if (phases[symbol] === 'simulation') return 'simulation';
+  return pyramidFlow ? 'simulation' : 'live';
+}
+
+export function sumSimClosePnl(
+  rows: Array<{ symbol: string; pnl: string | number }> | undefined,
+  selected: Set<string> | null,
+): number | null {
+  if (!rows?.length) return null;
+  const last = new Map<string, number>();
+  for (const row of rows) {
+    const sym = String(row.symbol || '').toUpperCase();
+    if (!sym || sym === '-') continue;
+    if (selected && !selected.has(sym)) continue;
+    const pnl = Number(row.pnl);
+    if (!Number.isFinite(pnl)) continue;
+    last.set(sym, pnl);
+  }
+  if (last.size === 0) return null;
+  let total = 0;
+  for (const v of last.values()) total += v;
+  return total;
+}
+
+export function mergeSymbolRow(prev: SymbolRow | undefined, row: SymbolRow): SymbolRow {
+  if (!prev) return { ...row };
+  const prevNet = symbolNet(prev).total;
+  const nextNet = symbolNet(row).total;
+  const incomingFlatZero =
+    (row.qty == null || row.qty === 0)
+    && nextNet === 0
+    && prevNet !== 0;
+  return {
+    unrealized_pnl: incomingFlatZero
+      ? prev.unrealized_pnl
+      : (Number.isFinite(row.unrealized_pnl) ? row.unrealized_pnl : prev.unrealized_pnl),
+    realized_pnl: incomingFlatZero
+      ? prev.realized_pnl
+      : (Number.isFinite(row.realized_pnl as number) ? row.realized_pnl : prev.realized_pnl),
+    qty: Number.isFinite(row.qty as number) ? row.qty : (prev.qty ?? row.qty),
+    side: row.side || prev.side,
+  };
+}
