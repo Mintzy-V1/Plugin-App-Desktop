@@ -214,6 +214,11 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
       <div role="tabpanel" id="dashboard-sections-panel-overview" aria-labelledby="dashboard-sections-tab-overview" hidden={tab !== 'overview'} className="animate-fade-in flex flex-col gap-4">
           {tab === 'overview' && <>
+          {perfStats && !perfStats.daily && perfStats.tradingDays > 0 && (
+            <p role="status" className="rounded-xl border border-info/30 bg-info-soft px-4 py-3 text-xs text-info">
+              Detailed charts are being prepared for your account. Your headline figures are current; the charts fill in on the next refresh.
+            </p>
+          )}
           <EquityHero stats={perfStats} loading={statsLoading} monthlyPnl={monthlyPnl} cash={cash} equity={equity} figuresLoading={figuresLoading} />
           <KpiStrip stats={perfStats} loading={statsLoading} />
           <div className="grid gap-4 @min-[1000px]:grid-cols-2">
