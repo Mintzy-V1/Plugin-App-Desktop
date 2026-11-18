@@ -27,7 +27,13 @@ import {
   pnlMapFromSymbols,
   buildPnlTimeline,
   pnlAsOf,
-  applyHistoryPnl
+  applyHistoryPnl,
+  logRowKey,
+  scoreLogRow,
+  scoreLogs,
+  fillMissingLogFields,
+  carryForwardQuantities,
+  formatMoney
 } from '../../lib/liveSessionModel';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
@@ -157,82 +163,15 @@ type Tab = 'logs' | 'pnl' | 'alerts';
 
 
 
-function logRowKey(row: TradeLogRow): string {
-  return `${row.timeMs ?? row.time}|${String(row.symbol).toUpperCase()}`;
-}
 
-function scoreLogRow(row: TradeLogRow): number {
-  let score = 0;
-  for (const v of [row.quantity, row.price, row.pnl, row.capital, row.change, row.signal, row.action]) {
-    if (!isPlaceholderValue(v)) score += 1;
-    if (isPositiveQty(v as string | number)) score += 1;
-  }
-  return score;
-}
 
-function scoreLogs(rows: TradeLogRow[]): number {
-  return rows.reduce((n, row) => n + scoreLogRow(row), 0) + rows.length;
-}
 
-function fillMissingLogFields(row: TradeLogRow, fallback?: TradeLogRow | null): TradeLogRow {
-  if (!fallback) return row;
-  const next = { ...row };
-  if (!next.lockedOut && fallback.lockedOut) {
-    next.lockedOut = true;
-    next.lockReason = fallback.lockReason;
-    next.lockMessage = fallback.lockMessage;
-  }
-  const keys: Array<keyof TradeLogRow> = [
-    'quantity', 'price', 'change', 'pnl', 'capital', 'return_pct', 'signal', 'action',
-  ];
-  for (const key of keys) {
-    const cur = next[key];
-    const prev = fallback[key];
-    if (key === 'pnl') {
-      if (isPlaceholderValue(cur) && !isPlaceholderValue(prev)) {
-        next.pnl = prev as TradeLogRow['pnl'];
-      }
-      continue;
-    }
-    if (isPlaceholderValue(cur) && !isPlaceholderValue(prev)) {
-      (next as TradeLogRow)[key] = prev as never;
-    }
-  }
-  if (
-    !isWaitAction(next.action) &&
-    !isWaitAction(next.signal) &&
-    !hasExplicitQty(next.quantity) &&
-    isPositiveQty(fallback.quantity)
-  ) {
-    next.quantity = fallback.quantity;
-  }
-  if (next.chartTimeMs == null && fallback.chartTimeMs != null) next.chartTimeMs = fallback.chartTimeMs;
-  if (next.timeMs == null && fallback.timeMs != null) next.timeMs = fallback.timeMs;
-  return next;
-}
 
-function carryForwardQuantities(logs: TradeLogRow[]): TradeLogRow[] {
-  const indexed = logs.map((row, i) => ({ row, i }));
-  indexed.sort((a, b) => (a.row.timeMs ?? 0) - (b.row.timeMs ?? 0));
-  const lastBySym = new Map<string, string | number>();
-  const updated = new Map<number, TradeLogRow>();
-  for (const { row, i } of indexed) {
-    const key = String(row.symbol).toUpperCase();
-    if (isPositiveQty(row.quantity)) {
-      lastBySym.set(key, row.quantity);
-      updated.set(i, row);
-      continue;
-    }
-    if (isNumericZero(row.quantity) || isWaitAction(row.action) || isWaitAction(row.signal)) {
-      if (isNumericZero(row.quantity)) lastBySym.delete(key);
-      updated.set(i, row);
-      continue;
-    }
-    const last = lastBySym.get(key);
-    updated.set(i, last != null ? { ...row, quantity: last } : row);
-  }
-  return logs.map((row, i) => updated.get(i) ?? row);
-}
+
+
+
+
+
 
 function mergeIncomingLogs(
   fromPlugin: TradeLogRow[],
@@ -337,9 +276,7 @@ function normalizeLogs(raw: unknown): TradeLogRow[] {
   });
 }
 
-function formatMoney(n: number) {
-  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+
 
 function formatLogDate(ms: number): string {
   return new Date(ms)
