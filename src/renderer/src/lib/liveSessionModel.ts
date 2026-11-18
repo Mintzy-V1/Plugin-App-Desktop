@@ -1005,6 +1005,34 @@ export function remapManualStopExitRows(
   });
 }
 
+/**
+ * Exit rows: Signal is only the opposite side of the previous row for that
+ * symbol. Action is EXIT, or EXIT/MANUAL EXIT when the client pressed Exit
+ * and the system did not auto-exit.
+ */
+export function presentExitRows(logs: TradeLogRow[]): TradeLogRow[] {
+  const lastSide = new Map<string, string>();
+  return logs.map((row) => {
+    const key = String(row.symbol || '').toUpperCase();
+    const manual = row.manualExit === true || textIsClientManualExit(row);
+    const exit = !row.rmsHit && (manual || isPresentedExit(row));
+    if (!exit) {
+      const side = rowSide(row);
+      if (key && key !== '-' && side) lastSide.set(key, side);
+      return row;
+    }
+    const prior = key ? lastSide.get(key) : undefined;
+    const signal = prior ? (invertBuySell(prior) ?? '—') : '—';
+    return {
+      ...row,
+      manualExit: manual || undefined,
+      signal,
+      action: manual ? 'EXIT/MANUAL EXIT' : 'EXIT',
+      change: '-',
+    };
+  });
+}
+
 export function rowSide(row: TradeLogRow): string | null {
   if (isBuySellTone(row.signal)) return String(row.signal);
   if (isBuySellTone(row.action)) return String(row.action);
@@ -1017,4 +1045,11 @@ export function isPresentedExit(row: TradeLogRow): boolean {
   if (isSimCloseIstLog(row.timeMs) || isSessionSquareOffIstLog(row.timeMs)) return true;
   const tone = formatTradeLabel(row.action).tone;
   return tone === 'exit' || tone === 'close';
+}
+
+export function extractTradingSession(raw: unknown): TradingSession | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const session = (o.session && typeof o.session === 'object' ? o.session : o) as TradingSession;
+  return session?.python_session_id || session?.status != null ? session : null;
 }

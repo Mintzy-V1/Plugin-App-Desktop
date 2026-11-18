@@ -58,8 +58,10 @@ import {
   remapSimCloseExitRows,
   lastStopBlockMs,
   remapManualStopExitRows,
+  presentExitRows,
   rowSide,
-  isPresentedExit
+  isPresentedExit,
+  extractTradingSession
 } from '../../lib/liveSessionModel';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { StopCircle, Download, RefreshCw, Loader2, WifiOff, IndianRupee, Settings2, Clock, XCircle, Lock } from 'lucide-react';
@@ -343,44 +345,13 @@ function withPyramidSimCloseRows(
 
 
 
-/**
- * Exit rows: Signal is only the opposite side of the previous row for that
- * symbol. Action is EXIT, or EXIT/MANUAL EXIT when the client pressed Exit
- * and the system did not auto-exit.
- */
-function presentExitRows(logs: TradeLogRow[]): TradeLogRow[] {
-  const lastSide = new Map<string, string>();
-  return logs.map((row) => {
-    const key = String(row.symbol || '').toUpperCase();
-    const manual = row.manualExit === true || textIsClientManualExit(row);
-    const exit = !row.rmsHit && (manual || isPresentedExit(row));
-    if (!exit) {
-      const side = rowSide(row);
-      if (key && key !== '-' && side) lastSide.set(key, side);
-      return row;
-    }
-    const prior = key ? lastSide.get(key) : undefined;
-    const signal = prior ? (invertBuySell(prior) ?? '—') : '—';
-    return {
-      ...row,
-      manualExit: manual || undefined,
-      signal,
-      action: manual ? 'EXIT/MANUAL EXIT' : 'EXIT',
-      change: '-',
-    };
-  });
-}
 
 
 
 
 
-function extractTradingSession(raw: unknown): TradingSession | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
-  const session = (o.session && typeof o.session === 'object' ? o.session : o) as TradingSession;
-  return session?.python_session_id || session?.status != null ? session : null;
-}
+
+
 
 export default function LiveSessionDashboard({ sessionId, initialStatus, initialFreeCash, readOnly = false, onStop, onConfigure }: Props) {
   const toast = useToast();
