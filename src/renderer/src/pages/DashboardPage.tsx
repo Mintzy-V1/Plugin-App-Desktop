@@ -11,10 +11,13 @@ import type { TradingSession, PerformanceStats } from '../lib/pluginApi';
 import { sessionStatusLabel, sessionStatusBadgeClass, isLiveSessionStatus, isConfigurableSessionStatus } from '../lib/sessionStatus';
 import { downloadSessionCsv } from '../lib/downloadSessionCsv';
 import { pickCash, readRememberedBrokerCash, rememberBrokerCash } from '../lib/brokerCash';
-import PerformanceStatsGrid, { MonthReturnsGrid } from '../components/plugin/PerformanceStatsGrid';
+import { MonthReturnsGrid } from '../components/plugin/PerformanceStatsGrid';
 import { brokerFromProfile, brokerLabel } from '../components/plugin/ConnectBrokerForm';
 import { EquityHero } from '../components/dashboard/EquityHero';
 import { KpiStrip } from '../components/dashboard/KpiStrip';
+import { DailyPnlChart, MonthlyBars } from '../components/dashboard/PnlBars';
+import { PnlCalendar, SymbolLeaderboard, WeekdayBreakdown } from '../components/dashboard/Breakdowns';
+import { Records } from '../components/dashboard/Records';
 
 type Tab = 'overview' | 'sessions' | 'returns';
 
@@ -202,47 +205,53 @@ export default function DashboardPage({ onOpenSession }: { onOpenSession?: (sess
 
   return (
     <div className="page-stack @container">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-secondary">{greetingForNow()}, {firstName}</p>
+          <h2 className="mt-1 font-serif text-[2rem] leading-tight tracking-tight text-ink">Your account at a glance</h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setTab('sessions')}
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${activeCount > 0 ? 'border-gain/30 bg-gain-soft text-gain hover:border-gain/60' : 'border-line bg-surface text-secondary hover:text-ink'}`}
+          >
+            <span className="relative flex h-2 w-2" aria-hidden="true">
+              {activeCount > 0 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gain opacity-60" />}
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${activeCount > 0 ? 'bg-gain' : readyCount > 0 ? 'bg-attention' : 'bg-muted/50'}`} />
+            </span>
+            {loading ? 'Checking sessions…' : activeCount > 0 ? `${activeCount} live session${activeCount > 1 ? 's' : ''}` : readyCount > 0 ? `${readyCount} ready to trade` : 'No live session'}
+          </button>
+          {user?.broker && <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-secondary">{brokerLabel(brokerFromProfile(user.broker))}</span>}
+          <button type="button" onClick={() => { fetchData(); setStatsGen(n => n + 1); }} title="Refresh" className="inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-xs text-muted hover:bg-subtle hover:text-ink">
+            <RefreshCw className={`h-3.5 w-3.5 ${loading || statsLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {refreshedAt ? refreshedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Refresh'}
+          </button>
+        </div>
+      </header>
       <Tabs label="Dashboard sections" items={TABS} value={tab} onChange={setTab} />
       {loadError && <LoadError message="Session history could not be refreshed. Previously loaded sessions may be out of date." onRetry={() => fetchData()} />}
       {statsError && <LoadError message="Performance could not be refreshed. Any figures shown are from the previous update." onRetry={() => setStatsGen(n => n + 1)} />}
       {figuresError && <LoadError message="Balances and monthly result could not be refreshed. Any figures shown are from the previous update." onRetry={() => fetchData()} />}
 
-      <div role="tabpanel" id="dashboard-sections-panel-overview" aria-labelledby="dashboard-sections-tab-overview" hidden={tab !== 'overview'} className="animate-fade-in page-stack">
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
-            <div><p className="text-sm text-secondary">{greetingForNow()}, {firstName}</p><h2 className="mt-1 font-serif text-3xl text-ink">Your account at a glance</h2></div>
-            <div className="flex items-center gap-4">
-              {user?.broker && <span className="rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-secondary">{brokerLabel(brokerFromProfile(user.broker))}</span>}
-              <button type="button" onClick={() => fetchData()} className="flex items-center gap-2 rounded-md py-2 text-xs text-muted"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />{refreshedAt ? `Updated ${refreshedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : 'Refresh'}</button>
-            </div>
-          </div>
+      <div role="tabpanel" id="dashboard-sections-panel-overview" aria-labelledby="dashboard-sections-tab-overview" hidden={tab !== 'overview'} className="animate-fade-in flex flex-col gap-4">
           <EquityHero stats={perfStats} loading={statsLoading} monthlyPnl={monthlyPnl} cash={cash} equity={equity} figuresLoading={figuresLoading} />
           <KpiStrip stats={perfStats} loading={statsLoading} />
-
-          <div className="flex items-center justify-between rounded-xl border border-line/80 bg-surface px-5 py-3.5 shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <span className={`h-2 w-2 rounded-full ${activeCount > 0 ? 'bg-gain-action' : 'bg-line'}`} aria-hidden="true" />
-              <p className="text-[13px] text-secondary">
-                {loading ? 'Checking sessions…' : activeCount > 0
-                  ? <><span className="font-semibold text-ink">{activeCount} live</span> trading session{activeCount > 1 ? 's' : ''}</>
-                  : readyCount > 0
-                    ? <><span className="font-semibold text-ink">{readyCount} ready</span> — broker connected, not trading yet</>
-                    : 'No live sessions'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setTab('sessions')}
-              className="text-[12px] font-semibold text-gain hover:text-gain focus:outline-none focus-visible:ring-2 focus-visible:ring-gain/30"
-            >
-              View all
-            </button>
+          <div className="grid gap-4 @min-[1000px]:grid-cols-2">
+            <DailyPnlChart stats={perfStats} loading={statsLoading} />
+            <MonthlyBars stats={perfStats} loading={statsLoading} onOpenMonths={() => setTab('returns')} />
           </div>
-
-          <PerformanceStatsGrid
-            stats={perfStats}
-            loading={statsLoading}
-            onOpenMonths={() => setTab('returns')}
-          />
+          <div className="grid items-start gap-4 @min-[1000px]:grid-cols-[1.2fr_1fr]">
+            <SymbolLeaderboard stats={perfStats} loading={statsLoading} />
+            <div className="flex flex-col gap-4">
+              <PnlCalendar stats={perfStats} />
+              <WeekdayBreakdown stats={perfStats} />
+            </div>
+          </div>
+          <Records stats={perfStats} />
+          <p className="text-center text-[11px] text-muted">
+            Performance uses live trades only and refreshes every few minutes{perfStats?.asOfDate ? ` · as of ${perfStats.asOfDate}` : ''}.
+          </p>
       </div>
 
       <div role="tabpanel" id="dashboard-sections-panel-sessions" aria-labelledby="dashboard-sections-tab-sessions" hidden={tab !== 'sessions'} className="animate-fade-in">
