@@ -318,3 +318,76 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Native hidden panels must stay hidden even when a reusable layout sets display. */
 [hidden] { display: none !important; }
+
+/* ── Login brand panel ─────────────────────────────────────────────── */
+.brand-panel {
+  background:
+    radial-gradient(120% 80% at 0% 0%, #21452f 0%, transparent 60%),
+    linear-gradient(160deg, #1a3a2a 0%, #142e21 55%, #102519 100%);
+}
+.brand-aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  pointer-events: none;
+  will-change: transform;
+}
+.brand-aurora-a {
+  width: 26rem; height: 26rem; left: -8rem; top: 30%;
+  background: radial-gradient(circle, rgba(127, 194, 155, 0.30), transparent 65%);
+  animation: brand-drift-a 22s ease-in-out infinite alternate;
+}
+.brand-aurora-b {
+  width: 22rem; height: 22rem; right: -6rem; top: -4rem;
+  background: radial-gradient(circle, rgba(200, 242, 214, 0.16), transparent 65%);
+  animation: brand-drift-b 28s ease-in-out infinite alternate;
+}
+.brand-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(80% 60% at 70% 75%, #000 0%, transparent 75%);
+  animation: fade-in 1.6s ease-out both;
+}
+.brand-shine {
+  background: linear-gradient(100deg, #ffffff 0%, #ffffff 40%, #b8ecc9 50%, #ffffff 60%, #ffffff 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: brand-shine 6s ease-in-out 1.2s infinite;
+}
+.brand-rise { animation: brand-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.brand-fade { animation: fade-in 1.2s ease-out both; }
+.brand-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: brand-draw 2.4s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+.brand-after { animation: fade-in 0.8s ease-out 2.3s both; }
+.brand-blink { animation: brand-blink 1.6s ease-in-out 2.6s infinite; }
+.brand-ping {
+  transform-box: fill-box; transform-origin: center;
+  animation: brand-ping 2.2s cubic-bezier(0, 0, 0.2, 1) 2.4s infinite both;
+}
+.login-rise { animation: brand-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes brand-rise {
+  from { opacity: 0; transform: translateY(14px); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes brand-draw { to { stroke-dashoffset: 0; } }
+@keyframes brand-ping {
+  0% { opacity: 0.45; transform: scale(0.4); }
+  80%, 100% { opacity: 0; transform: scale(1.6); }
+}
+@keyframes brand-blink { 50% { opacity: 0.3; } }
+@keyframes brand-shine {
+  0%, 30% { background-position: 100% 0; }
+  70%, 100% { background-position: 0% 0; }
+}
+@keyframes brand-drift-a { to { transform: translate(6rem, -4rem) scale(1.15); } }
+@keyframes brand-drift-b { to { transform: translate(-5rem, 6rem) scale(0.9); } }
+@media (prefers-reduced-motion: reduce) {
+  .brand-panel *, .login-rise { animation-delay: 0s !important; }
+  .brand-aurora, .brand-ping, .brand-blink, .brand-shine { animation: none !important; }
+}
