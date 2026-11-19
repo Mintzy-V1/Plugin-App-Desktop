@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Activity, Layers, LineChart } from 'lucide-react';
 
 const FEATURES = [
@@ -8,10 +9,10 @@ const FEATURES = [
 
 // Illustrative equity path in a 600×420 box: a seeded random walk with an
 // upward drift, so it reads like a real account rather than a sine wave. It
-// ends short of the right edge so the live marker has room.
+// runs to the panel's right edge, where the drawing marker rides off.
 const W = 600;
 const H = 420;
-const LAST_X = 560;
+const LAST_X = W;
 function walk(seed: number, steps: number, from: number, to: number, noise: number): [number, number][] {
   let r = seed;
   const rand = () => ((r = (r * 16807) % 2147483647) / 2147483647) - 0.5;
@@ -51,15 +52,43 @@ const AREA = `${LINE} L${END[0]} ${H} L0 ${H} Z`;
 const BENCH = smoothPath(BENCHMARK);
 
 // The line draws in over DRAW seconds; everything that depends on the finished
-// line (marker, guide, shimmer) starts once it lands.
+// line (guide, LIVE tag, shimmer) starts once it lands.
 const DRAW = 2.4;
-const EASE = '0.65 0 0.35 1';
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** Decorative brand side: value statement over a live, drawing equity curve. */
 export function BrandPanel() {
   const still = reducedMotion();
+  const lineRefs = useRef<(SVGPathElement | null)[]>([]);
+  const revealRef = useRef<SVGRectElement>(null);
+  const markerRef = useRef<SVGGElement>(null);
+
+  // One clock drives the line, the leading marker and the area fill, so the
+  // fill never runs ahead of the line: it is revealed up to the marker's x.
+  useEffect(() => {
+    const [path] = lineRefs.current;
+    if (!path || still) return;
+    const length = path.getTotalLength();
+    let frame = 0;
+    let start = 0;
+    const tick = (now: number) => {
+      start ||= now;
+      const t = Math.min(1, (now - start) / (DRAW * 1000));
+      const p = easeInOut(t);
+      const pt = path.getPointAtLength(p * length);
+      for (const el of lineRefs.current) el?.style.setProperty('stroke-dashoffset', String(1 - p));
+      revealRef.current?.setAttribute('width', String(pt.x + 1));
+      markerRef.current?.setAttribute('transform', `translate(${pt.x} ${pt.y})`);
+      if (markerRef.current) markerRef.current.style.opacity = t > 0.9 ? String((1 - t) * 10) : '1';
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [still]);
+
+  const drawStyle = { strokeDasharray: 1, strokeDashoffset: still ? 0 : 1 };
   return (
     <aside aria-hidden="true" className="brand-panel relative hidden w-[44%] max-w-[620px] shrink-0 flex-col overflow-hidden p-12 text-[#e8efe9] lg:flex">
       <div className="brand-aurora brand-aurora-a" />
@@ -104,9 +133,7 @@ export function BrandPanel() {
               {!still && <animateTransform attributeName="gradientTransform" type="translate" from="-160 0" to="640 0" dur="3.2s" begin={`${DRAW + 0.6}s`} repeatCount="indefinite" />}
             </linearGradient>
             <clipPath id="brandReveal">
-              <rect x="0" y="0" height={H} width={still ? W : 0}>
-                {!still && <animate attributeName="width" from="0" to={LAST_X + 12} dur={`${DRAW}s`} fill="freeze" calcMode="spline" keyTimes="0;1" keySplines={EASE} />}
-              </rect>
+              <rect ref={revealRef} x="0" y="0" height={H} width={still ? W : 0} />
             </clipPath>
             <filter id="brandGlow" x="-20%" y="-40%" width="140%" height="180%">
               <feGaussianBlur stdDeviation="6" />
@@ -119,8 +146,8 @@ export function BrandPanel() {
 
           <path d={BENCH} pathLength={1} className="brand-draw" style={{ animationDelay: '300ms' }} fill="none" stroke="#ffffff" strokeOpacity="0.22" strokeWidth="1.25" strokeDasharray="1" />
           <path d={AREA} clipPath="url(#brandReveal)" fill="url(#brandArea)" />
-          <path d={LINE} pathLength={1} className="brand-draw" fill="none" stroke="#7fc29b" strokeWidth="8" strokeOpacity="0.45" filter="url(#brandGlow)" />
-          <path d={LINE} pathLength={1} className="brand-draw" fill="none" stroke="url(#brandStroke)" strokeWidth="2.25" strokeLinecap="round" />
+          <path ref={(el) => { lineRefs.current[0] = el; }} d={LINE} pathLength={1} style={drawStyle} fill="none" stroke="#7fc29b" strokeWidth="8" strokeOpacity="0.45" filter="url(#brandGlow)" />
+          <path ref={(el) => { lineRefs.current[1] = el; }} d={LINE} pathLength={1} style={drawStyle} fill="none" stroke="url(#brandStroke)" strokeWidth="2.25" strokeLinecap="round" />
           <path d={LINE} className="brand-after" fill="none" stroke="url(#brandSheen)" strokeWidth="2.25" strokeLinecap="round" />
 
           <line className="brand-after" x1="0" x2={END[0]} y1={END[1]} y2={END[1]} stroke="#c8f2d6" strokeOpacity="0.28" strokeDasharray="3 5" />
@@ -131,16 +158,7 @@ export function BrandPanel() {
             <text x={END[0] - 52} y={END[1] - 21.6} fill="#e8efe9" fontSize="8.5" fontWeight="600" letterSpacing="1.2" fontFamily="inherit">LIVE</text>
           </g>
 
-          <g>
-            {still
-              ? <Marker x={END[0]} y={END[1]} />
-              : (
-                <g>
-                  <Marker x={0} y={0} />
-                  <animateMotion dur={`${DRAW}s`} fill="freeze" path={LINE} calcMode="spline" keyPoints="0;1" keyTimes="0;1" keySplines={EASE} />
-                </g>
-              )}
-          </g>
+          {!still && <g ref={markerRef} transform={`translate(${EQUITY[0][0]} ${EQUITY[0][1]})`}><Marker /></g>}
         </svg>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#122a1e] to-transparent" />
       </div>
@@ -148,10 +166,10 @@ export function BrandPanel() {
   );
 }
 
-function Marker({ x, y }: { x: number; y: number }) {
+/** The bright point that leads the line while it draws. */
+function Marker() {
   return (
-    <g transform={`translate(${x} ${y})`}>
-      <circle r="12" fill="#8fd3aa" className="brand-ping" />
+    <g>
       <circle r="7.5" fill="#8fd3aa" fillOpacity="0.18" />
       <circle r="3.75" fill="#ecfff3" stroke="#7fc29b" strokeWidth="1.75" />
     </g>
