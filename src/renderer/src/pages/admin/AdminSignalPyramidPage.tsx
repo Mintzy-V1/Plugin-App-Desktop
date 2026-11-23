@@ -13,6 +13,8 @@ import { StatTile } from '../../components/ui/StatTile';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { Card } from '../../components/ui/Card';
 import { EmptyState, LoadError, Spinner, formatDateTime, formatMoney, inputClass, pnlClass, secondaryButtonClass } from './adminFormat';
+import { SignalDayResultsCard } from './SignalDayResults';
+import { SignalLiveStatusCard } from './SignalLiveStatus';
 
 /** Today's book changes after 13:00 (names not opened); earlier days do not. */
 const TODAY_POLL_MS = 30000;
@@ -38,6 +40,7 @@ const REASON_LABELS: Record<string, string> = {
   capital_after_static_non_positive: 'Sized capital came to zero',
   dynamic_multiplier_non_positive: 'Sized capital came to zero',
   mongo_save_failed: 'The book could not be saved, so nothing was published',
+  error: 'The pyramid failed (details for the master key)',
 };
 
 // Own-property lookups only: a reason like "constructor" must not hit Object.prototype.
@@ -309,8 +312,12 @@ export default function AdminSignalPyramidPage() {
       { id: 'qty', header: 'Shares', align: 'right', cell: (s: SignalPyramidSymbol) => formatShares(s.qty) } as Column<SignalPyramidSymbol>,
       { id: 'price', header: '13:00 price', align: 'right', cell: (s: SignalPyramidSymbol) => formatMoney(s.price_1300) } as Column<SignalPyramidSymbol>,
     ] : []),
-    ...(exp104 && full ? [{ id: 'score', header: 'Score', align: 'right', cell: (s: SignalPyramidSymbol) => formatNumber(s.score) } as Column<SignalPyramidSymbol>] : []),
     { id: 'morning', header: 'Morning P&L', align: 'right', cell: (s) => <span className={pnlClass(s.total_pnl)}>{formatMoney(s.total_pnl)}</span> },
+    ...(day?.results && day.results.afternoon_pnl != null ? [{
+      id: 'afternoon', header: 'Afternoon P&L', align: 'right', cell: (s: SignalPyramidSymbol) => (s.afternoon_traded
+        ? <span className={`font-semibold ${pnlClass(s.afternoon_pnl)}`}>{formatMoney(s.afternoon_pnl)}</span>
+        : <span className="text-muted">—</span>),
+    } as Column<SignalPyramidSymbol>] : []),
     ...(full ? [{
       id: 'detail', header: <span className="sr-only">Detail</span>, align: 'right', cell: (s: SignalPyramidSymbol) => (
         <button type="button" onClick={() => toggle(s.symbol)} className="whitespace-nowrap text-xs font-medium text-gain underline underline-offset-2">
@@ -329,8 +336,8 @@ export default function AdminSignalPyramidPage() {
     {
       id: 'outcome', header: 'Outcome', cell: (d) => (
         <div className="flex min-w-40 flex-col items-start gap-1">
-          <StatusPill tone={d.live_allowed ? 'ok' : 'attention'}>{d.live_allowed ? `${d.totals.allocated} given capital` : 'Nothing published'}</StatusPill>
-          {!d.live_allowed && <span className="text-xs text-muted">{reasonLabel(d.reason)}</span>}
+          <StatusPill tone={d.live_allowed ? 'ok' : 'attention'}>{d.live_allowed ? `${d.totals.allocated} given capital` : d.pyramid_recorded ? 'Nothing published' : 'No pyramid saved'}</StatusPill>
+          {!d.live_allowed && d.pyramid_recorded && <span className="text-xs text-muted">{reasonLabel(d.reason)}</span>}
         </div>
       ),
     },
@@ -347,6 +354,20 @@ export default function AdminSignalPyramidPage() {
       ) : <span className="text-muted">—</span>,
     },
     { id: 'capital', header: 'Capital given', align: 'right', cell: (d) => <span className="font-semibold text-ink">{formatMoney(d.totals.allocated_capital)}</span> },
+    {
+      id: 'pnl', header: 'Result', align: 'right', cell: (d) => {
+        if (!d.results) return <span className="text-xs text-muted">{d.date === today ? 'After close' : '—'}</span>;
+        const afternoon = d.results.afternoon_pnl != null;
+        const value = afternoon ? d.results.afternoon_pnl : d.results.full_day_pnl;
+        return (
+          <div className="flex flex-col items-end gap-0.5">
+            <span className={`font-semibold ${pnlClass(value)}`}>{formatMoney(value)}</span>
+            <span className="text-[11px] text-muted">{afternoon ? 'afternoon' : 'full day'}</span>
+            {d.results.issue_count > 0 && <span className="text-[11px] text-attention">{d.results.issue_count} delivery issue{d.results.issue_count === 1 ? '' : 's'}</span>}
+          </div>
+        );
+      },
+    },
     { id: 'account', header: 'Account', align: 'right', cell: (d) => formatMoney(d.account) },
   ];
 
@@ -373,6 +394,8 @@ export default function AdminSignalPyramidPage() {
         </div>
       </div>
 
+      {isToday && <SignalLiveStatusCard />}
+
       {dayState === 'loading' && <div className="flex justify-center py-10"><Spinner className="h-5 w-5 text-muted" /></div>}
 
       {dayState === 'missing' && <EmptyState title={missing.title} body={missing.body} />}
@@ -380,10 +403,15 @@ export default function AdminSignalPyramidPage() {
       {dayState === 'error' && <LoadError title="Could not load the pyramid" onRetry={() => setRetry((n) => n + 1)} />}
 
       {dayState === 'ready' && day && day.totals.evaluated === 0 && (
-        <EmptyState
-          title={`Nothing published on ${formatDay(day.date)}`}
-          body={`${reasonLabel(day.reason)}${day.recorded_at ? ` · recorded ${formatDateTime(day.recorded_at)}` : ''}`}
-        />
+        <>
+          <EmptyState
+            title={day.pyramid_recorded ? `Nothing published on ${formatDay(day.date)}` : `No 13:00 pyramid result saved on ${formatDay(day.date)}`}
+            body={day.pyramid_recorded
+              ? `${reasonLabel(day.reason)}${day.recorded_at ? ` · recorded ${formatDateTime(day.recorded_at)}` : ''}`
+              : 'The pyramid stopped before saving its book (see the service’s alerts). The result at close below shows what the engine traded and what each destination got.'}
+          />
+          {day.results && <SignalDayResultsCard results={day.results} isToday={isToday} full={full} />}
+        </>
       )}
 
       {dayState === 'ready' && day && day.totals.evaluated > 0 && (
@@ -427,10 +455,12 @@ export default function AdminSignalPyramidPage() {
             rowKey={(s) => s.symbol}
             isProblem={(s) => s.status === 'not_opened'}
             emptyTitle="No symbols were evaluated"
-            minWidth={exp104 ? 960 : 720}
+            minWidth={exp104 ? 1060 : 820}
           />
 
           {full && selectedSymbol && <SymbolDetail symbol={selectedSymbol} onClose={() => setSelected(null)} />}
+
+          <SignalDayResultsCard results={day.results} isToday={isToday} full={full} />
         </>
       )}
 
@@ -450,7 +480,7 @@ export default function AdminSignalPyramidPage() {
               loading={!days}
               emptyTitle="No pyramid days yet"
               emptyDescription="Days appear once the signal service has run its 13:00 handoff."
-              minWidth={900}
+              minWidth={1000}
             />
           )}
       </div>

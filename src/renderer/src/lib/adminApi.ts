@@ -182,11 +182,47 @@ export interface SignalPyramidSymbol {
   total_pnl: number | null;
   profit_threshold: number | null;
   is_profitable: boolean | null;
+  /** From the end-of-day summary: P&L from the 13:00 handoff (null when it did not trade the afternoon). */
+  afternoon_pnl: number | null;
+  full_day_pnl: number | null;
+  afternoon_traded: boolean | null;
   // The research sizing: sent to the master key only (detail === 'full').
   score?: number | null;
   trajectory_status?: string | null;
   desired_pyramid?: number | null;
   sizing?: Record<string, string | number | boolean | null> | null;
+}
+
+export interface SignalDeliveryIssue {
+  symbol: string | null;
+  seq: number | null;
+  action: string | null;
+  status: string | null;
+  http_status: number | null;
+  /** The counterparty's error text: master key only (null for other admins). */
+  error: string | null;
+}
+
+export interface SignalDelivery {
+  dest: string;
+  dry_run: boolean | null;
+  /** Outbox rows by status: sent, dead, unknown, expired, skipped, superseded, pending, inflight (still open at the close). */
+  counts: Record<string, number>;
+  issues: SignalDeliveryIssue[];
+}
+
+/** The day's result at close (paper, before costs); null before the square-off. */
+export interface SignalDayResults {
+  recorded_at: string | null;
+  source: string | null;
+  basis: string | null;
+  signals: number | null;
+  full_day_pnl: number | null;
+  /** From the 13:00 handoff (EXP104); null on rank-threshold days. */
+  afternoon_pnl: number | null;
+  morning_pnl: number | null;
+  delivery: SignalDelivery[];
+  issue_count: number;
 }
 
 export interface SignalPyramidTotals {
@@ -203,6 +239,8 @@ export interface SignalPyramidDaySummary {
   date: string;
   feed: string;
   recorded_at: string | null;
+  /** False for a day with only an end-of-day summary: the 13:00 pyramid saved nothing. */
+  pyramid_recorded: boolean;
   /** 'exp104' | 'threshold', or null when the record does not say. */
   strategy: string | null;
   applied: boolean;
@@ -217,13 +255,59 @@ export interface SignalPyramidDaySummary {
 export interface SignalPyramidDay extends SignalPyramidDaySummary {
   /** 'full' for the master key (research sizing included), 'summary' for other admins. */
   detail: 'full' | 'summary';
+  results: SignalDayResults | null;
   symbols: SignalPyramidSymbol[];
 }
 
 export interface SignalPyramidDayListItem extends SignalPyramidDaySummary {
+  results: Pick<SignalDayResults, 'recorded_at' | 'full_day_pnl' | 'afternoon_pnl' | 'morning_pnl' | 'issue_count'> | null;
   /** Names given capital (live and not opened). */
   allocated_symbols: { symbol: string; status: SignalPyramidStatus; capital: number; qty: number | null }[];
 }
+
+/** Live status of the signal service (gateway: signalStatus.service, from the service's /api/status). */
+export interface SignalLivePosition {
+  symbol: string;
+  side: 'LONG' | 'SHORT' | null;
+  qty: number | null;
+  avg_price: number | null;
+  ltp: number | null;
+  unrealized_pnl: number | null;
+}
+
+export type SignalLiveStatus =
+  | { configured: false }
+  | { configured: true; reachable: false; checked_at: string; error?: string }
+  | {
+    configured: true;
+    reachable: true;
+    checked_at: string;
+    status: 'ok' | 'error' | null;
+    phase: 'starting' | 'idle' | 'waiting' | 'warmup' | 'running' | 'stopped' | 'error' | null;
+    /** Free text from the service: master key only. */
+    detail: string | null;
+    day: string | null;
+    session_id: string | null;
+    service_time: string | null;
+    trader_alive: boolean | null;
+    tick_source: string | null;
+    seconds_since_last_tick: number | null;
+    feed_stale: boolean | null;
+    ticks: number | null;
+    signals_emitted: number | null;
+    signals_dropped: number | null;
+    sink_errors: number | null;
+    outbox_open: number | null;
+    restarts: number | null;
+    uptime_seconds: number | null;
+    rms_triggered: boolean | null;
+    eod_exit_done: boolean | null;
+    realized_pnl: number | null;
+    unrealized_pnl: number | null;
+    destinations: { name: string; dry_run: boolean | null; sent: number | null; failed: number | null; consecutive_failures: number | null }[];
+    pyramid: { live_allowed: boolean | null; reason: string | null; live_symbols: string[]; removed: string[] } | null;
+    positions: SignalLivePosition[];
+  };
 
 interface Paged {
   page: number;
@@ -293,6 +377,10 @@ export const adminApi = {
   /** The signal service's recent pyramid days, newest first. */
   listSignalPyramidDays(limit = 30) {
     return adminHttp.get<{ success: boolean; feed: string; days: SignalPyramidDayListItem[]; skipped: number }>('/signal/pyramid', { params: { limit } });
+  },
+  /** The signal service's live status ({configured: false} when the gateway is not connected to it). */
+  getSignalStatus() {
+    return adminHttp.get<{ success: boolean; status: SignalLiveStatus }>('/signal/status');
   },
   /** One day's pyramid book (YYYY-MM-DD). 404 when the service recorded nothing that day. */
   getSignalPyramidDay(date: string) {
