@@ -38,6 +38,7 @@ const BROKER_LABELS: Record<string, string> = {
   tradex: 'TradeX',
   bear_street: 'Bear Street',
   firstock: 'Firstock',
+  fivepaisa: '5paisa',
 };
 
 export function brokerLabel(broker: AdminBroker | string | null | undefined): string {
@@ -50,6 +51,7 @@ export const BROKER_OPTIONS: { value: AdminBroker; label: string }[] = [
   { value: 'tradex', label: 'TradeX' },
   { value: 'bear_street', label: 'Bear Street' },
   { value: 'firstock', label: 'Firstock' },
+  { value: 'fivepaisa', label: '5paisa' },
 ];
 
 const PHASE_STYLES: Record<SessionPhase, string> = {

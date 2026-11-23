@@ -54,7 +54,7 @@ adminHttp.interceptors.response.use(
 // --- Types --------------------------------------------------------------------
 
 export type AdminRole = 'admin' | 'master';
-export type AdminBroker = 'angle_one' | 'tradex' | 'bear_street' | 'firstock';
+export type AdminBroker = 'angle_one' | 'tradex' | 'bear_street' | 'firstock' | 'fivepaisa';
 export type SessionPhase = 'live' | 'simulation' | 'scheduled';
 
 export interface AdminLoginResponse {
@@ -226,7 +226,7 @@ export const adminApi = {
 };
 
 /** Brokers that run the simulation → live pyramid flow (mirrors pluginApi.supportsPyramidPnl). */
-const PYRAMID_BROKERS: AdminBroker[] = ['angle_one', 'bear_street', 'firstock'];
+const PYRAMID_BROKERS: AdminBroker[] = ['angle_one', 'bear_street', 'firstock', 'fivepaisa'];
 
 /**
  * Session data source for the live dashboard components, reading any user's

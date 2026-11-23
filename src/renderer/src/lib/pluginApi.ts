@@ -1,6 +1,10 @@
 import api from './api';
 
-export type BrokerKey = 'tradex' | 'bear_street' | 'angle_one' | 'firstock';
+export type BrokerKey = 'tradex' | 'bear_street' | 'angle_one' | 'firstock' | 'fivepaisa' | 'unsupported';
+
+/** Shown when the account's broker is newer than this build of the app. */
+export const UNSUPPORTED_BROKER_MESSAGE =
+  'Your Mintzy account uses a broker this version of Mintzy does not support. Update Mintzy from mintzy.in to continue.';
 
 /** Normalized broker key from the JWT onboard claim. */
 export const getBrokerKey = (): BrokerKey => {
@@ -13,8 +17,12 @@ export const getBrokerKey = (): BrokerKey => {
       if (broker === 'tradex') return 'tradex';
       if (broker === 'bearstreet' || broker.includes('bear')) return 'bear_street';
       if (broker === 'firstock') return 'firstock';
+      if (broker === 'fivepaisa' || broker === '5paisa') return 'fivepaisa';
+      if (broker && broker !== 'angleone' && broker !== 'angelone') return 'unsupported';
     }
   } catch {}
+  // No broker claim (older accounts) has always meant Angel One. An unknown broker
+  // never does: sending its orders to Angel One routes would be wrong.
   return 'angle_one';
 };
 
@@ -24,7 +32,7 @@ export const supportsLeverageMultiplier = () => true;
 /** Angel One and Bear Street run the sim → live pyramid flow and expose pyramid P&L. */
 export function supportsPyramidPnl(): boolean {
   const key = getBrokerKey();
-  return key === 'bear_street' || key === 'angle_one' || key === 'firstock';
+  return key === 'bear_street' || key === 'angle_one' || key === 'firstock' || key === 'fivepaisa';
 }
 
 /** RMS / risk-exited symbols that never appear in the engine trade log. */
@@ -37,6 +45,8 @@ const getBase = () => {
   if (key === 'tradex') return '/api/v1/tradex';
   if (key === 'bear_street') return '/api/v1/bear_street';
   if (key === 'firstock') return '/api/v1/firstock';
+  if (key === 'fivepaisa') return '/api/v1/fivepaisa';
+  if (key === 'unsupported') throw new Error(UNSUPPORTED_BROKER_MESSAGE);
   return '/api/v1/angle_one';
 };
 
@@ -80,11 +90,21 @@ export type FirstockCredentialsPayload = {
   base_url?: string;
 };
 
+/** 5paisa: the Xstream app's three keys, the client code and the PIN; the TOTP follows. */
+export type FivePaisaCredentialsPayload = {
+  user_key: string;
+  encryption_key: string;
+  app_user_id: string;
+  client_code: string;
+  pin: string;
+};
+
 export type CredentialsPayload =
   | AngelCredentialsPayload
   | TradeXCredentialsPayload
   | BearStreetCredentialsPayload
-  | FirstockCredentialsPayload;
+  | FirstockCredentialsPayload
+  | FivePaisaCredentialsPayload;
 
 export interface CredentialsResponse {
   success: boolean;

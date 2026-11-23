@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { ArrowRight, Lock, ArrowLeft, Loader2, Eye, EyeOff } from 'lucide-react';
-import { pluginApi } from '../../lib/pluginApi';
+import { pluginApi, UNSUPPORTED_BROKER_MESSAGE } from '../../lib/pluginApi';
 import type { CredentialsPayload } from '../../lib/pluginApi';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import { useAuth } from '../../context/AuthContext';
 
-export type BrokerType = 'angel' | 'tradex' | 'bear_street' | 'firstock';
+export type BrokerType = 'angel' | 'tradex' | 'bear_street' | 'firstock' | 'fivepaisa' | 'unsupported';
 
 interface Props {
   onSuccess: (sessionId: string, requiresTotp: boolean) => void;
@@ -30,13 +30,19 @@ export function brokerFromProfile(broker?: string | null): BrokerType {
   if (normalized === 'tradex') return 'tradex';
   if (normalized === 'bearstreet' || normalized.includes('bear')) return 'bear_street';
   if (normalized === 'firstock') return 'firstock';
-  return 'angel';
+  if (normalized === 'fivepaisa' || normalized === '5paisa') return 'fivepaisa';
+  // Only Angel One (or an account from before brokers were recorded) is Angel One.
+  // Any other broker is one this build doesn't know: never fall back to Angel One.
+  if (!normalized || normalized === 'angleone' || normalized === 'angelone') return 'angel';
+  return 'unsupported';
 }
 
 export function brokerLabel(broker: BrokerType): string {
   if (broker === 'tradex') return 'TradeX';
   if (broker === 'bear_street') return 'GLOBE CAPITALS';
   if (broker === 'firstock') return 'Firstock';
+  if (broker === 'fivepaisa') return '5paisa';
+  if (broker === 'unsupported') return 'Unsupported broker';
   return 'Angel One';
 }
 
@@ -46,9 +52,14 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
   const isTradex = broker === 'tradex';
   const isBearStreet = broker === 'bear_street';
   const isFirstock = broker === 'firstock';
+  const isFivePaisa = broker === 'fivepaisa';
+  const isUnsupported = broker === 'unsupported';
 
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ accessKey: '', clientId: '', secret: '', secondAuth: '', vendorCode: '' });
+  const [form, setForm] = useState({
+    accessKey: '', clientId: '', secret: '', secondAuth: '', vendorCode: '', encryptionKey: '', appUserId: '',
+  });
+  const [showEncryptionKey, setShowEncryptionKey] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [showSecondAuth, setShowSecondAuth] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,12 +79,19 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
         secret: { id: 'broker-secret', placeholder: 'Password', autoComplete: 'current-password' as const },
       };
     }
+    if (isFivePaisa) {
+      return {
+        key: { id: 'broker-access-key', placeholder: 'User Key', autoComplete: 'off' as const },
+        client: { id: 'broker-client-id', placeholder: 'Client Code', autoComplete: 'username' as const },
+        secret: { id: 'broker-secret', placeholder: 'PIN', autoComplete: 'current-password' as const },
+      };
+    }
     return {
       key: { id: 'broker-access-key', placeholder: 'API Key', autoComplete: 'off' as const },
       client: { id: 'broker-client-id', placeholder: 'Client Code', autoComplete: 'username' as const },
       secret: { id: 'broker-secret', placeholder: 'Password / PIN', autoComplete: 'current-password' as const },
     };
-  }, [isTradex, isBearStreet, isFirstock]);
+  }, [isTradex, isBearStreet, isFirstock, isFivePaisa]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +99,10 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
 
     if (!user?.broker) {
       setError('No broker is linked to your Mintzy account. Contact support or re-login with your API key.');
+      return;
+    }
+    if (isUnsupported) {
+      setError(UNSUPPORTED_BROKER_MESSAGE);
       return;
     }
 
@@ -102,6 +124,12 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
       setError('Vendor code is required for Firstock');
       return;
     }
+    const encryptionKey = form.encryptionKey.trim();
+    const appUserId = form.appUserId.trim();
+    if (isFivePaisa && (!encryptionKey || !appUserId)) {
+      setError('Encryption Key and User ID are required for 5paisa');
+      return;
+    }
 
     let payload: CredentialsPayload;
     if (isTradex) {
@@ -120,6 +148,14 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
         second_auth: secondAuth,
         source: 'WEBAPI',
         base_url: BEAR_STREET_BASE_URL,
+      };
+    } else if (isFivePaisa) {
+      payload = {
+        user_key: accessKey,
+        encryption_key: encryptionKey,
+        app_user_id: appUserId,
+        client_code: clientId,
+        pin: secret,
       };
     } else if (isFirstock) {
       payload = {
@@ -300,6 +336,58 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
             </>
           )}
 
+          {isFivePaisa && (
+            <>
+              <div>
+                <label htmlFor="broker-encryption-key" className="mb-2 block text-xs font-medium text-secondary">Encryption Key</label>
+                <div className="relative">
+                <input
+                  id="broker-encryption-key"
+                  type={showEncryptionKey ? 'text' : 'password'}
+                  placeholder="Encryption Key"
+                  required
+                  value={form.encryptionKey}
+                  autoComplete="off"
+                  disabled={loading}
+                  onChange={e => setForm(f => ({ ...f, encryptionKey: e.target.value }))}
+                  className={`${inputClass} pr-11`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEncryptionKey(s => !s)}
+                  aria-label={showEncryptionKey ? 'Hide encryption key' : 'Show encryption key'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition-colors hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                >
+                  {showEncryptionKey ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                </button>
+                </div>
+              </div>
+              <div>
+                <label htmlFor="broker-app-user-id" className="mb-2 block text-xs font-medium text-secondary">User ID (Xstream app)</label>
+                <input
+                  id="broker-app-user-id"
+                  type="text"
+                  placeholder="User ID"
+                  required
+                  value={form.appUserId}
+                  autoComplete="off"
+                  disabled={loading}
+                  onChange={e => setForm(f => ({ ...f, appUserId: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+              <p className="rounded-xl border border-brand/25 bg-info-soft px-3 py-2 text-[11px] leading-5 text-info">
+                Find the User Key, Encryption Key and User ID on xstream.5paisa.com under your API app. Next, enter the TOTP from your authenticator app.
+              </p>
+            </>
+          )}
+
+          {isUnsupported && (
+            <p role="status" className="rounded-xl border border-loss/25 bg-loss-soft px-3 py-2 text-[12px] leading-5 text-loss">
+              {UNSUPPORTED_BROKER_MESSAGE}
+            </p>
+          )}
+
           {error && (
             <div role="alert" className="rounded-xl border border-loss/25 bg-loss-soft px-3.5 py-2.5 text-center text-[13px] font-medium text-loss">
               {error}
@@ -308,7 +396,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || isUnsupported}
             className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-on-primary transition-colors hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? (

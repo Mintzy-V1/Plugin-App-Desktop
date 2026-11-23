@@ -13,6 +13,8 @@ const BROKER_NAME: Record<BrokerType, string> = {
   tradex: 'TradeX',
   bear_street: 'GLOBE CAPITALS',
   firstock: 'Firstock',
+  fivepaisa: '5paisa',
+  unsupported: 'your broker',
 };
 
 const CALLOUT = {
@@ -179,6 +181,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
   const isTradex = broker === 'tradex';
   const isBear = broker === 'bear_street';
   const isFirstock = broker === 'firstock';
+  const isFivePaisa = broker === 'fivepaisa';
   const isTotp = isAngel || isFirstock;
 
   const connectFields = isBear
@@ -194,6 +197,14 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
           ['Client ID / User ID', 'Your TradeX client id.'],
           ['Access Secret / Secret Key / JWT 2', 'Second TradeX token. Do not wrap it in quotes.'],
         ]
+      : isFivePaisa
+        ? [
+            ['User Key', 'From xstream.5paisa.com: your API app (non-algo) shows it. Not your Mintzy key.'],
+            ['Client Code', 'Your 5paisa client code.'],
+            ['PIN', 'Your 5paisa login PIN. Used for this login only; Mintzy never stores it.'],
+            ['Encryption Key', 'From the same Xstream app page. Use the eye icon to check it.'],
+            ['User ID (Xstream app)', 'The app\'s User ID from the same page (not your client code).'],
+          ]
       : isFirstock
         ? [
             ['API Key', 'Firstock API key. Not your Mintzy key.'],
@@ -511,6 +522,11 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
           {isAngel && (
             <p>
               Angel One is two steps: these credentials, then a 6-digit TOTP from your Angel authenticator.
+            </p>
+          )}
+          {isFivePaisa && (
+            <p>
+              5paisa is two steps: these credentials, then a 6-digit TOTP from the authenticator app linked to your 5paisa account. TOTP must be turned on for your 5paisa account, and your Xstream app must have the static IP Mintzy gave you.
             </p>
           )}
           {isFirstock && (
