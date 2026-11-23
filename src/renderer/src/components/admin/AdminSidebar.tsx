@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Activity, Users, KeyRound, ListChecks, Settings, LogOut, ShieldCheck, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Activity, Users, Layers, KeyRound, ListChecks, Settings, LogOut, ShieldCheck, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 
-export type AdminNavItem = 'live' | 'accounts' | 'keys' | 'audit' | 'settings';
+export type AdminNavItem = 'live' | 'accounts' | 'pyramid' | 'keys' | 'audit' | 'settings';
 
 const NAV_ITEMS: { id: AdminNavItem; label: string; icon: typeof Activity; masterOnly?: boolean }[] = [
   { id: 'live', label: 'Live sessions', icon: Activity },
   { id: 'accounts', label: 'Accounts', icon: Users },
+  { id: 'pyramid', label: 'Signal pyramid', icon: Layers },
   { id: 'keys', label: 'Admin keys', icon: KeyRound, masterOnly: true },
   { id: 'audit', label: 'Audit log', icon: ListChecks, masterOnly: true },
   { id: 'settings', label: 'Settings', icon: Settings },
