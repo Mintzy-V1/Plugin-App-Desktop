@@ -6,12 +6,16 @@ import AdminLivePage from './AdminLivePage';
 import AdminAccountsPage from './AdminAccountsPage';
 import AdminSessionPage from './AdminSessionPage';
 import AdminKeysPage from './AdminKeysPage';
+import AdminSignalPyramidPage from './AdminSignalPyramidPage';
 import AdminAuditPage from './AdminAuditPage';
 import SettingsPage from '../SettingsPage';
+import { ErrorBoundary } from '../../components/ui/ErrorBoundary';
+import { LoadError } from './adminFormat';
 
 const VIEW_META: Record<AdminNavItem, { title: string; subtitle: string }> = {
   live: { title: 'Live sessions', subtitle: 'Every account trading, simulating or scheduled right now' },
   accounts: { title: 'Accounts', subtitle: 'All Mintzy accounts and their sessions' },
+  pyramid: { title: 'Signal pyramid', subtitle: 'Which symbols the signal service pyramided each day, and with how much capital' },
   keys: { title: 'Admin keys', subtitle: 'Create and revoke per-admin keys' },
   audit: { title: 'Audit log', subtitle: 'Who viewed what, and when' },
   settings: { title: 'Settings', subtitle: 'Appearance and desktop preferences' },
@@ -67,6 +71,8 @@ export default function AdminApp() {
     content = <AdminLivePage onOpenSession={setSessionId} />;
   } else if (activeView === 'accounts') {
     content = <AdminAccountsPage userId={userId} onOpenUser={setUserId} onBack={() => setUserId(null)} onOpenSession={setSessionId} />;
+  } else if (activeView === 'pyramid') {
+    content = <AdminSignalPyramidPage />;
   } else if (activeView === 'keys') {
     content = <AdminKeysPage />;
   } else if (activeView === 'settings') {
@@ -90,7 +96,9 @@ export default function AdminApp() {
         />
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div key={`${activeView}:${userId ?? ''}:${sessionId ?? ''}`} className="page-pad mx-auto w-full max-w-6xl">
-            {content}
+            <ErrorBoundary fallback={(reset) => <LoadError title="This view hit unexpected data and could not be shown" onRetry={reset} />}>
+              {content}
+            </ErrorBoundary>
           </div>
         </main>
       </div>

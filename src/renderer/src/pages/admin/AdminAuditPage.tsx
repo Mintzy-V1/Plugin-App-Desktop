@@ -27,6 +27,10 @@ function describe(entry: AuditEntry): string {
   if (path === '/audit') return 'Viewed audit log';
   if (path === '/me') return 'Checked session';
   if (/^\/users\/[^/]+$/.test(path)) return 'Viewed account';
+  if (path === '/signal/pyramid') return 'Viewed signal pyramid days';
+  if (path === '/signal/status') return 'Viewed signal service status';
+  const pyramidDay = /^\/signal\/pyramid\/(\d{4}-\d{2}-\d{2})$/.exec(path)?.[1];
+  if (pyramidDay) return `Viewed signal pyramid for ${pyramidDay}`;
   const sub = /^\/sessions\/[^/]+(\/.*)?$/.exec(path)?.[1];
   if (path.startsWith('/sessions/')) return sub ? `Viewed session ${sub.slice(1)}` : 'Opened session';
   return `${entry.method} ${path}`;
