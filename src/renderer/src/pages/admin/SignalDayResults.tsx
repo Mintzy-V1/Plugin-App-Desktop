@@ -1,4 +1,4 @@
-import type { SignalDayResults, SignalDelivery } from '../../lib/adminApi';
+import type { SignalDayResults, SignalDelivery, SignalSentSignal } from '../../lib/adminApi';
 import { Card } from '../../components/ui/Card';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { formatDateTime, formatMoney, pnlClass } from './adminFormat';
@@ -69,6 +69,44 @@ function Delivery({ d, showErrors }: { d: SignalDelivery; showErrors: boolean })
   );
 }
 
+const timeIst = (ts: string | null) => {
+  const d = ts ? new Date(ts) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) : '—';
+};
+
+function SentSignals({ signals, dryRun }: { signals: SignalSentSignal[]; dryRun: Set<string> }) {
+  return (
+    <div className="mt-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Signals sent</p>
+      <table className="mt-2 w-full text-left text-xs tabular-nums">
+        <caption className="sr-only">Signals the destinations were sent this day</caption>
+        <thead className="text-[10px] uppercase tracking-wider text-muted">
+          <tr><th className="py-1 pr-3 font-semibold">Time (IST)</th><th className="py-1 pr-3 font-semibold">Symbol</th><th className="py-1 pr-3 font-semibold">Signal</th><th className="py-1 pr-3 text-right font-semibold">Shares</th><th className="py-1 pr-3 text-right font-semibold">Price</th><th className="py-1 font-semibold">Destinations</th></tr>
+        </thead>
+        <tbody className="divide-y divide-line text-secondary">
+          {signals.map((s) => (
+            <tr key={s.seq}>
+              <td className="py-1.5 pr-3">{timeIst(s.ts)}</td>
+              <td className="py-1.5 pr-3 font-medium text-ink">{s.symbol ?? '—'}</td>
+              <td className="py-1.5 pr-3">{s.action ?? '—'}{s.reason && s.reason !== 'SIGNAL' ? ` · ${s.reason}` : ''}</td>
+              <td className="py-1.5 pr-3 text-right">{s.qty_before ?? '—'} → {s.qty_after ?? '—'}</td>
+              <td className="py-1.5 pr-3 text-right">{formatMoney(s.price && s.price > 0 ? s.price : null)}</td>
+              <td className="py-1.5">
+                {s.delivery.map((d) => (
+                  <span key={d.dest} title={d.status ? help(d.status) : undefined}
+                    className={`mr-3 capitalize ${!d.status || PROBLEM_STATUSES.has(d.status) ? 'text-attention' : ''}`}>
+                    {d.dest} · {dryRun.has(d.dest) ? 'dry run' : d.status ?? '—'}
+                  </span>
+                ))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** The day's result at close: P&L (paper, before costs) and what each destination got. */
 export function SignalDayResultsCard({ results, isToday, full }: { results: SignalDayResults | null; isToday: boolean; full: boolean }) {
   if (!results) {
@@ -100,6 +138,9 @@ export function SignalDayResultsCard({ results, isToday, full }: { results: Sign
         {split && <Stat label="Morning P&L" value={results.morning_pnl} note="Paper run before 13:00, never published" />}
         <Stat label="Full day" value={results.full_day_pnl} note={split ? 'Morning + afternoon' : 'Rank-threshold day: no afternoon split'} />
       </div>
+      {results.sent_signals?.length ? (
+        <SentSignals signals={results.sent_signals} dryRun={new Set(results.delivery.filter((d) => d.dry_run).map((d) => d.dest))} />
+      ) : null}
       {results.delivery.length > 0 && (
         <div className="mt-5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Delivery</p>
