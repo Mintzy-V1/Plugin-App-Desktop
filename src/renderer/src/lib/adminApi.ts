@@ -211,6 +211,21 @@ export interface SignalDelivery {
   issues: SignalDeliveryIssue[];
 }
 
+/** One signal the destinations were sent. */
+export interface SignalSentSignal {
+  seq: number;
+  ts: string | null;
+  symbol: string | null;
+  action: string | null;
+  reason: string | null;
+  side_after: string | null;
+  qty_before: number | null;
+  qty_after: number | null;
+  price: number | null;
+  /** Per destination: sent, or the status of its first row that was not. */
+  delivery: { dest: string; status: string | null }[];
+}
+
 /** The day's result at close (paper, before costs); null before the square-off. */
 export interface SignalDayResults {
   recorded_at: string | null;
@@ -223,6 +238,8 @@ export interface SignalDayResults {
   morning_pnl: number | null;
   delivery: SignalDelivery[];
   issue_count: number;
+  /** Absent from a gateway older than this field. */
+  sent_signals?: SignalSentSignal[];
 }
 
 export interface SignalPyramidTotals {
