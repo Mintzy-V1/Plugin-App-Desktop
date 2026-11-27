@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, Info, Lightbulb, OctagonAlert } from 'lucide-react';
 import type { BrokerType } from '../components/plugin/ConnectBrokerForm';
+import FivePaisaSetup from '../components/plugin/FivePaisaSetup';
 
 export interface GuideSection {
   id: string;
@@ -182,7 +183,7 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
   const isBear = broker === 'bear_street';
   const isFirstock = broker === 'firstock';
   const isFivePaisa = broker === 'fivepaisa';
-  const isTotp = isAngel || isFirstock;
+  const isTotp = isAngel || isFirstock || isFivePaisa;
 
   const connectFields = isBear
     ? [
@@ -267,6 +268,13 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
         </>
       ),
     },
+    ...(isFivePaisa && linked
+      ? [{
+          id: 'fivepaisa-setup',
+          title: '5paisa setup (once)',
+          body: <FivePaisaSetup />,
+        }]
+      : []),
     {
       id: 'signin',
       title: 'Sign in',
@@ -584,6 +592,11 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
             After credentials are accepted you must enter the <strong>6-digit TOTP</strong> from the {name} authenticator.
             Codes rotate about every 30 seconds — always use a fresh one. Verify stays disabled until six digits are entered.
           </p>
+          {isFivePaisa && (
+            <p>
+              For 5paisa this screen also asks for your <strong>5paisa PIN</strong>. It is sent with the TOTP for this login only and never stored.
+            </p>
+          )}
           <Steps
             items={[
               'Open the authenticator for this client (not some other app’s TOTP).',

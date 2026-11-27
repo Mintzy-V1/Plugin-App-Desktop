@@ -366,7 +366,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
                 />
               </div>
               <p className="rounded-xl border border-brand/25 bg-info-soft px-3 py-2 text-[11px] leading-5 text-info">
-                Find the User Key, Encryption Key and User ID on xstream.5paisa.com under your API app. Next, enter your 5paisa PIN and the TOTP from your authenticator app.
+                Find the User Key, Encryption Key and User ID on xstream.5paisa.com under your API app. Register the static IP Mintzy assigned you on that app first (Guide → 5paisa setup). Next, enter your 5paisa PIN and the TOTP from your authenticator app.
               </p>
             </>
           )}
