@@ -201,9 +201,9 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
         ? [
             ['User Key', 'From xstream.5paisa.com: your API app (non-algo) shows it. Not your Mintzy key.'],
             ['Client Code', 'Your 5paisa client code.'],
-            ['PIN', 'Your 5paisa login PIN. Used for this login only; Mintzy never stores it.'],
             ['Encryption Key', 'From the same Xstream app page. Use the eye icon to check it.'],
             ['User ID (Xstream app)', 'The app\'s User ID from the same page (not your client code).'],
+            ['PIN (next screen)', 'Your 5paisa login PIN, entered with the TOTP. Used for this login only; Mintzy never stores it.'],
           ]
       : isFirstock
         ? [

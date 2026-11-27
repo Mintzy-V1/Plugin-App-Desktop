@@ -112,7 +112,9 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
     const secondAuth = form.secondAuth.trim();
     const vendorCode = form.vendorCode.trim();
 
-    if (!accessKey || !clientId || !secret) {
+    // 5paisa asks for the PIN on the TOTP screen: it must not reach the engine's
+    // credentials step, which stores what it is given.
+    if (!accessKey || !clientId || (!secret && !isFivePaisa)) {
       setError('Fill in all fields');
       return;
     }
@@ -155,7 +157,6 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
         encryption_key: encryptionKey,
         app_user_id: appUserId,
         client_code: clientId,
-        pin: secret,
       };
     } else if (isFirstock) {
       payload = {
@@ -254,6 +255,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
             />
           </div>
 
+          {!isFivePaisa && (
           <div>
             <label htmlFor={fields.secret.id} className="mb-2 block text-xs font-medium text-secondary">{fields.secret.placeholder}</label>
             <div className="relative">
@@ -281,6 +283,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
             </button>
             </div>
           </div>
+          )}
 
           {isBearStreet && (
             <>
@@ -377,7 +380,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
                 />
               </div>
               <p className="rounded-xl border border-brand/25 bg-info-soft px-3 py-2 text-[11px] leading-5 text-info">
-                Find the User Key, Encryption Key and User ID on xstream.5paisa.com under your API app. Next, enter the TOTP from your authenticator app.
+                Find the User Key, Encryption Key and User ID on xstream.5paisa.com under your API app. Next, enter your 5paisa PIN and the TOTP from your authenticator app.
               </p>
             </>
           )}

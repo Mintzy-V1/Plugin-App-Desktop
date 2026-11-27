@@ -90,13 +90,12 @@ export type FirstockCredentialsPayload = {
   base_url?: string;
 };
 
-/** 5paisa: the Xstream app's three keys, the client code and the PIN; the TOTP follows. */
+/** 5paisa: the Xstream app's three keys and the client code. The PIN goes with the TOTP (submitTotp). */
 export type FivePaisaCredentialsPayload = {
   user_key: string;
   encryption_key: string;
   app_user_id: string;
   client_code: string;
-  pin: string;
 };
 
 export type CredentialsPayload =
@@ -292,7 +291,8 @@ export const pluginApi = {
     return api.post<CredentialsResponse>(`${getBase()}/credentials`, payload);
   },
 
-  submitTotp(session_id: string, totp: string) {
+  /** `pin`: 5paisa only. It goes with the TOTP, never with the credentials. */
+  submitTotp(session_id: string, totp: string, pin?: string) {
     return api.post<{
       success: boolean;
       session_id: string;
@@ -303,7 +303,7 @@ export const pluginApi = {
         free_cash?: number;
         balance_details?: Record<string, unknown>;
       };
-    }>(`${getBase()}/totp`, { session_id, totp });
+    }>(`${getBase()}/totp`, pin ? { session_id, totp, pin } : { session_id, totp });
   },
 
   startTrading(payload: StartPayload) {
