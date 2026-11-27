@@ -1,38 +1,34 @@
 import api from './api';
 
-export type BrokerKey = 'tradex' | 'bear_street' | 'angle_one' | 'firstock' | 'fivepaisa' | 'unsupported';
+import { brokerFromName, brokerInfo } from './brokers';
+import type { BrokerOrUnsupported } from './brokers';
+
+export type BrokerKey = BrokerOrUnsupported;
 
 /** Shown when the account's broker is newer than this build of the app. */
 export const UNSUPPORTED_BROKER_MESSAGE =
   'Your Mintzy account uses a broker this version of Mintzy does not support. Update Mintzy from mintzy.in to continue.';
 
-/** Normalized broker key from the JWT onboard claim. */
+/** The broker from the JWT onboard claim (see lib/brokers.ts brokerFromName). */
 export const getBrokerKey = (): BrokerKey => {
   try {
     const token = localStorage.getItem('mintzy_token');
     if (token) {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      // Broker comes from Mintzy API-key onboard, e.g. "angle one" | "tradex" | "bear street"
-      const broker = String(payload.broker || '').toLowerCase().replace(/[\s_-]+/g, '');
-      if (broker === 'tradex') return 'tradex';
-      if (broker === 'bearstreet' || broker.includes('bear')) return 'bear_street';
-      if (broker === 'firstock') return 'firstock';
-      if (broker === 'fivepaisa' || broker === '5paisa') return 'fivepaisa';
-      if (broker && broker !== 'angleone' && broker !== 'angelone') return 'unsupported';
+      return brokerFromName(payload.broker);
     }
   } catch {}
-  // No broker claim (older accounts) has always meant Angel One. An unknown broker
-  // never does: sending its orders to Angel One routes would be wrong.
+  // No broker claim (older accounts) has always meant Angel One.
   return 'angle_one';
 };
 
 /** All supported brokers expose the saved-configuration leverage endpoint. */
 export const supportsLeverageMultiplier = () => true;
 
-/** Angel One and Bear Street run the sim → live pyramid flow and expose pyramid P&L. */
+/** Brokers that run the sim → live pyramid flow expose pyramid P&L (lib/brokers.ts). */
 export function supportsPyramidPnl(): boolean {
   const key = getBrokerKey();
-  return key === 'bear_street' || key === 'angle_one' || key === 'firstock' || key === 'fivepaisa';
+  return key !== 'unsupported' && brokerInfo(key).pyramid;
 }
 
 /** RMS / risk-exited symbols that never appear in the engine trade log. */
@@ -42,19 +38,15 @@ export function supportsExitedSymbols(): boolean {
 
 const getBase = () => {
   const key = getBrokerKey();
-  if (key === 'tradex') return '/api/v1/tradex';
-  if (key === 'bear_street') return '/api/v1/bear_street';
-  if (key === 'firstock') return '/api/v1/firstock';
-  if (key === 'fivepaisa') return '/api/v1/fivepaisa';
   if (key === 'unsupported') throw new Error(UNSUPPORTED_BROKER_MESSAGE);
-  return '/api/v1/angle_one';
+  return brokerInfo(key).apiPrefix;
 };
 
-/** Angel One and Bear Street use /start-simulation; TradeX keeps /start. */
+/** Angel-style brokers simulate first (/start-simulation); TradeX keeps /start. */
 const getStartPath = () => {
   const key = getBrokerKey();
-  const route = key === 'tradex' ? 'start' : 'start-simulation';
-  return `${getBase()}/${route}`;
+  if (key === 'unsupported') throw new Error(UNSUPPORTED_BROKER_MESSAGE);
+  return `${brokerInfo(key).apiPrefix}/${brokerInfo(key).startRoute}`;
 };
 
 export type AngelCredentialsPayload = {

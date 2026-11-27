@@ -4,8 +4,10 @@ import { pluginApi, UNSUPPORTED_BROKER_MESSAGE } from '../../lib/pluginApi';
 import type { CredentialsPayload } from '../../lib/pluginApi';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import { useAuth } from '../../context/AuthContext';
+import { brokerFromName, brokerInfo, brokerLabel as registryLabel } from '../../lib/brokers';
+import type { BrokerOrUnsupported } from '../../lib/brokers';
 
-export type BrokerType = 'angel' | 'tradex' | 'bear_street' | 'firstock' | 'fivepaisa' | 'unsupported';
+export type BrokerType = BrokerOrUnsupported;
 
 interface Props {
   onSuccess: (sessionId: string, requiresTotp: boolean) => void;
@@ -15,9 +17,6 @@ interface Props {
 const TRADEX_BASE_URL = 'https://tradex.markethubonline.com:30001/TradeXApi/v1';
 const BEAR_STREET_BASE_URL = 'https://connectorservices.odinconnector.co.in/interactive';
 
-/** Brokers that authenticate in one credentials call (no separate TOTP step). */
-const SKIP_TOTP_BROKERS: ReadonlySet<BrokerType> = new Set(['tradex', 'bear_street']);
-
 const inputClass =
   'w-full rounded-xl border border-line bg-surface px-4 py-3 text-sm text-ink placeholder:text-muted outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:opacity-60';
 
@@ -26,24 +25,11 @@ const sanitizeTokenLike = (value: string) => value.replace(/\s+/g, '');
 
 /** Broker is fixed at Mintzy API-key onboard — never chosen in this form. */
 export function brokerFromProfile(broker?: string | null): BrokerType {
-  const normalized = String(broker || '').toLowerCase().replace(/[\s_-]+/g, '');
-  if (normalized === 'tradex') return 'tradex';
-  if (normalized === 'bearstreet' || normalized.includes('bear')) return 'bear_street';
-  if (normalized === 'firstock') return 'firstock';
-  if (normalized === 'fivepaisa' || normalized === '5paisa') return 'fivepaisa';
-  // Only Angel One (or an account from before brokers were recorded) is Angel One.
-  // Any other broker is one this build doesn't know: never fall back to Angel One.
-  if (!normalized || normalized === 'angleone' || normalized === 'angelone') return 'angel';
-  return 'unsupported';
+  return brokerFromName(broker);
 }
 
 export function brokerLabel(broker: BrokerType): string {
-  if (broker === 'tradex') return 'TradeX';
-  if (broker === 'bear_street') return 'GLOBE CAPITALS';
-  if (broker === 'firstock') return 'Firstock';
-  if (broker === 'fivepaisa') return '5paisa';
-  if (broker === 'unsupported') return 'Unsupported broker';
-  return 'Angel One';
+  return registryLabel(broker);
 }
 
 export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
@@ -179,7 +165,7 @@ export default function ConnectBrokerForm({ onSuccess, onBack }: Props) {
       const res = await pluginApi.submitCredentials(payload);
       if (res.data?.success) {
         const status = String((res.data as any).status || '').toLowerCase();
-        const requiresTotp = SKIP_TOTP_BROKERS.has(broker)
+        const requiresTotp = brokerInfo(broker).skipTotp
           ? false
           : (res.data.requires_totp === true
             || status === 'awaiting_totp'

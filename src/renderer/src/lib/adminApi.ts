@@ -2,6 +2,8 @@ import axios from 'axios';
 import type { SessionEvent } from './sessionEvents';
 import type { SessionDataSource } from './sessionDataSource';
 import type { DashboardData, LivePnlResponse, PnlSnapshot, TradingSession } from './pluginApi';
+import { brokerInfo, isBrokerKey } from './brokers';
+import type { BrokerKey } from './brokers';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://gateway.mintzy.in';
 const TOKEN_KEY = 'mintzy_admin_token';
@@ -54,7 +56,7 @@ adminHttp.interceptors.response.use(
 // --- Types --------------------------------------------------------------------
 
 export type AdminRole = 'admin' | 'master';
-export type AdminBroker = 'angle_one' | 'tradex' | 'bear_street' | 'firstock' | 'fivepaisa';
+export type AdminBroker = BrokerKey;
 export type SessionPhase = 'live' | 'simulation' | 'scheduled';
 
 export interface AdminLoginResponse {
@@ -225,16 +227,13 @@ export const adminApi = {
   },
 };
 
-/** Brokers that run the simulation → live pyramid flow (mirrors pluginApi.supportsPyramidPnl). */
-const PYRAMID_BROKERS: AdminBroker[] = ['angle_one', 'bear_street', 'firstock', 'fivepaisa'];
-
 /**
  * Session data source for the live dashboard components, reading any user's
  * session through the admin API. Pyramid support follows the session's broker,
  * not the (absent) user JWT.
  */
 export function createAdminSessionSource(broker: AdminBroker | null | undefined): SessionDataSource {
-  const pyramid = broker != null && PYRAMID_BROKERS.includes(broker);
+  const pyramid = isBrokerKey(broker) && brokerInfo(broker).pyramid;
   const path = (sessionId: string, suffix = '') => `/sessions/${enc(sessionId)}${suffix}`;
 
   return {

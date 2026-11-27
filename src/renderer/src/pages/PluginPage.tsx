@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Code2, Plus } from 'lucide-react';
 import ConnectBrokerForm, { brokerFromProfile } from '../components/plugin/ConnectBrokerForm';
+import { brokerInfo } from '../lib/brokers';
 import { useAuth } from '../context/AuthContext';
 import TwoFactorAuth from '../components/plugin/TwoFactorAuth';
 import SessionConfigForm from '../components/plugin/SessionConfigForm';
@@ -29,7 +30,7 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
   const toast = useToast();
   const { user } = useAuth();
   const broker = brokerFromProfile(user?.broker);
-  const skipTotp = broker === 'tradex' || broker === 'bear_street';
+  const skipTotp = broker !== 'unsupported' && brokerInfo(broker).skipTotp;
   const [view, setView] = useState<PluginView>(() => {
     if (!initialSession?.python_session_id) return 'empty';
     if (isConfigurableSessionStatus(initialSession.status) && !hasPendingScheduledStart(initialSession)) return 'config';

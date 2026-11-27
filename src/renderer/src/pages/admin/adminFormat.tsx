@@ -1,5 +1,6 @@
 import { Pagination } from '../../components/ui/Pagination';
 import type { AdminBroker, SessionPhase } from '../../lib/adminApi';
+import { BROKERS } from '../../lib/brokers';
 
 export function formatMoney(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -33,12 +34,8 @@ export function formatAge(seconds: number | null | undefined): string {
 }
 
 const BROKER_LABELS: Record<string, string> = {
-  angle_one: 'Angel One',
+  ...Object.fromEntries(BROKERS.map((b) => [b.key, b.adminLabel])),
   'angle one': 'Angel One',
-  tradex: 'TradeX',
-  bear_street: 'Bear Street',
-  firstock: 'Firstock',
-  fivepaisa: '5paisa',
 };
 
 export function brokerLabel(broker: AdminBroker | string | null | undefined): string {
@@ -46,13 +43,8 @@ export function brokerLabel(broker: AdminBroker | string | null | undefined): st
   return BROKER_LABELS[broker] ?? broker;
 }
 
-export const BROKER_OPTIONS: { value: AdminBroker; label: string }[] = [
-  { value: 'angle_one', label: 'Angel One' },
-  { value: 'tradex', label: 'TradeX' },
-  { value: 'bear_street', label: 'Bear Street' },
-  { value: 'firstock', label: 'Firstock' },
-  { value: 'fivepaisa', label: '5paisa' },
-];
+export const BROKER_OPTIONS: { value: AdminBroker; label: string }[] =
+  BROKERS.map((b) => ({ value: b.key, label: b.adminLabel }));
 
 const PHASE_STYLES: Record<SessionPhase, string> = {
   live: 'bg-gain-soft text-gain ring-gain/25',

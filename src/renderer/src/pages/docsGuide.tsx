@@ -9,7 +9,7 @@ export interface GuideSection {
 }
 
 const BROKER_NAME: Record<BrokerType, string> = {
-  angel: 'Angel One',
+  angle_one: 'Angel One',
   tradex: 'TradeX',
   bear_street: 'GLOBE CAPITALS',
   firstock: 'Firstock',
@@ -177,7 +177,7 @@ function Sub({ title, children }: { title: string; children: ReactNode }) {
 
 export function buildGuide(broker: BrokerType, linked: boolean): { name: string; sections: GuideSection[] } {
   const name = BROKER_NAME[broker];
-  const isAngel = broker === 'angel';
+  const isAngel = broker === 'angle_one';
   const isTradex = broker === 'tradex';
   const isBear = broker === 'bear_street';
   const isFirstock = broker === 'firstock';

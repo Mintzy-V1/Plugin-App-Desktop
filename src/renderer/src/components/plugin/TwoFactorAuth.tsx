@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Shield } from 'lucide-reac
 import { pluginApi } from '../../lib/pluginApi';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
 import { useAuth } from '../../context/AuthContext';
-import { brokerFromProfile } from './ConnectBrokerForm';
+import { brokerFromName, brokerInfo } from '../../lib/brokers';
 
 interface Props {
   sessionId: string;
@@ -31,7 +31,8 @@ function extractFreeCash(data: Record<string, any> | undefined | null): number |
 export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
   const { user } = useAuth();
   // 5paisa takes the PIN here, with the TOTP, so it never goes to the credentials step.
-  const needsPin = brokerFromProfile(user?.broker) === 'fivepaisa';
+  const broker = brokerFromName(user?.broker);
+  const needsPin = broker !== 'unsupported' && brokerInfo(broker).pinWithTotp;
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [totp, setTotp] = useState('');
