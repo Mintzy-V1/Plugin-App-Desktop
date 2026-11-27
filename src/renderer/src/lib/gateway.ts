@@ -35,3 +35,19 @@ export async function refreshJwt(): Promise<{ jwt: string }> {
   });
   return res.data;
 }
+
+export interface EgressAssignment {
+  broker: string;
+  static_ip: string;
+  client_code: string | null;
+  /** assigned: register it with your broker; active: orders from it have been verified. */
+  status: 'assigned' | 'active';
+  assigned_at: string | null;
+  updated_at: string | null;
+}
+
+/** Static IPs Mintzy assigned to the signed-in user's broker accounts. Empty: none yet. */
+export async function getMyEgress(): Promise<EgressAssignment[]> {
+  const res = await api.get('/api/v1/users/me/egress');
+  return Array.isArray(res.data?.assignments) ? res.data.assignments : [];
+}

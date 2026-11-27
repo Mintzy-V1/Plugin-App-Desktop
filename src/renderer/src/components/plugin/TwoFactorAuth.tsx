@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Loader2, Shield } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Shield } from 'lucide-react';
 import { pluginApi } from '../../lib/pluginApi';
 import { pluginErrorMessage } from '../../lib/pluginErrors';
+import { useAuth } from '../../context/AuthContext';
+import { brokerFromName, brokerInfo } from '../../lib/brokers';
 
 interface Props {
   sessionId: string;
@@ -27,17 +29,24 @@ function extractFreeCash(data: Record<string, any> | undefined | null): number |
 }
 
 export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
+  const { user } = useAuth();
+  // 5paisa takes the PIN here, with the TOTP, so it never goes to the credentials step.
+  const broker = brokerFromName(user?.broker);
+  const needsPin = broker !== 'unsupported' && brokerInfo(broker).pinWithTotp;
+  const [pin, setPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
   const [totp, setTotp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (needsPin && !pin.trim()) { setError('Enter your 5paisa PIN'); return; }
     if (totp.length !== 6) { setError('Enter a 6-digit code'); return; }
     setLoading(true);
     setError(null);
     try {
-      const res = await pluginApi.submitTotp(sessionId, totp);
+      const res = await pluginApi.submitTotp(sessionId, totp, needsPin ? pin.trim() : undefined);
       const freeCash = extractFreeCash(res.data as Record<string, any>);
       onSuccess({ freeCash });
     } catch (err: unknown) {
@@ -62,14 +71,31 @@ export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
             <Shield className="h-6 w-6" aria-hidden="true" />
           </div>
           <h2 className="font-serif text-3xl text-ink">Two-Factor Auth</h2>
-          <p className="mt-1 text-sm text-muted">Enter the 6-digit TOTP from your broker authenticator</p>
+          <p className="mt-1 text-sm text-muted">
+            {needsPin ? 'Enter your 5paisa PIN and the 6-digit TOTP from your authenticator' : 'Enter the 6-digit TOTP from your broker authenticator'}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {needsPin && (
+            <div>
+              <label htmlFor="broker-pin" className="mb-2 block text-xs font-medium text-secondary">5paisa PIN</label>
+              <div className="relative">
+                <input id="broker-pin" type={showPin ? 'text' : 'password'} inputMode="numeric" placeholder="PIN" value={pin}
+                  autoComplete="current-password" autoFocus disabled={loading}
+                  onChange={e => { setPin(e.target.value); setError(null); }}
+                  className="w-full rounded-xl border border-line bg-subtle px-4 py-3 pr-11 text-sm text-ink outline-none transition focus:border-gain focus:ring-2 focus:ring-gain/15" />
+                <button type="button" onClick={() => setShowPin(v => !v)} aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition-colors hover:text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40">
+                  {showPin ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                </button>
+              </div>
+            </div>
+          )}
           <div>
             <label htmlFor="totp-code" className="sr-only">6-digit authentication code</label>
             <input id="totp-code" type="text" inputMode="numeric" maxLength={6} placeholder="000000" value={totp}
-              autoComplete="one-time-code" autoFocus disabled={loading}
+              autoComplete="one-time-code" autoFocus={!needsPin} disabled={loading}
               onChange={e => { setTotp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError(null); }}
               className="w-full rounded-xl border border-line bg-subtle px-4 py-3 text-center text-2xl font-bold tracking-[0.3em] text-ink outline-none transition focus:border-gain focus:ring-2 focus:ring-gain/15" />
             <p className="mt-2 text-center text-[11px] text-muted">Codes expire every 30 seconds — use a fresh one</p>
@@ -79,7 +105,7 @@ export default function TwoFactorAuth({ sessionId, onSuccess, onBack }: Props) {
             <div role="alert" className="rounded-xl border border-loss/25 bg-loss-soft px-4 py-3 text-center text-sm font-medium text-loss">{error}</div>
           )}
 
-          <button type="submit" disabled={loading || totp.length !== 6}
+          <button type="submit" disabled={loading || totp.length !== 6 || (needsPin && !pin.trim())}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-on-primary transition-all hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Verifying…</> : <>Verify <ArrowRight className="h-5 w-5" aria-hidden="true" /></>}
           </button>

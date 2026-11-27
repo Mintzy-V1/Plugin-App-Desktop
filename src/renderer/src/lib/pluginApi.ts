@@ -1,30 +1,34 @@
 import api from './api';
 
-export type BrokerKey = 'tradex' | 'bear_street' | 'angle_one' | 'firstock';
+import { brokerFromName, brokerInfo } from './brokers';
+import type { BrokerOrUnsupported } from './brokers';
 
-/** Normalized broker key from the JWT onboard claim. */
+export type BrokerKey = BrokerOrUnsupported;
+
+/** Shown when the account's broker is newer than this build of the app. */
+export const UNSUPPORTED_BROKER_MESSAGE =
+  'Your Mintzy account uses a broker this version of Mintzy does not support. Update Mintzy from mintzy.in to continue.';
+
+/** The broker from the JWT onboard claim (see lib/brokers.ts brokerFromName). */
 export const getBrokerKey = (): BrokerKey => {
   try {
     const token = localStorage.getItem('mintzy_token');
     if (token) {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      // Broker comes from Mintzy API-key onboard, e.g. "angle one" | "tradex" | "bear street"
-      const broker = String(payload.broker || '').toLowerCase().replace(/[\s_-]+/g, '');
-      if (broker === 'tradex') return 'tradex';
-      if (broker === 'bearstreet' || broker.includes('bear')) return 'bear_street';
-      if (broker === 'firstock') return 'firstock';
+      return brokerFromName(payload.broker);
     }
   } catch {}
+  // No broker claim (older accounts) has always meant Angel One.
   return 'angle_one';
 };
 
 /** All supported brokers expose the saved-configuration leverage endpoint. */
 export const supportsLeverageMultiplier = () => true;
 
-/** Angel One and Bear Street run the sim → live pyramid flow and expose pyramid P&L. */
+/** Brokers that run the sim → live pyramid flow expose pyramid P&L (lib/brokers.ts). */
 export function supportsPyramidPnl(): boolean {
   const key = getBrokerKey();
-  return key === 'bear_street' || key === 'angle_one' || key === 'firstock';
+  return key !== 'unsupported' && brokerInfo(key).pyramid;
 }
 
 /** RMS / risk-exited symbols that never appear in the engine trade log. */
@@ -34,17 +38,15 @@ export function supportsExitedSymbols(): boolean {
 
 const getBase = () => {
   const key = getBrokerKey();
-  if (key === 'tradex') return '/api/v1/tradex';
-  if (key === 'bear_street') return '/api/v1/bear_street';
-  if (key === 'firstock') return '/api/v1/firstock';
-  return '/api/v1/angle_one';
+  if (key === 'unsupported') throw new Error(UNSUPPORTED_BROKER_MESSAGE);
+  return brokerInfo(key).apiPrefix;
 };
 
-/** Angel One and Bear Street use /start-simulation; TradeX keeps /start. */
+/** Angel-style brokers simulate first (/start-simulation); TradeX keeps /start. */
 const getStartPath = () => {
   const key = getBrokerKey();
-  const route = key === 'tradex' ? 'start' : 'start-simulation';
-  return `${getBase()}/${route}`;
+  if (key === 'unsupported') throw new Error(UNSUPPORTED_BROKER_MESSAGE);
+  return `${brokerInfo(key).apiPrefix}/${brokerInfo(key).startRoute}`;
 };
 
 export type AngelCredentialsPayload = {
@@ -80,11 +82,20 @@ export type FirstockCredentialsPayload = {
   base_url?: string;
 };
 
+/** 5paisa: the Xstream app's three keys and the client code. The PIN goes with the TOTP (submitTotp). */
+export type FivePaisaCredentialsPayload = {
+  user_key: string;
+  encryption_key: string;
+  app_user_id: string;
+  client_code: string;
+};
+
 export type CredentialsPayload =
   | AngelCredentialsPayload
   | TradeXCredentialsPayload
   | BearStreetCredentialsPayload
-  | FirstockCredentialsPayload;
+  | FirstockCredentialsPayload
+  | FivePaisaCredentialsPayload;
 
 export interface CredentialsResponse {
   success: boolean;
@@ -272,7 +283,8 @@ export const pluginApi = {
     return api.post<CredentialsResponse>(`${getBase()}/credentials`, payload);
   },
 
-  submitTotp(session_id: string, totp: string) {
+  /** `pin`: 5paisa only. It goes with the TOTP, never with the credentials. */
+  submitTotp(session_id: string, totp: string, pin?: string) {
     return api.post<{
       success: boolean;
       session_id: string;
@@ -283,7 +295,7 @@ export const pluginApi = {
         free_cash?: number;
         balance_details?: Record<string, unknown>;
       };
-    }>(`${getBase()}/totp`, { session_id, totp });
+    }>(`${getBase()}/totp`, pin ? { session_id, totp, pin } : { session_id, totp });
   },
 
   startTrading(payload: StartPayload) {

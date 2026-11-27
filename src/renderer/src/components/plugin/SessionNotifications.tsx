@@ -2,7 +2,8 @@ import { Pagination } from '../ui/Pagination';
 import { usePagination } from '../../lib/usePagination';
 import { useState } from 'react';
 import { BellOff, ChevronDown, ChevronRight, Copy } from 'lucide-react';
-import { SEVERITY_LABEL, SEVERITY_STYLE, type SessionEvent } from '../../lib/sessionEvents';
+import { SEVERITY_LABEL, SEVERITY_STYLE, eventActionFor, type SessionEvent } from '../../lib/sessionEvents';
+import { getBrokerKey } from '../../lib/pluginApi';
 
 interface Props {
   events: SessionEvent[];
@@ -96,6 +97,8 @@ export default function SessionNotifications({ events, raw, expired, expiresAt, 
       )}
       <ul className="divide-y divide-line">
         {(raw ? events : pagination.rows).map((e) => {
+          // The user view speaks the user's broker; the admin view keeps the engine's text.
+          const action = raw ? e.action : eventActionFor(e, getBrokerKey());
           const style = SEVERITY_STYLE[e.severity];
           const isOpen = !!open[e.event_id];
           const isUnread = unread.has(e.event_id);
@@ -120,7 +123,7 @@ export default function SessionNotifications({ events, raw, expired, expiresAt, 
                 </span>
               </div>
               {e.message && <p className="mt-1 text-[13px] leading-relaxed text-secondary">{e.message}</p>}
-              {e.action && <p className="mt-1 text-[12px] leading-relaxed text-muted"><span className="font-semibold">What you can do:</span> {e.action}</p>}
+              {action && <p className="mt-1 text-[12px] leading-relaxed text-muted"><span className="font-semibold">What you can do:</span> {action}</p>}
               <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted">
                 <span className="font-mono">Ref {e.event_id}</span>
                 {raw && (

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, Info, Lightbulb, OctagonAlert } from 'lucide-react';
 import type { BrokerType } from '../components/plugin/ConnectBrokerForm';
+import FivePaisaSetup from '../components/plugin/FivePaisaSetup';
 
 export interface GuideSection {
   id: string;
@@ -9,10 +10,12 @@ export interface GuideSection {
 }
 
 const BROKER_NAME: Record<BrokerType, string> = {
-  angel: 'Angel One',
+  angle_one: 'Angel One',
   tradex: 'TradeX',
   bear_street: 'GLOBE CAPITALS',
   firstock: 'Firstock',
+  fivepaisa: '5paisa',
+  unsupported: 'your broker',
 };
 
 const CALLOUT = {
@@ -175,11 +178,12 @@ function Sub({ title, children }: { title: string; children: ReactNode }) {
 
 export function buildGuide(broker: BrokerType, linked: boolean): { name: string; sections: GuideSection[] } {
   const name = BROKER_NAME[broker];
-  const isAngel = broker === 'angel';
+  const isAngel = broker === 'angle_one';
   const isTradex = broker === 'tradex';
   const isBear = broker === 'bear_street';
   const isFirstock = broker === 'firstock';
-  const isTotp = isAngel || isFirstock;
+  const isFivePaisa = broker === 'fivepaisa';
+  const isTotp = isAngel || isFirstock || isFivePaisa;
 
   const connectFields = isBear
     ? [
@@ -194,6 +198,14 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
           ['Client ID / User ID', 'Your TradeX client id.'],
           ['Access Secret / Secret Key / JWT 2', 'Second TradeX token. Do not wrap it in quotes.'],
         ]
+      : isFivePaisa
+        ? [
+            ['User Key', 'From xstream.5paisa.com: your API app (non-algo) shows it. Not your Mintzy key.'],
+            ['Client Code', 'Your 5paisa client code.'],
+            ['Encryption Key', 'From the same Xstream app page. Use the eye icon to check it.'],
+            ['User ID (Xstream app)', 'The app\'s User ID from the same page (not your client code).'],
+            ['PIN (next screen)', 'Your 5paisa login PIN, entered with the TOTP. Used for this login only; Mintzy never stores it.'],
+          ]
       : isFirstock
         ? [
             ['API Key', 'Firstock API key. Not your Mintzy key.'],
@@ -256,6 +268,13 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
         </>
       ),
     },
+    ...(isFivePaisa && linked
+      ? [{
+          id: 'fivepaisa-setup',
+          title: '5paisa setup (once)',
+          body: <FivePaisaSetup />,
+        }]
+      : []),
     {
       id: 'signin',
       title: 'Sign in',
@@ -513,6 +532,11 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
               Angel One is two steps: these credentials, then a 6-digit TOTP from your Angel authenticator.
             </p>
           )}
+          {isFivePaisa && (
+            <p>
+              5paisa is two steps: these credentials, then a 6-digit TOTP from the authenticator app linked to your 5paisa account. TOTP must be turned on for your 5paisa account, and your Xstream app must have the static IP Mintzy gave you.
+            </p>
+          )}
           {isFirstock && (
             <p>
               Firstock is two steps: these credentials (including vendor code), then a 6-digit TOTP from your Firstock authenticator.
@@ -568,6 +592,11 @@ export function buildGuide(broker: BrokerType, linked: boolean): { name: string;
             After credentials are accepted you must enter the <strong>6-digit TOTP</strong> from the {name} authenticator.
             Codes rotate about every 30 seconds — always use a fresh one. Verify stays disabled until six digits are entered.
           </p>
+          {isFivePaisa && (
+            <p>
+              For 5paisa this screen also asks for your <strong>5paisa PIN</strong>. It is sent with the TOTP for this login only and never stored.
+            </p>
+          )}
           <Steps
             items={[
               'Open the authenticator for this client (not some other app’s TOTP).',

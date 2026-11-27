@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Code2, Plus } from 'lucide-react';
 import ConnectBrokerForm, { brokerFromProfile } from '../components/plugin/ConnectBrokerForm';
+import { brokerInfo } from '../lib/brokers';
+import MorningLoginBanner from '../components/plugin/MorningLoginBanner';
 import { useAuth } from '../context/AuthContext';
 import TwoFactorAuth from '../components/plugin/TwoFactorAuth';
 import SessionConfigForm from '../components/plugin/SessionConfigForm';
@@ -29,7 +31,7 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
   const toast = useToast();
   const { user } = useAuth();
   const broker = brokerFromProfile(user?.broker);
-  const skipTotp = broker === 'tradex' || broker === 'bear_street';
+  const skipTotp = broker !== 'unsupported' && brokerInfo(broker).skipTotp;
   const [view, setView] = useState<PluginView>(() => {
     if (!initialSession?.python_session_id) return 'empty';
     if (isConfigurableSessionStatus(initialSession.status) && !hasPendingScheduledStart(initialSession)) return 'config';
@@ -179,6 +181,7 @@ export default function PluginPage({ initialSession = null }: { initialSession?:
               onConfigure={() => setView('config')}
             />
           )}
+          {(['empty','broker','2fa','config'] as PluginView[]).includes(view) && <MorningLoginBanner broker={broker} />}
           {(['broker','2fa','config'] as PluginView[]).includes(view) && <ol aria-label="Session setup progress" className="mx-auto mb-7 flex w-full max-w-xl items-center justify-center gap-3 text-xs text-muted">
             {(skipTotp ? [{id:'broker',label:'Connect broker'},{id:'config',label:'Configure'}] : [{id:'broker',label:'Connect broker'},{id:'2fa',label:'Verify'},{id:'config',label:'Configure'}]).map((step, index) => <li key={step.id} aria-current={step.id === view ? 'step' : undefined} className={`flex items-center gap-2 ${step.id === view ? 'font-semibold text-ink' : ''}`}><span className={`flex h-6 w-6 items-center justify-center rounded-full border ${step.id === view ? 'border-brand bg-gain-soft text-gain' : 'border-line bg-surface'}`}>{index+1}</span>{step.label}</li>)}
           </ol>}

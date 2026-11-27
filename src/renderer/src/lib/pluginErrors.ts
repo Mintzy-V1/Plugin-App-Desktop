@@ -1,3 +1,6 @@
+import { brokerHelp } from './brokers';
+import { getBrokerKey } from './pluginApi';
+
 /**
  * End-user facing error helpers.
  * Never surface stacks, HTTP jargon, axios text, or gateway wrapper noise.
@@ -46,6 +49,7 @@ export function pluginErrorMessage(
 ): string {
   const { raw, status } = extractRawMessage(err);
   const lower = raw.toLowerCase();
+  const help = brokerHelp(getBrokerKey());
 
   if (!raw && status === 401) {
     return 'Your session expired. Please sign in again.';
@@ -82,7 +86,7 @@ export function pluginErrorMessage(
     return 'Mintzy cannot reach your broker right now. This is on Mintzy’s side, not your account. Please try again shortly, or contact Mintzy support if it continues.';
   }
   if (/static ip|whitelist|white list|ip not allowed|unknown ip|unauthorized ip|invalid ip|ip address not/.test(lower)) {
-    return 'Your broker refused the connection because Mintzy’s IP address is not on your API app’s allowed list. Add Mintzy’s static IP in your broker’s API settings (Angel One: SmartAPI › My Apps › Static IP) and try again.';
+    return help.staticIp;
   }
   if (/invalid mpin|wrong mpin|ab1007|invalid pin/.test(lower)) {
     return 'Your broker rejected the MPIN / PIN. Too many wrong attempts can lock the account for the day. Check it and try again.';
@@ -90,11 +94,17 @@ export function pluginErrorMessage(
   if (/forbidden|status: 403|access denied|permission denied/.test(lower)) {
     return 'Your broker refused access for this account. Check the allowed IPs and trading permission on your broker API app, then try again.';
   }
-  if (/invalid token|token expired|jwt expired|ag8001|ag8002|ag8003|session_expired_relogin_required/.test(lower)) {
+  if (/invalid token|token expired|jwt expired|ag8001|ag8002|ag8003|session_expired_relogin_required|invalid session/.test(lower)) {
     return 'Your broker session has expired. Log in to your broker again from Mintzy.';
   }
   if (/invalid api key|app not found/.test(lower)) {
-    return 'Invalid Angel One API key. Check the key in the Angel SmartAPI portal and try again.';
+    return help.apiKey;
+  }
+  if (/totp not enabled|two factor authentication is not enabled/.test(lower)) {
+    return 'TOTP is not turned on for this broker account. Turn it on in your broker’s app first, then try again.';
+  }
+  if (/temporarily unavailable|http 429|request limit/.test(lower)) {
+    return 'Your broker is temporarily unavailable or busy. Mintzy keeps retrying; try again in a minute if this was a login.';
   }
   if (/invalid.*totp|totp.*invalid|incorrect.*otp|otp.*expired/.test(lower)) {
     return 'Invalid or expired TOTP. Wait for a new code in your authenticator and try again.';
@@ -106,7 +116,7 @@ export function pluginErrorMessage(
     const nested = raw.replace(/^Authentication failed:\s*/i, '').trim();
     if (nested && nested.toLowerCase() !== lower) {
       if (/invalid api key|app not found/i.test(nested)) {
-        return 'Invalid Angel One API key. Check the key in the Angel SmartAPI portal and try again.';
+        return help.apiKey;
       }
       if (!looksTechnical(nested)) {
         return `Broker authentication failed: ${nested}`;
