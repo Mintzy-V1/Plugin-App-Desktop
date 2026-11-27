@@ -30,33 +30,58 @@ export interface BrokerInfo {
   pinWithTotp: boolean;
   /** Names the gateway may use for it, normalised (lower case, no spaces, _ or -). */
   names: readonly string[];
+  /** What to tell the user for broker-side problems, in this broker's own terms. */
+  help: BrokerHelp;
 }
+
+export interface BrokerHelp {
+  /** The broker refused the API key / app keys. */
+  apiKey: string;
+  /** The broker refused an order because it came from an IP not registered on the API app. */
+  staticIp: string;
+}
+
+const GENERIC_HELP: BrokerHelp = {
+  apiKey: 'Your broker rejected the API key. Check it in your broker’s API settings and connect again.',
+  staticIp: 'Your broker refused the connection because Mintzy’s IP address is not on your API app’s allowed list. Add Mintzy’s static IP in your broker’s API settings and try again.',
+};
 
 export const BROKERS: readonly BrokerInfo[] = [
   {
     key: 'angle_one', label: 'Angel One', adminLabel: 'Angel One', apiPrefix: '/api/v1/angle_one',
     startRoute: 'start-simulation', pyramid: true, skipTotp: false, pinWithTotp: false,
     names: ['angleone', 'angelone'],
+    help: {
+      apiKey: 'Invalid Angel One API key. Check the key in the Angel SmartAPI portal and try again.',
+      staticIp: 'Your broker refused the connection because Mintzy’s IP address is not on your API app’s allowed list. Add Mintzy’s static IP in your broker’s API settings (Angel One: SmartAPI › My Apps › Static IP) and try again.',
+    },
   },
   {
     key: 'tradex', label: 'TradeX', adminLabel: 'TradeX', apiPrefix: '/api/v1/tradex',
     startRoute: 'start', pyramid: false, skipTotp: true, pinWithTotp: false,
     names: ['tradex'],
+    help: GENERIC_HELP,
   },
   {
     key: 'bear_street', label: 'GLOBE CAPITALS', adminLabel: 'Bear Street', apiPrefix: '/api/v1/bear_street',
     startRoute: 'start-simulation', pyramid: true, skipTotp: true, pinWithTotp: false,
     names: ['bearstreet', 'bear'],
+    help: GENERIC_HELP,
   },
   {
     key: 'firstock', label: 'Firstock', adminLabel: 'Firstock', apiPrefix: '/api/v1/firstock',
     startRoute: 'start-simulation', pyramid: true, skipTotp: false, pinWithTotp: false,
     names: ['firstock'],
+    help: GENERIC_HELP,
   },
   {
     key: 'fivepaisa', label: '5paisa', adminLabel: '5paisa', apiPrefix: '/api/v1/fivepaisa',
     startRoute: 'start-simulation', pyramid: true, skipTotp: false, pinWithTotp: true,
     names: ['fivepaisa', '5paisa'],
+    help: {
+      apiKey: '5paisa did not accept your User Key or Encryption Key. Check them on xstream.5paisa.com under your API app, then connect again.',
+      staticIp: '5paisa refused the order because it did not come from the static IP registered on your Xstream API app. Register the IP shown in Guide › 5paisa setup on that app (xstream.5paisa.com), then try again.',
+    },
   },
 ];
 
@@ -97,4 +122,9 @@ export function isBrokerKey(value: unknown): value is BrokerKey {
 /** The user-facing name; 'unsupported' reads as a sentence fragment ("your broker"). */
 export function brokerLabel(broker: BrokerOrUnsupported, unsupported = 'Unsupported broker'): string {
   return broker === 'unsupported' ? unsupported : brokerInfo(broker).label;
+}
+
+/** Help for a broker, or the generic wording for one this build doesn't know. */
+export function brokerHelp(broker: BrokerOrUnsupported): BrokerHelp {
+  return broker === 'unsupported' ? GENERIC_HELP : brokerInfo(broker).help;
 }

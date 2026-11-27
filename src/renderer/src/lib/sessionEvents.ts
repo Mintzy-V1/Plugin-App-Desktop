@@ -1,3 +1,6 @@
+import { brokerHelp } from './brokers';
+import type { BrokerHelp, BrokerOrUnsupported } from './brokers';
+
 /**
  * Session error events from the trading engine (gateway: GET /sessions/:id/events for the
  * owner, /admin/sessions/:id/events raw for admins).
@@ -9,6 +12,22 @@
  */
 
 export type EventSeverity = 'critical' | 'error' | 'warning' | 'info';
+
+/**
+ * The engine's "what you can do" text for broker-account problems names Angel
+ * One's screens (it comes from kelly-opt's error_events.py). For a user on
+ * another broker, give the same advice in that broker's terms.
+ */
+const BROKER_SPECIFIC_ACTION: Record<string, keyof BrokerHelp> = {
+  IP_NOT_WHITELISTED: 'staticIp',
+  BROKER_INVALID_API_KEY: 'apiKey',
+};
+
+export function eventActionFor(event: Pick<SessionEvent, 'code' | 'action'>, broker: BrokerOrUnsupported): string | undefined {
+  const key = BROKER_SPECIFIC_ACTION[event.code];
+  if (!key || broker === 'angle_one') return event.action;
+  return brokerHelp(broker)[key];
+}
 
 export interface SessionEventRaw {
   message?: string;
