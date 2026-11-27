@@ -28,6 +28,8 @@ export interface BrokerInfo {
   skipTotp: boolean;
   /** Takes the PIN on the TOTP screen instead of the credentials form (5paisa). */
   pinWithTotp: boolean;
+  /** Show "log in before 10:30" on weekday mornings (the user must log in by hand each day). */
+  morningLoginBanner: boolean;
   /** Names the gateway may use for it, normalised (lower case, no spaces, _ or -). */
   names: readonly string[];
   /** What to tell the user for broker-side problems, in this broker's own terms. */
@@ -49,7 +51,7 @@ const GENERIC_HELP: BrokerHelp = {
 export const BROKERS: readonly BrokerInfo[] = [
   {
     key: 'angle_one', label: 'Angel One', adminLabel: 'Angel One', apiPrefix: '/api/v1/angle_one',
-    startRoute: 'start-simulation', pyramid: true, skipTotp: false, pinWithTotp: false,
+    startRoute: 'start-simulation', pyramid: true, skipTotp: false, pinWithTotp: false, morningLoginBanner: false,
     names: ['angleone', 'angelone'],
     help: {
       apiKey: 'Invalid Angel One API key. Check the key in the Angel SmartAPI portal and try again.',
@@ -58,25 +60,25 @@ export const BROKERS: readonly BrokerInfo[] = [
   },
   {
     key: 'tradex', label: 'TradeX', adminLabel: 'TradeX', apiPrefix: '/api/v1/tradex',
-    startRoute: 'start', pyramid: false, skipTotp: true, pinWithTotp: false,
+    startRoute: 'start', pyramid: false, skipTotp: true, pinWithTotp: false, morningLoginBanner: false,
     names: ['tradex'],
     help: GENERIC_HELP,
   },
   {
     key: 'bear_street', label: 'GLOBE CAPITALS', adminLabel: 'Bear Street', apiPrefix: '/api/v1/bear_street',
-    startRoute: 'start-simulation', pyramid: true, skipTotp: true, pinWithTotp: false,
+    startRoute: 'start-simulation', pyramid: true, skipTotp: true, pinWithTotp: false, morningLoginBanner: false,
     names: ['bearstreet', 'bear'],
     help: GENERIC_HELP,
   },
   {
     key: 'firstock', label: 'Firstock', adminLabel: 'Firstock', apiPrefix: '/api/v1/firstock',
-    startRoute: 'start-simulation', pyramid: true, skipTotp: false, pinWithTotp: false,
+    startRoute: 'start-simulation', pyramid: true, skipTotp: false, pinWithTotp: false, morningLoginBanner: false,
     names: ['firstock'],
     help: GENERIC_HELP,
   },
   {
     key: 'fivepaisa', label: '5paisa', adminLabel: '5paisa', apiPrefix: '/api/v1/fivepaisa',
-    startRoute: 'start-simulation', pyramid: true, skipTotp: false, pinWithTotp: true,
+    startRoute: 'start-simulation', pyramid: true, skipTotp: false, pinWithTotp: true, morningLoginBanner: true,
     names: ['fivepaisa', '5paisa'],
     help: {
       apiKey: '5paisa did not accept your User Key or Encryption Key. Check them on xstream.5paisa.com under your API app, then connect again.',
